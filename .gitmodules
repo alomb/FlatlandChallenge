@@ -1,0 +1,3 @@
+[submodule "modules/MARL-Papers"]
+	path = modules/MARL-Papers
+	url = https://github.com/LantaoYu/MARL-Papers.git
