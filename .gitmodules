@@ -1,3 +1,6 @@
 [submodule "modules/MARL-Papers"]
 	path = modules/MARL-Papers
 	url = https://github.com/LantaoYu/MARL-Papers.git
+[submodule "modules/flatland-challenge-starter-kit"]
+	path = modules/flatland-challenge-starter-kit
+	url = https://github.com/AIcrowd/flatland-challenge-starter-kit.git
