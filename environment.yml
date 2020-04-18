@@ -1,0 +1,14 @@
+name: flatland
+channels:
+  - anaconda
+  - conda-forge
+  - defaults
+dependencies:
+  - cairosvg
+  - pycairo
+  - tk
+  - pip
+  - pip:
+    - flatland-rl
+    - jupyter
+    - ipycanvas
