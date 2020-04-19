@@ -12,3 +12,4 @@ dependencies:
     - flatland-rl
     - jupyter
     - ipycanvas
+    - tensorflow
