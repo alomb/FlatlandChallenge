@@ -3,13 +3,13 @@ import numpy as np
 
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import sparse_rail_generator
-from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 
-from obs.single import SingleAgentNavigationObs 
+from project.obs.single import SingleAgentNavigationObs
 
 number_of_agents = 1
-random_seed = 47                                                                  
+# TODO Check seeds
+random_seed = 42
 # In this script I can perform only 1, 2 and 3  
 action_to_direction = {0: 'no-op', 1: 'left', 2: 'forward', 3: 'right', 4: 'halt'}
 # Exploitation
@@ -26,9 +26,8 @@ HEIGHT = 40
 # List for plotting the results
 rewards = []
 
-q_table = np.random.uniform(low=-2, high=0, size=(WIDTH, HEIGHT, len(action_to_direction)))     # q tensor
-
-
+# q tensor
+q_table = np.random.uniform(low=-2, high=0, size=(WIDTH, HEIGHT, len(action_to_direction)))
 
 sparse_env = RailEnv(
     width=WIDTH,
@@ -41,18 +40,19 @@ sparse_env = RailEnv(
         # Max number of rails connecting to a city
         max_rails_between_cities=1,
         # Number of parallel tracks in cities
-        max_rails_in_city=1),
+        max_rails_in_city=1,
+        seed=random_seed),
     obs_builder_object=SingleAgentNavigationObs(),
-    number_of_agents=number_of_agents)
+    number_of_agents=number_of_agents,
+    random_seed=random_seed)
 
 observation, info = sparse_env.reset(
     regenerate_rail=False,
     # Change the final station
     regenerate_schedule=False,
-    random_seed=random_seed)
+    random_seed=True)
 
 for episode in range(EPISODES):
-
     if episode % SHOW_EVERY == 0:
         # This episode will be showed
         render = True
@@ -71,7 +71,7 @@ for episode in range(EPISODES):
     observation, info = sparse_env.reset(
         regenerate_rail=False,
         regenerate_schedule=False,
-        random_seed=random_seed)
+        random_seed=True)
 
     state = observation[0]["state"]                         
     # e.g. of observation {0: {"state": (12, 4), observations: [[1 0 0], [0 1 0]]}}
@@ -88,8 +88,9 @@ for episode in range(EPISODES):
             index = np.argmax(single_obs)
             if q_table[state + (index,)] > q_best:
                 q_best = q_table[state + (index,)]
-                action = index + 1                          
                 # action is setted to index + 1 because in sparse_env_step are represented in this way
+                # to avoid the first dictionary entry 0: no-op
+                action = index + 1
 
         observation, all_rewards, done, _ = sparse_env.step({0: action})
         new_state = observation[0]["state"]
@@ -130,7 +131,3 @@ plt.plot(episodes, np.abs(rewards))
 ax.set_xlabel("Episode")
 ax.set_ylabel("Cost (total rewards)")
 plt.show()
-
-
-
-

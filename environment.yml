@@ -4,12 +4,18 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  # Visualization
   - cairosvg
   - pycairo
   - tk
   - pip
   - pip:
+    # The world simulation
     - flatland-rl
+    # Notebooks
     - jupyter
     - ipycanvas
+    # Neural network
     - tensorflow
+    # To keep the env cleaner
+    - pip-autoremove
