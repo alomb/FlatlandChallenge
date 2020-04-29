@@ -115,12 +115,10 @@ class SingleDQNAgentObs(ObservationBuilder):
         else:
             i = 0
             for direction in [(agent.direction + i) % 4 for i in range(-1, 2)]:
+                observation = [0, 0, 0]
                 if possible_transitions[direction]:
-                    observation = [0, 0, 0]
                     observation[i] = 1
-                    observations.append(observation)
-                else:
-                    observations.append([0, 0, 0])
+                observations.append(observation)
                 i = i + 1
 
         return {"observations": observations, "state": position}

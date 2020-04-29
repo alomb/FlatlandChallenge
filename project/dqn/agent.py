@@ -9,7 +9,7 @@ from tensorflow.python.keras import Input
 """
 An agent for Deep Q-Learning models.
 
-It encapsulate a neural network to predict Q-values and an experience-replay buffer to train the model on data batches.
+It encapsulates a neural network to predict Q-values and an experience-replay buffer to train the model on data batches.
 """
 
 
