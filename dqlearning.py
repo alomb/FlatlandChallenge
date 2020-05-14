@@ -2,11 +2,18 @@ import numpy as np
 
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import sparse_rail_generator
+from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 from tensorflow.python.keras.optimizer_v2.adam import Adam
 
 from project.dqn.agent import SingleDQNAgent
 from project.dqn.environment import SingleAgentEnvironment
 from project.obs.single import SingleDQNAgentObs
+
+"""
+    Execution of the Deep Q-Learning algorithm for a single agent navigation
+"""
+
+# TODO: Fix rendering (merge with Jupyter version)
 
 random_seed = 42
 np.random.seed(random_seed)
@@ -59,6 +66,15 @@ def reshape_observation(observation):
 
 
 for e in range(0, EPISODES):
+    # Reset the renderer
+    renderer = RenderTool(
+        env,
+        gl="PILSVG",
+        agent_render_variant=AgentRenderVariant.AGENT_SHOWS_OPTIONS_AND_BOX,
+        show_debug=True,
+        screen_height=700,
+        screen_width=1300)
+
     # Reset the environment
     old_observation = environment.reset()
 
@@ -75,6 +91,15 @@ for e in range(0, EPISODES):
         # Apply the chosen action
         new_observation, reward, terminated, info = environment.step(action)
 
+        print(new_observation)
+        print(reward)
+        print(terminated)
+        print(info)
+        print("_______________________________")
+
+        reward = reward[0]
+        terminated = terminated[0]
+
         # Reshape the observation to feed the network
         new_observation = reshape_observation(new_observation)
 
@@ -83,9 +108,12 @@ for e in range(0, EPISODES):
 
         old_observation = new_observation
 
+        renderer.render_env(show=True, show_observations=False, show_predictions=False)
+
         # Termination causes the end of the episode
         if terminated:
             agent.update_target_model()
+            environment.close_window()
             break
 
         # Retrain when the batch is ready

@@ -55,8 +55,8 @@ class SingleDQNAgent:
         model = Sequential()
         model.add(Input(shape=(11,)))
         model.add(Reshape((11,)))
-        model.add(Dense(50, activation='relu'))
-        model.add(Dense(50, activation='relu'))
+        model.add(Dense(22, activation='relu'))
+        model.add(Dense(22, activation='relu'))
         model.add(Dense(self._action_size, activation='linear'))
 
         model.compile(loss='mse', optimizer=self._optimizer)
@@ -77,6 +77,7 @@ class SingleDQNAgent:
     """
 
     def act(self, state):
+        # print(self.q_network.get_weights())
         # Exploration
         if np.random.rand() <= self.epsilon:
             return self.env.action_space.sample()
