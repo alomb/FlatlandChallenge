@@ -1,4 +1,4 @@
-import PIL
+from PIL import Image
 from IPython.core.display import display
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 from gym import Env
@@ -67,7 +67,7 @@ class SingleAgentEnvironment(Env):
         env_renderer.render_env()
 
         image = env_renderer.get_image()
-        pil_image = PIL.Image.fromarray(image)
+        pil_image = Image.fromarray(image)
         display(pil_image)
         return image
 

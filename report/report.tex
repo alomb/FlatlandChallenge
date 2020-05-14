@@ -1,0 +1,153 @@
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+% !TeX spellcheck = it
+\documentclass[12pt, a4paper, hidelinks]{article}
+
+\usepackage{anyfontsize}
+\usepackage{siunitx} % Provides the \SI{}{} and \si{} command for typesetting SI units
+\usepackage{graphicx} % Required for the inclusion of images
+\usepackage{subcaption}
+%\usepackage{natbib} % Required to change bibliography style to APA
+\usepackage{amsmath} % Required for some math elements
+\usepackage[export]{adjustbox}
+\usepackage{eurosym} % euro simbol
+\usepackage{hyperref} % hyperlink
+\usepackage[utf8]{inputenc}
+\usepackage{bookmark}
+\usepackage{float}
+\usepackage{epigraph}
+\usepackage{quoting}
+\usepackage{newlfont}
+\usepackage{color}
+\usepackage{geometry}
+
+\renewcommand{\labelenumi}{\alph{enumi}.} % Make numbering in the enumerate environment by letter rather than number (e.g. section 6)
+
+\begin{document}
+\begin{titlepage}
+
+\begin{center}
+{{\Large{\textsc{Alma Mater Studiorum $\cdot$ Universit\`a di Bologna}}}}
+\rule[0.1cm]{15.8cm}{0.25mm}
+\\\vspace{3mm}
+%
+%
+{\Large{Dipartimento di Informatica - Scienza e Ingegneria\\
+Artificial Intelligence}}
+
+
+\end{center}
+
+\vspace{20mm}
+
+\begin{center}{
+%
+%
+	{\LARGE{\textbf{Flatland Challenge}}}}
+\end{center}
+
+\vspace{15mm}
+
+{\begin{center}
+	 \large{Project Presentation}
+\end{center}}
+
+\vspace{32mm} \par \noindent
+
+\begin{minipage}[t]{0.47\textwidth}
+%
+%
+{\large{ Professor \vspace{2mm}\\{\textbf{Andrea Asperti}
+}\\\\\\}}
+\end{minipage}
+%
+\hfill
+%
+\begin{minipage}[t]{0.47\textwidth}\raggedleft{}{
+{\large{ Students
+\vspace{2mm}\\
+\textbf{Alessandro Lombardi\\Fiorenzo Parascandolo} }}}
+\end{minipage}
+
+\vspace{31mm}
+
+\begin{center}
+Academic Year {2019/2020}
+\end{center}
+
+\end{titlepage}
+
+{\tableofcontents}
+\thispagestyle{empty}
+
+\newpage
+\setcounter{page}{1}
+
+\section{Flatland}
+
+\subsection{The classes RailAgentStatus and EnvAgent}
+
+RailAgentStatus extends Python IntEnum and assumes the following values:
+\begin{itemize}
+	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None), the prediction is to stay at the starting position. If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
+	\item ACTIVE (1) the agent is in the grid (position is not None) and hasn't reached the target yet, the prediction is the remaining path.
+	\item DONE (2) the agent is still in the grid (position is not None) but has already reached the target, the prediction is to stay at the target forever.
+	\item DONE\_REMOVED (3) the agent has reached the target and it's removed from the grid.
+\end{itemize}
+
+Grid4TransitionsEnum extends Python IntEnum and assumes the following values:
+\begin{itemize}
+	\item NORTH (0)
+	\item EAST (1)
+	\item SOUTH (2)
+	\item WEST (3)
+\end{itemize}
+Grid4TransitionsEnum is used to indicate absolute directions, related to the environment, like a compass.
+Possible usages are storing where the agent is facing or computing legal actions, for example including as observation a one hot encoding of the directions where the agent can move.
+\\
+EnvAgent class models the agent and encapsulates in its internal state the following attributes:
+\begin{itemize}
+	\item initial\_position: Tuple[int, int], initial coordinate.
+	\item initial\_direction: Grid4TransitionsEnum, the initial agent facing direction.
+	\item direction: Grid4TransitionsEnum, the current facing direction.
+	\item target: Tuple[int, int], the final coordinate.
+	\item moving: bool, True if the agent is in a moving state.
+	\item speed\_data: dictionary,
+	\item malfunction\_data: dictionary,
+	\item status: RailAgentStatus, the current agent status.
+\end{itemize}
+
+\subsection{The class RailEnv}
+
+From the documentation
+\begin{quotation}
+	RailEnv is an environment inspired by a (simplified version of) a rail
+    network, in which agents (trains) have to navigate to their target
+    locations in the shortest time possible, while at the same time cooperating
+    to avoid bottlenecks.
+\end{quotation}
+
+\subsubsection*{Environment Actions}
+The avaiable actions are:
+\begin{itemize}
+	\item DO\_NOTHING (0) Default action if None has been provided or the value is not within this list. If agent.moving is True then the agent will MOVE\_FORWARD\@.
+    \item MOVE\_LEFT (1) If agent.moving is False then becomes True. If it's possible turn the agent left, changing its direction, otherwise tries the action MOVE\_FORWARD\@.
+    \item MOVE\_FORWARD (2) If agent.moving is False then becomes True. It updates the direction of the agent and if the new cell is a dead-end the new direction is the opposite of the current.
+    \item MOVE\_RIGHT (3) If agent.moving is False then becomes True. If it's possible turn the agent right, changing its direction, otherwise tries the action MOVE\_FORWARD\@.
+    \item STOP\_MOVING (4) If agent.moving is True then becomes False. A penalty will be added. Stop the agent in the current occupied cell.
+\end{itemize}
+
+\subsubsection*{Error Handling}
+
+\subsubsection*{Malfunctions}
+The strategy depends on the passed \textit{malfunction_generator_and_process_data}.
+
+\subsubsection*{Rewards}
+
+\newpage
+%\bibliography{bibliography}
+%\bibliographystyle{plain}
+
+\end{document}
