@@ -1,3 +1,10 @@
+# To create an environment from the following requirements use
+# conda env create -f path/to/environment.yml
+
+# Whereas to update the environment use the following commands
+# conda activate flatland
+# conda env update -f environment.yml --prune
+
 name: flatland
 channels:
   - anaconda
@@ -15,7 +22,7 @@ dependencies:
     # Notebooks
     - jupyter
     - ipycanvas
-    # Neural network
+    # Neural networks
     - tensorflow
-    # To keep the env cleaner
+    # To keep the env clean
     - pip-autoremove
