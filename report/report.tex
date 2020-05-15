@@ -22,6 +22,9 @@
 \usepackage{newlfont}
 \usepackage{color}
 \usepackage{geometry}
+\usepackage{algorithm2e}
+% To add numbers in algorithm lines
+\LinesNumbered
 
 \renewcommand{\labelenumi}{\alph{enumi}.} % Make numbering in the enumerate environment by letter rather than number (e.g. section 6)
 
@@ -121,7 +124,7 @@ EnvAgent class models the agent and encapsulates in its internal state the follo
 	\item status: RailAgentStatus, the current agent status.
 \end{itemize}
 
-The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an action, 'speed' as the speed between 0 and 1 and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell.
+The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an movement from a cell to another, 'speed' the value between 0 and 1 used to increment the 'position\_fraction' and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell (if it completes the one in the current step).
 
 \subsection{The class RailEnv}
 
@@ -133,7 +136,8 @@ From the documentation
     to avoid bottlenecks.
 \end{quotation}
 
-In the \textit{step} function the number of steps is updated and if the overall task is still uncompleted, for each agent its reward is initially put to zero, malfunction is induced and the specific step is performed, at the end malfunctions are repaired.
+In the \textit{step} function the number of steps is updated and if the overall task is still uncompleted, for each agent the associated reward is initially put to zero, a malfunction is tried to be induced and the specific step is performed.
+The info of the agent are prepared and finally the end malfunctions are repaired.
 Agents are handled in the order in which are passed.
 
 \subsubsection*{Environment Actions}
@@ -157,13 +161,44 @@ First, it updates the percentage of completion then if it is completely arrived 
 Finally the agent checks whether it has reached the target cell computing rewards dependently.
 If agent.moving is False it only computes the reward.\\
 
+\begin{algorithm}[H]
+	\uIf{agent is in DONE or in DONE\_REMOVED}{
+		no reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is in READY\_TO\_DEPART}{
+		if the provided action is a MOVE\_* type and the initial cell is free the agent become ACTIVE and is initialized\\
+		reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is in malfunction}{
+		reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is at the beginning of a cell}{
+		update agent.moving\\
+		\uIf{agent.moving}{
+			the wanted action validity is first checked and if it is valid (considering also the possibility to backup from an invalid MOVE\_RIGHT or MOVE\_LEFT to a valid MOVE\_FORWARD) action is stored otherwise agent.moving becomes False and penalties are added, in this process agent.moving and agent.speed\_data['transition\_action\_on\_cellexit'] are updated
+		}
+	}
+
+	\eIf{agent.moving}{
+		update agent.speed\_data['position\_fraction'] then if it is completely arrived on the next cell, it updates position, direction and clears completion percentage and finally performs the action stored in agent.speed\_data['transition\_action\_on\_cellexit'] as soon as the next cell is free\\
+		reward is computed
+	}{
+		reward is computed
+	}
+ 	\caption{The \textit{\_step\_agent} algorithm}
+\end{algorithm}
+\noindent
+\\
+\\
 Some useful questions:
 \begin{itemize}
 	\item An agent can stop during an action between two cells? Yes.
 	\item Requested actions during a malfunction are ignored? Yes.
 	\item Requested actions during a not completed movement are saved for after execution? No, because the step 4.1 is not executed but eventually in the step 4.2 are immediately executed if the agent succed to finish.
 \end{itemize}
-
 
 \subsubsection*{Malfunctions}
 The strategy depends on the passed \textit{malfunction\_generator\_and\_process\_data}.
