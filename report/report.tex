@@ -102,13 +102,7 @@ RailAgentStatus extends Python IntEnum and assumes the following values:
 	\item DONE\_REMOVED (3) the agent has reached the target and it's removed from the grid.
 \end{itemize}
 
-Grid4TransitionsEnum extends Python IntEnum and assumes the following values:
-\begin{itemize}
-	\item NORTH (0)
-	\item EAST (1)
-	\item SOUTH (2)
-	\item WEST (3)
-\end{itemize}
+Grid4TransitionsEnum extends Python IntEnum and assumes the following values: NORTH (0), EAST (1), SOUTH (2), WEST (3).
 Grid4TransitionsEnum is used to indicate absolute directions, related to the environment, like a compass.
 Possible usages are storing where the agent is facing or computing legal actions, for example including as observation a one hot encoding of the directions where the agent can move.
 \\
@@ -125,6 +119,8 @@ EnvAgent class models the agent and encapsulates in its internal state the follo
 \end{itemize}
 
 The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an movement from a cell to another, 'speed' the value between 0 and 1 used to increment the 'position\_fraction' and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell (if it completes the one in the current step).
+
+TODO The malfunction of an agent..
 
 \subsection{The class RailEnv}
 
@@ -150,40 +146,29 @@ The avaiable actions are:
     \item STOP\_MOVING (4) If agent.moving is True then becomes False. A penalty will be added. Stop the agent in the current occupied cell.
 \end{itemize}
 
-The \textit{\_step\_agent} function handles the agent in four different cases.
-When the agent is in DONE or in DONE\_REMOVED is simply ignored, no reward is computed.
-Otherwise when it is in READY\_TO\_DEPART can become ACTIVE with a MOVE\_* action and with the initial cell free, rewards are finally computed.
-In the third case, if an agent is in malfunction, actions are ignored and rewards are computed.
-Finally, if the agent is not broken and is at the beginning of a cell (step 4.1), then the action is taken into account considering the observations above depending on the different action types.
-In particular if agent.moving is True the wanted action validity is first checked and if it is valid (considering also the possibility to backup from an invalid MOVE\_RIGHT or MOVE\_LEFT to a valid MOVE\_FORWARD) action is stored otherwise agent.moving becomes False and penalties are added.
-After deciding the movement and updating agent.moving (step 4.2), the agent is ready to perform the action if its agent.moving is True.
-First, it updates the percentage of completion then if it is completely arrived on the next cell, it updates position, direction and clears completion percentage and finally performs the action stored in agent.speed\_data['transition\_action\_on\_cellexit'] as soon as the next cell is free, so collisions between agents should not practically occur (TODO: Not completely sure).
-Finally the agent checks whether it has reached the target cell computing rewards dependently.
-If agent.moving is False it only computes the reward.\\
-
 \begin{algorithm}[H]
-	\uIf{agent is in DONE or in DONE\_REMOVED}{
+	\uIf{agent is in DONE or in DONE\_REMOVED ($1^{\text{th}}$ case)}{
 		no reward is computed\\
 		\Return{}
 	}
-	\uIf{agent is in READY\_TO\_DEPART}{
+	\uIf{agent is in READY\_TO\_DEPART ($2^{\text{th}}$ case)}{
 		if the provided action is a MOVE\_* type and the initial cell is free the agent become ACTIVE and is initialized\\
 		reward is computed\\
 		\Return{}
 	}
-	\uIf{agent is in malfunction}{
+	\uIf{agent is in malfunction (($3^{\text{th}}$ case))}{
 		reward is computed\\
 		\Return{}
 	}
 	\uIf{agent is at the beginning of a cell}{
-		update agent.moving\\
+		update agent.moving considering the observations above depending on the different action types.\\
 		\uIf{agent.moving}{
 			the wanted action validity is first checked and if it is valid (considering also the possibility to backup from an invalid MOVE\_RIGHT or MOVE\_LEFT to a valid MOVE\_FORWARD) action is stored otherwise agent.moving becomes False and penalties are added, in this process agent.moving and agent.speed\_data['transition\_action\_on\_cellexit'] are updated
 		}
 	}
 
-	\eIf{agent.moving}{
-		update agent.speed\_data['position\_fraction'] then if it is completely arrived on the next cell, it updates position, direction and clears completion percentage and finally performs the action stored in agent.speed\_data['transition\_action\_on\_cellexit'] as soon as the next cell is free\\
+	\eIf{agent.moving ($4^{\text{th}}$ case)}{
+		Updates the percentage of completion then if it is completely arrived on the next cell, before updating the position, the direction and clears the completion percentage it checks whether the new cell is free. Until the cell remains occupied in the future executions the agent will repeat this process.\\
 		reward is computed
 	}{
 		reward is computed
@@ -195,19 +180,29 @@ If agent.moving is False it only computes the reward.\\
 \\
 Some useful questions:
 \begin{itemize}
-	\item An agent can stop during an action between two cells? Yes.
+	\item An agent can stop during an action between two cells? Absolutely no, it's like any other action.
 	\item Requested actions during a malfunction are ignored? Yes.
-	\item Requested actions during a not completed movement are saved for after execution? No, because the step 4.1 is not executed but eventually in the step 4.2 are immediately executed if the agent succed to finish.
+	\item Requested actions during a not completed movement are saved for after execution? No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data. Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell. This action is then executed when a step to the next cell is valid.
+	\item When an agent reaches DONE is removed automatically the following step? TODO Yes.
+	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning? TODO No. A MOVE\_* is necessary.
+	\item Do collisions occur? No, agents check if the cell is free before moving. Deadlocks are possible when two agents are one in front the other without any chance to change path.
 \end{itemize}
 
 \subsubsection*{Malfunctions}
 The strategy depends on the passed \textit{malfunction\_generator\_and\_process\_data}.
 TODO
 
-An agent could have a malfunction during an action between two cells? I think yes.
+\begin{itemize}
+	\item A malfunction can occur during the resolution of another? TODO
+	\item An agent could have a malfunction during the completion of an action between two cells? TODO Yes.
+\end{itemize}
+
+\subsubsection*{Speed}
+The different speed profiles (speed is between 0 and 1) can be generated using the schedule\_generator.
+Speed configurations can be build using \textbf{ScheduleGenerator}s.
+TODO
 
 \subsubsection*{Rewards}
-
 The rewards are based on the following values:
 \begin{itemize}
 	\item invalid\_action\_penalty which is currently set to 0, penalty for requesting an invalid action
@@ -221,9 +216,10 @@ The full step penalty is computed as the product between step\_penalty and agent
 There are different rewards for different situations:
 
 \begin{itemize}
-	\item all agents have finished in this episode (checked at the end of the \textit{step}) or previously (checked at the beginning of the \textit{step}), they all have reward equal to the global\_reward (when in \textit{step} all agents have reached their target)
+	\item single agents that are in DONE or in DONE\_REMOVED have zero reward ($1^{\text{th}}$ \textit{\_step\_agent} case).
+	\item all agents that have finished in this episode (checked at the end of the \textit{step}) or previously (checked at the beginning of the \textit{step}), have reward equal to the global\_reward (when in \textit{step} all agents have reached their target)
 	\item full step penalty is assigned when an agent is READY\_TO\_DEPART and in the current turn moves or stay there ($2^{\text{th}}$ \textit{\_step\_agent} case), or when is in malfunction ($3^{\text{th}}$ \textit{\_step\_agent} case).
-	\item full step penalty plus the other penalties (invalid\_action\_penalty, stop\_penalty and start\_penalty) when the agent normally moves ($4^{\text{th}}$ \textit{\_step\_agent} case). Currently the other penalties are all set to zero.
+	\item full step penalty plus the other penalties (invalid\_action\_penalty, stop\_penalty and start\_penalty) when the agent is finishing actions or start new ones ($4^{\text{th}}$ \textit{\_step\_agent} case). Currently the other penalties are all set to zero.
 \end{itemize}
 
 So each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
