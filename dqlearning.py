@@ -13,7 +13,15 @@ from project.obs.single import SingleDQNAgentObs
     Execution of the Deep Q-Learning algorithm for a single agent navigation
 """
 
-# TODO: Fix rendering (merge with Jupyter version)
+# Render the environment
+render = False
+renderer = None
+# Print stats within the episode
+print_stats = False
+# Print stats at the end of each episode
+print_episode_stats = True
+# Frequency of episodes to print
+print_episode_stats_freq = 1
 
 random_seed = 42
 np.random.seed(random_seed)
@@ -46,9 +54,9 @@ env = RailEnv(
     random_seed=random_seed)
 
 environment = SingleAgentEnvironment(env)
-agent = SingleDQNAgent(environment, Adam(lr=0.01))
+agents = [SingleDQNAgent(environment, Adam(lr=0.01)) for i in range(env.number_of_agents)]
 
-agent.q_network.summary()
+agents[0].q_network.summary()
 
 """
 Transform observation dictionary to neural network input (numpy column)
@@ -57,71 +65,106 @@ Args:
 """
 
 
-def reshape_observation(observation):
-    pos = [observation[0]["state"][0], observation[0]["state"][1]]
-    observation = [i for row in observation[0]["observations"] for i in row]
-    observation.extend(pos)
+def reshape_observation(observations):
+    for a in range(env.number_of_agents):
+        pos = [observations[a]["state"][0], observations[a]["state"][1]]
+        observation = [i for row in observations[a]["observations"] for i in row]
+        observation.extend(pos)
+        observations[a] = np.array(observation).reshape((-1, 11))
 
-    return np.array(observation).reshape((-1, 11))
+    return observations
 
+
+# Dictionary agent -> action used in step
+action_dict = dict()
+
+# Stats for each episode
+stats = []
 
 for e in range(0, EPISODES):
     # Reset the renderer
-    renderer = RenderTool(
-        env,
-        gl="PILSVG",
-        agent_render_variant=AgentRenderVariant.AGENT_SHOWS_OPTIONS_AND_BOX,
-        show_debug=True,
-        screen_height=700,
-        screen_width=1300)
+    if render:
+        renderer = RenderTool(
+            env,
+            gl="PILSVG",
+            agent_render_variant=AgentRenderVariant.AGENT_SHOWS_OPTIONS_AND_BOX,
+            show_debug=True,
+            screen_height=700,
+            screen_width=1300)
 
     # Reset the environment
-    old_observation = environment.reset()
-
-    old_observation = reshape_observation(old_observation)
+    old_observations, info = environment.reset()
+    old_observations = reshape_observation(old_observations)
 
     # Initialize variables
-    reward = 0
+    episode_reward = 0
     terminated = False
 
+    # Episode stats
+    action_counter = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+
     for time_step in range(TIMESTEPS):
-        # Get an action exploiting the knowledge (neural network) or exploring
-        action = agent.act(old_observation)
 
-        # Apply the chosen action
-        new_observation, reward, terminated, info = environment.step(action)
+        # Initially False, remains False if no agent updates it
+        update_values = False
 
-        print(new_observation)
-        print(reward)
-        print(terminated)
-        print(info)
-        print("_______________________________")
+        # Choose actions
+        for a in range(env.number_of_agents):
+            if info["action_required"][a]:
+                update_values = True
+                action = agents[a].act(old_observations[a])
+                action_counter[action] += 1
+            else:
+                action = 0
+            if print_stats:
+                print("Agent " + str(a) + " performs action: " + str(action))
+            action_dict.update({a: action})
 
-        reward = reward[0]
-        terminated = terminated[0]
+        # Apply the chosen actions
+        new_observations, reward, terminated, info = environment.step(action_dict)
 
-        # Reshape the observation to feed the network
-        new_observation = reshape_observation(new_observation)
+        if print_stats:
+            print("Step (obs, reward, terminated, info): ")
+            print(new_observations)
+            print(reward)
+            print(terminated)
+            print(info)
+            print("_______________________________")
 
-        # Store S A R S'
-        agent.store(old_observation, action, reward, new_observation, terminated)
+        for a in range(env.number_of_agents):
+            # Episode reward is the mean
+            episode_reward += reward[a] / env.number_of_agents
 
-        old_observation = new_observation
+            if update_values or terminated[a]:
+                # Reshape the observations to feed the network
+                new_observations = reshape_observation(new_observations)
 
-        renderer.render_env(show=True, show_observations=False, show_predictions=False)
+                # Store S A R S' for each agent
+                agents[a].store(old_observations[a], action_dict[a], reward[a], new_observations[a], terminated[a])
+
+                old_observations = new_observations
+
+        if render:
+            renderer.render_env(show=True, show_observations=False, show_predictions=False)
 
         # Termination causes the end of the episode
-        if terminated:
-            agent.update_target_model()
-            environment.close_window()
+        if terminated["__all__"]:
+            for a in range(env.number_of_agents):
+                agents[a].update_target_model()
+            if render:
+                renderer.close_window()
             break
 
         # Retrain when the batch is ready
-        if len(agent.replay_buffer) > BATCH_SIZE:
-            agent.retrain(BATCH_SIZE)
+        for a in range(env.number_of_agents):
+            if len(agents[a].replay_buffer) > BATCH_SIZE:
+                agents[a].retrain(BATCH_SIZE)
 
-    if (e + 1) % 10 == 0:
-        print("**********************************")
-        print("Episode: {}".format(e + 1))
-        # environment.render()
-        print("**********************************")
+    if (e + 1) % print_episode_stats_freq == 0:
+        if print_episode_stats:
+            print("**********************************")
+            print("Episode: {}".format(e + 1))
+            print("Action counter: " + str(action_counter))
+            print("Final reward: " + str(episode_reward))
+            print("**********************************")
+        stats.append({"action_counter": action_counter, "episode_reward": episode_reward})

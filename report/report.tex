@@ -120,7 +120,7 @@ EnvAgent class models the agent and encapsulates in its internal state the follo
 
 The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an movement from a cell to another, 'speed' the value between 0 and 1 used to increment the 'position\_fraction' and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell (if it completes the one in the current step).
 
-TODO The malfunction of an agent..
+The malfunction of an agent contains the keys 'malfunction' which contains how many steps are necessary to fix the agent, 'malfunction\_rate', the mean rate (average number of events in an interval) of the Poisson distribution, 'next\_malfunction' the number of steps the next malfunction will occur and 'nr\_malfunctions' the number of previous malfunctions.
 
 \subsection{The class RailEnv}
 
@@ -183,6 +183,7 @@ Some useful questions:
 	\item An agent can stop during an action between two cells? Absolutely no, it's like any other action.
 	\item Requested actions during a malfunction are ignored? Yes.
 	\item Requested actions during a not completed movement are saved for after execution? No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data. Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell. This action is then executed when a step to the next cell is valid.
+	\item How is possible to understand if an agent is ready to perform an action? The entry info_dict["action_required"] returned by the function \textit{step} of \textbf{RailEnv} contains True for the given agent. This doesn't mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info_dict["action_required"] will remain True.
 	\item When an agent reaches DONE is removed automatically the following step? TODO Yes.
 	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning? TODO No. A MOVE\_* is necessary.
 	\item Do collisions occur? No, agents check if the cell is free before moving. Deadlocks are possible when two agents are one in front the other without any chance to change path.

@@ -30,7 +30,7 @@ class SingleAgentEnvironment(Env):
     """
     Execute an action.
     Args:
-        action: the action index to perform
+        action_dict: the dictionary agent -> action to perform
     Return:
         new_observation: The new observation for each agent
         reward: The reward for each agent
@@ -38,8 +38,8 @@ class SingleAgentEnvironment(Env):
         info: Some info for each agent
     """
 
-    def step(self, action):
-        return self.flatland_env.step({0: action})
+    def step(self, action_dict):
+        return self.flatland_env.step(action_dict)
 
     """
     Reset the environment and return an observation
@@ -48,11 +48,9 @@ class SingleAgentEnvironment(Env):
     """
 
     def reset(self):
-        observation, _ = self.flatland_env.reset(regenerate_rail=False,
-                                                 regenerate_schedule=False,
-                                                 random_seed=True)
-        return observation
-        # TODO: reset Render here or outside?
+        return self.flatland_env.reset(regenerate_rail=False,
+                                       regenerate_schedule=False,
+                                       random_seed=True)
 
     """
         Render the environment
