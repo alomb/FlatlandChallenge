@@ -1,8 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
+from flatland.envs.rail_env_shortest_paths import get_shortest_paths
 from tensorflow.python.keras.optimizer_v2.adam import Adam
 
 from project.dqn.agent import SingleDQNAgent
@@ -31,7 +33,7 @@ action_to_direction = {0: 'no-op', 1: 'left', 2: 'forward', 3: 'right', 4: 'halt
 WIDTH = 30
 HEIGHT = 30
 
-EPISODES = 15
+EPISODES = 5
 # TODO: Change maximum timesteps (dependent to map size)
 TIMESTEPS = 120
 
@@ -54,6 +56,7 @@ env = RailEnv(
     obs_builder_object=SingleDQNAgentObs(),
     number_of_agents=1,
     random_seed=random_seed)
+
 
 environment = SingleAgentEnvironment(env)
 agents = [SingleDQNAgent(environment, Adam(lr=0.01)) for i in range(env.number_of_agents)]
@@ -80,6 +83,7 @@ action_dict = dict()
 
 # Stats for each episode
 stats = []
+shortest_paths_rewards = []
 
 for episode in range(0, EPISODES):
     # Reset the renderer
@@ -96,6 +100,9 @@ for episode in range(0, EPISODES):
     old_observations, info = environment.reset()
     print(str(old_observations))
     old_observations = reshape_observation(old_observations)
+
+    # Shortest path = number of intermediate states = number of states - 2 (excluding the first and the last one)
+    shortest_paths_rewards.append(-(len(get_shortest_paths(env.distance_map, max_depth=25, agent_handle=0)[0])-2))
 
     # Initialize variables
     episode_reward = 0
@@ -175,3 +182,17 @@ for episode in range(0, EPISODES):
             print("Final reward: " + str(episode_reward))
             print("**********************************")
         stats.append({"action_counter": action_counter, "episode_reward": episode_reward})
+
+rewards = []
+for i in range (0, len(stats)):
+    rewards.append(stats[i]["episode_reward"])
+
+episodes = np.linspace(1, EPISODES, EPISODES)
+fig, ax = plt.subplots()
+plt.title("Episode reward vs optimal path reward")
+plt.plot(episodes, np.subtract(shortest_paths_rewards, rewards))
+ax.set_xlabel("Episode")
+ax.set_ylabel("shortest_path_reward - episode_reward")
+
+# The plot shows the number of overstep compared to the optimal e.g. optimal = -8, reward_realized = -9 => -8-(-9) = 1
+plt.show()
