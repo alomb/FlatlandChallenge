@@ -25,7 +25,7 @@ class SingleAgentEnvironment(Env):
 
         self.reward_range = (-1, 1)
         self.action_space = Discrete(5)
-        self.observation_space = Discrete(11)
+        self.observation_space = Discrete(5)
 
     """
     Execute an action.

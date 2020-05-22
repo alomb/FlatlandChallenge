@@ -3,8 +3,8 @@ import random
 from collections import deque
 
 from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Dense, Reshape
-from tensorflow.python.keras import Input
+from tensorflow.keras.layers import Dense
+from tensorflow.python.keras.losses import CategoricalCrossentropy
 
 """
 An agent for Deep Q-Learning models.
@@ -20,20 +20,20 @@ class SingleDQNAgent:
         optimizer: Neural Network optimizer
         gamma: Discount
         epsilon: Exploration factor
+        replay_buffer_length: Length of the experience replay buffer
     """
 
-    REPLAY_BUFFER_MAX_LEN = 2000
-
-    def __init__(self, env, optimizer, gamma=0.6, epsilon=0.1):
+    def __init__(self, env, optimizer, gamma=0.6, epsilon=1, delta_epsilon=0.02, replay_buffer_length=100):
         self.env = env
         self._state_size = env.observation_space.n
         self._action_size = env.action_space.n
         self._optimizer = optimizer
 
-        self.replay_buffer = deque(maxlen=self.REPLAY_BUFFER_MAX_LEN)
+        self.replay_buffer = deque(maxlen=replay_buffer_length)
 
         self.gamma = gamma
         self.epsilon = epsilon
+        self.delta_epsilon = delta_epsilon
 
         # Build q anf target networks
         self.q_network = self._build_compile_model()
@@ -53,13 +53,11 @@ class SingleDQNAgent:
 
     def _build_compile_model(self):
         model = Sequential()
-        model.add(Input(shape=(11,)))
-        model.add(Reshape((11,)))
-        model.add(Dense(22, activation='relu'))
-        model.add(Dense(22, activation='relu'))
-        model.add(Dense(self._action_size, activation='linear'))
+        model.add(Dense(10, input_shape=(self._state_size,), activation='relu'))
+        model.add(Dense(10, input_shape=(self._state_size,), activation='relu'))
+        model.add(Dense(self._action_size))
 
-        model.compile(loss='mse', optimizer=self._optimizer)
+        model.compile(loss=CategoricalCrossentropy(), optimizer=self._optimizer)
         return model
 
     """
@@ -81,6 +79,8 @@ class SingleDQNAgent:
         # Exploration
         if np.random.rand() <= self.epsilon:
             return self.env.action_space.sample()
+
+        self.epsilon = self.epsilon - self.delta_epsilon if self.epsilon > 0.1 else 0.1
 
         # Exploitation
         q_values = self.q_network.predict(state)
@@ -108,4 +108,4 @@ class SingleDQNAgent:
                 t = self.target_network.predict(new_state)
                 target[0][action] = reward + self.gamma * np.amax(t)
 
-            self.q_network.fit(state, target, epochs=1, verbose=0)
+            self.q_network.fit(state, target, epochs=5, verbose=0)

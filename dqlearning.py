@@ -14,27 +14,29 @@ from project.obs.single import SingleDQNAgentObs
 """
 
 # Render the environment
-render = False
+render = True
 renderer = None
 # Print stats within the episode
-print_stats = False
+print_stats = True
 # Print stats at the end of each episode
 print_episode_stats = True
 # Frequency of episodes to print
 print_episode_stats_freq = 1
 
-random_seed = 42
+random_seed = 1
 np.random.seed(random_seed)
 
 action_to_direction = {0: 'no-op', 1: 'left', 2: 'forward', 3: 'right', 4: 'halt'}
 
-EPISODES = 100
-TIMESTEPS = 2000
+WIDTH = 30
+HEIGHT = 30
 
-WIDTH = 40
-HEIGHT = 40
+EPISODES = 15
+# TODO: Change maximum timesteps (dependent to map size)
+TIMESTEPS = 120
 
-BATCH_SIZE = 32
+BATCH_SIZE = 10
+UPDATE_TARGET_NETWORK = 5
 
 env = RailEnv(
     width=WIDTH,
@@ -67,10 +69,8 @@ Args:
 
 def reshape_observation(observations):
     for a in range(env.number_of_agents):
-        pos = [observations[a]["state"][0], observations[a]["state"][1]]
-        observation = [i for row in observations[a]["observations"] for i in row]
-        observation.extend(pos)
-        observations[a] = np.array(observation).reshape((-1, 11))
+        observations[a]["possible_directions"].extend([observations[a]["position"][0], observations[a]["position"][1]])
+        observations[a] = np.array(observations[a]["possible_directions"]).reshape((-1, len(observations[a]["possible_directions"])))
 
     return observations
 
@@ -81,7 +81,7 @@ action_dict = dict()
 # Stats for each episode
 stats = []
 
-for e in range(0, EPISODES):
+for episode in range(0, EPISODES):
     # Reset the renderer
     if render:
         renderer = RenderTool(
@@ -94,6 +94,7 @@ for e in range(0, EPISODES):
 
     # Reset the environment
     old_observations, info = environment.reset()
+    print(str(old_observations))
     old_observations = reshape_observation(old_observations)
 
     # Initialize variables
@@ -104,6 +105,8 @@ for e in range(0, EPISODES):
     action_counter = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
 
     for time_step in range(TIMESTEPS):
+        if print_stats:
+            print("Episode " + str(time_step) + " in episode " + str(episode + 1))
 
         # Initially False, remains False if no agent updates it
         update_values = False
@@ -144,11 +147,15 @@ for e in range(0, EPISODES):
 
                 old_observations = new_observations
 
+        if time_step % UPDATE_TARGET_NETWORK == 0:
+            for a in range(env.number_of_agents):
+                agents[a].update_target_model()
+
         if render:
             renderer.render_env(show=True, show_observations=False, show_predictions=False)
 
         # Termination causes the end of the episode
-        if terminated["__all__"]:
+        if terminated["__all__"] or time_step == TIMESTEPS - 1:
             for a in range(env.number_of_agents):
                 agents[a].update_target_model()
             if render:
@@ -160,10 +167,10 @@ for e in range(0, EPISODES):
             if len(agents[a].replay_buffer) > BATCH_SIZE:
                 agents[a].retrain(BATCH_SIZE)
 
-    if (e + 1) % print_episode_stats_freq == 0:
+    if (episode + 1) % print_episode_stats_freq == 0:
         if print_episode_stats:
             print("**********************************")
-            print("Episode: {}".format(e + 1))
+            print("Episode: {}".format(episode + 1))
             print("Action counter: " + str(action_counter))
             print("Final reward: " + str(episode_reward))
             print("**********************************")
