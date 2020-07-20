@@ -88,15 +88,16 @@ Academic Year {2019/2020}
 \newpage
 \setcounter{page}{1}
 
-\section{Flatland}
+\section{Flatland}\label{sec:flatland}
 
 The analyzed version is the 2.1.10
 
-\subsection{The classes RailAgentStatus and EnvAgent}
+\subsection{The classes RailAgentStatus and EnvAgent}\label{subsec:the-classes-railagentstatus-and-envagent}
 
 RailAgentStatus extends Python IntEnum and assumes the following values:
 \begin{itemize}
-	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None), the prediction is to stay at the starting position. If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
+	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None), the prediction is to stay at the starting position.
+If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
 	\item ACTIVE (1) the agent is in the grid (position is not None) and hasn't reached the target yet, the prediction is the remaining path.
 	\item DONE (2) the agent is still in the grid (position is not None) but has already reached the target, the prediction is to stay at the target forever.
 	\item DONE\_REMOVED (3) the agent has reached the target and it's removed from the grid.
@@ -122,7 +123,7 @@ The speed of an agent contains the keys 'position\_fraction' used as a counter o
 
 The malfunction of an agent contains the keys 'malfunction' which contains how many steps are necessary to fix the agent, 'malfunction\_rate', the mean rate (average number of events in an interval) of the Poisson distribution, 'next\_malfunction' the number of steps the next malfunction will occur and 'nr\_malfunctions' the number of previous malfunctions.
 
-\subsection{The class RailEnv}
+\subsection{The class RailEnv}\label{subsec:the-class-railenv}
 
 From the documentation
 \begin{quotation}
@@ -139,11 +140,17 @@ Agents are handled in the order in which are passed.
 \subsubsection*{Environment Actions}
 The avaiable actions are:
 \begin{itemize}
-	\item DO\_NOTHING (0) Default action if None has been provided or the value is not within this list. If agent.moving is True then the agent will MOVE\_FORWARD\@.
-    \item MOVE\_LEFT (1) If agent.moving is False then becomes True. If it's possible turn the agent left, changing its direction, otherwise if agent.moving is True tries the action MOVE\_FORWARD\@.
-    \item MOVE\_FORWARD (2) If agent.moving is False then becomes True. It updates the direction of the agent and if the new cell is a dead-end the new direction is the opposite of the current.
-    \item MOVE\_RIGHT (3) If agent.moving is False then becomes True. If it's possible turn the agent right, changing its direction, otherwise if agent.moving is True tries the action MOVE\_FORWARD\@.
-    \item STOP\_MOVING (4) If agent.moving is True then becomes False. A penalty will be added. Stop the agent in the current occupied cell.
+	\item DO\_NOTHING (0) Default action if None has been provided or the value is not within this list.
+If agent.moving is True then the agent will MOVE\_FORWARD\@.
+    \item MOVE\_LEFT (1) If agent.moving is False then becomes True.
+If it's possible turn the agent left, changing its direction, otherwise if agent.moving is True tries the action MOVE\_FORWARD\@.
+    \item MOVE\_FORWARD (2) If agent.moving is False then becomes True.
+It updates the direction of the agent and if the new cell is a dead-end the new direction is the opposite of the current.
+    \item MOVE\_RIGHT (3) If agent.moving is False then becomes True.
+If it's possible turn the agent right, changing its direction, otherwise if agent.moving is True tries the action MOVE\_FORWARD\@.
+    \item STOP\_MOVING (4) If agent.moving is True then becomes False.
+A penalty will be added.
+Stop the agent in the current occupied cell.
 \end{itemize}
 
 \begin{algorithm}[H]
@@ -173,20 +180,31 @@ The avaiable actions are:
 	}{
 		reward is computed
 	}
- 	\caption{The \textit{\_step\_agent} algorithm}
+ 	\caption{The \textit{\_step\_agent} algorithm}\label{alg:flatland_agent_loop}
 \end{algorithm}
 \noindent
 \\
 \\
 Some useful questions:
 \begin{itemize}
-	\item An agent can stop during an action between two cells? Absolutely no, it's like any other action.
-	\item Requested actions during a malfunction are ignored? Yes.
-	\item Requested actions during a not completed movement are saved for after execution? No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data. Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell. This action is then executed when a step to the next cell is valid.
-	\item How is possible to understand if an agent is ready to perform an action? The entry info_dict["action_required"] returned by the function \textit{step} of \textbf{RailEnv} contains True for the given agent. This doesn't mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info_dict["action_required"] will remain True.
-	\item When an agent reaches DONE is removed automatically the following step? TODO Yes.
-	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning? TODO No. A MOVE\_* is necessary.
-	\item Do collisions occur? No, agents check if the cell is free before moving. Deadlocks are possible when two agents are one in front the other without any chance to change path.
+	\item An agent can stop during an action between two cells?
+Absolutely no, it's like any other action.
+	\item Requested actions during a malfunction are ignored?
+Yes.
+	\item Requested actions during a not completed movement are saved for after execution?
+No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data.
+Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell.
+This action is then executed when a step to the next cell is valid.
+	\item How is possible to understand if an agent is ready to perform an action?
+The entry info\_dict["action\_required"] returned by the function \textit{step} of \textbf{RailEnv} contains True for the given agent.
+This doesn't mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info\_dict["action\_required"] will remain True.
+	\item When an agent reaches DONE is removed automatically the following step?
+TODO Yes.
+	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning?
+TODO No. A MOVE\_* is necessary.
+	\item Do collisions occur?
+No, agents check if the cell is free before moving.
+Deadlocks are possible when two agents are one in front the other without any chance to change path.
 \end{itemize}
 
 \subsubsection*{Malfunctions}
@@ -194,8 +212,10 @@ The strategy depends on the passed \textit{malfunction\_generator\_and\_process\
 TODO
 
 \begin{itemize}
-	\item A malfunction can occur during the resolution of another? TODO
-	\item An agent could have a malfunction during the completion of an action between two cells? TODO Yes.
+	\item A malfunction can occur during the resolution of another?
+TODO
+	\item An agent could have a malfunction during the completion of an action between two cells?
+TODO Yes.
 \end{itemize}
 
 \subsubsection*{Speed}
@@ -220,14 +240,81 @@ There are different rewards for different situations:
 	\item single agents that are in DONE or in DONE\_REMOVED have zero reward ($1^{\text{th}}$ \textit{\_step\_agent} case).
 	\item all agents that have finished in this episode (checked at the end of the \textit{step}) or previously (checked at the beginning of the \textit{step}), have reward equal to the global\_reward (when in \textit{step} all agents have reached their target)
 	\item full step penalty is assigned when an agent is READY\_TO\_DEPART and in the current turn moves or stay there ($2^{\text{th}}$ \textit{\_step\_agent} case), or when is in malfunction ($3^{\text{th}}$ \textit{\_step\_agent} case).
-	\item full step penalty plus the other penalties (invalid\_action\_penalty, stop\_penalty and start\_penalty) when the agent is finishing actions or start new ones ($4^{\text{th}}$ \textit{\_step\_agent} case). Currently the other penalties are all set to zero.
+	\item full step penalty plus the other penalties (invalid\_action\_penalty, stop\_penalty and start\_penalty) when the agent is finishing actions or start new ones ($4^{\text{th}}$ \textit{\_step\_agent} case).
+Currently the other penalties are all set to zero.
 \end{itemize}
 
 So each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
 Currently it is possible to say that rewards are always full step excluding the end of the episode and the single agents that have finished which have reward equal to 0.
 
-\newpage
-%\bibliography{bibliography}
-%\bibliographystyle{plain}
+\section{Multi Agent Reinforcement Learning (MARL)}\label{sec:multi-agent-reinforcement-learning}
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{MARL_definition}}]
+Specifically, MARL addresses the sequential decision-making problem of multiple autonomous agents that operate in a common environment, each of which aims to optimize its own long-term return by interacting with the environment and other agents.
+\end{quoting}
+
+This section provides an overview of some useful works and theory behind MARL that we consider useful to suggest approaches or solutions to the Flatland Challenge.
+MARL algorithms can be divided into three groups~\cite{zhang2019multiagent}:
+
+\begin{itemize}
+	\item \textbf{Fully cooperative}, where agents collaborate to optimize a common long-term return.
+	\item \textbf{Fully competitive}, where the return of agents usually sum up to zero.
+	\item \textbf{Mix of the two}, where both cooperative and competitive agents are involved.
+\end{itemize}
+
+We consider the Flatland Challenge a fully cooperative environment since each agent apparently compete to reach faster its destination and gain rails portions but the problem must consider the common time minimization goal.
+There exist two closely related theoretical frameworks for MARL~\cite{zhang2019multiagent}:
+
+\begin{itemize}
+	\item \textbf{Markov/Stochastic Games} where all agents share the same state and differently from classical single agent's Markov Decision Process, the optimal performance of each agent is controlled not only by its own policy, but also the choices of all other players of the game.
+Usually agents share a common reward function but it is possible to have different functions like in the team-average reward setting.
+Markov Games can be extended to a partially observed environment called in multi-agent scenarios \textbf{Decentralized POMDP (Dec-POMDP)}.
+In Dec-POMDP each agent has its own local observation of the system state, follow that with no accessibility to other agents' observations, is not possible to maintain a global belief state.
+Some techniques have been proposed to overcome this problem, but in general Dec-POMDP approaches are usually considered difficult to solve.
+	\item \textbf{Extensive-Form Game} inspired from computational game theory, it handles imperfect information.
+It is usually used in mixed or competitive environments.
+\end{itemize}
+
+Flatland environment allows to customize how agents perceive the world and how agents are coordinated.
+
+The involvement of Deep Learning to tackle the problem of MARL defines a new specific subject called \textbf{Multi-agent Deep Reinforcement Learning (MADRL)}.
+~\cite{Hernandez_Leal_2019} presents four categories of recent MADRL works:
+\begin{itemize}
+	\item \textbf{Analysis of emergent behaviors}, in general, they do not propose learning algorithms, their main focus is to analyze and evaluate DRL algorithms in a multi-agent environment.
+	\item \textbf{Learning communication}, they study communications techniques to share information.
+	\item \textbf{Learning cooperation}, they directly explore approaches based on actions and observations to build multi-agent systems.
+	\item \textbf{Agents modeling agents}, they study how agents reason about others to fulfill a task.
+\end{itemize}
+
+MARL frameworks inevitably adds many challenging problems on the single-agent scenario.
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{Hernandez_Leal_2019}}]
+Learning in multiagent settings is fundamentally more difficult than the single-agent case due to the presence of multiagent pathologies, e.g., the moving target problem (non-stationarity) [2, 5, 10], curse of dimensionality [2, 5], multiagent credit assignment [31, 32], global exploration [8], and relative overgeneralization [33, 34, 35].
+\end{quoting}
+
+Some problems that may affect the Flatland Challenge:
+\begin{itemize}
+	\item \textbf{Non-Stationarity}~\cite{Nguyen_2020}~\cite{zhang2019multiagent}.
+In a single-agent environment, an agent is concerning only the outcome of its own actions.
+In a multi-agent scenario, an agent observes not only the outcomes of its own action but also the behavior of other agents.
+Agents may interact with each other and learn concurrently leading to a continuous reshape of the environment and to nonstationarity.
+The classical DQN does not provide working solutions, some derivations have been proposed to deal with this problem such as \textbf{Deep Repeated Update Q-network (DRUQN)}, \textbf{Deep Loosely Coupled Q-network (DLCQN)} and \textbf{Lenient-DQN (LDQN)}.
+	\item \textbf{Partial observability}~\cite{Nguyen_2020}.
+In the single-agent scenario this type of problem can be modelled as \textbf{partially observable Markov decision process (POMDP)}.
+An extension of the POMDP approach, \textbf{Deep Recurrent Q-network (DRQN)}, developed to solve the multi-agent case is called \textbf{Deep Distributed Recurrent Q-network (DDRQN)}.
+Another technique to deal with partial observability is \textbf{Deep Recurrent Policy Inference Q-network (DRPIQN)}.
+	\item \textbf{Scalability}~\cite{zhang2019multiagent}.
+To handle non-stationarity, each individual agent may need to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@.
+Many methods have been proposed to tackle this problem, one of them is the extension of \textbf{Curriculum Learning} to a multi-agent scenario.
+	\item \textbf{Information Structures} and \textbf{Training Schemes}~\cite{Nguyen_2020}~\cite{zhang2019multiagent}.
+In the single-agent case is easier to understand what information is visible to the agent.
+In Markov games is sufficient to observe the current state, while on extensive-form games agents may need to recall the history of past decisions.
+In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by by individual agents.
+These considerations led to the development of different training schemes such as \textbf{centralized-learning-decentralized-execution}, \textbf{fully decentralized} and \textbf{decentralized setting with networked agents}.
+\end{itemize}
+
+
+\newpage\nocite{*}
+\bibliography{bibliography}
+\bibliographystyle{plain}
 
 \end{document}
