@@ -331,17 +331,18 @@ Since the training of each agent depends on the observations and actions of all 
 	\item Opponent Modelling.
 	\item \textbf{Meta-Learning}.
 	\item Communication.
-Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neural networks as \textbf{Reinforced Inter-Agent Learning}.
+Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neural networks as \textbf{Reinforced Inter-Agent Learning (RIAL)}.
 \end{itemize}
 
-
+A popular alternative approach to MARL is \textbf{Independent Learning}, in which each agent independently learns its own policy, treating other agents as part of the environment.
+While this method avoid some scalability problems and has been successfully used in practice it introduces a non-stationary environment from the point of view of each agent.
 
 \paragraph{Partial observability}~\newline~\newline
 As mentioned, in the single-agent scenario this type of problem is usually modelled with a POMDP\@.
 \textbf{Deep Recurrent Q-Networks (DRQN)} proposed using recurrent neural networks, in particular, Long Short-Term Memory (LSTMs) cells in DQN, to introduce a memory capability.
 An extension of DRQN for multi-agent environments is \textbf{Deep Distributed Recurrent Q-network (DDRQN)}~\cite{Nguyen_2020}.
 Another technique to deal with partial observability is \textbf{Deep Recurrent Policy Inference Q-network (DRPIQN)} learned by adapting network’s attention to policy features and their own Q-values at various stages of the training process.
-Methods to address partial observability in Markov Games usually involve communication (\textbf{Reinforced Inter-Agent Learning (RIAL)} and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
+Methods to address partial observability in Markov Games usually involve communication (RIAL and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
 Alternatively to the Markov Game, the Dec-POMDP can be used to model this type of scenario in a more classical \textbf{centralized learning for decentralized execution} fashion or in a more modern \textbf{decentralized learning for decentralized execution} way.
 
 
@@ -361,7 +362,7 @@ Usually decentralized settings may allow some sort of communication to address t
 
 \paragraph{Multi-agent credit assignment}
 
-\subsubsection{Algorithms}
+\subsection{Algorithms}\label{subsec:algorithms}
 
 
 \newpage
