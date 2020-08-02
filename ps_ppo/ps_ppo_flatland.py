@@ -20,50 +20,92 @@ class Memory:
         self.__init__(self.num_agents)
 
 
-class Policy:
-    def step(self, state, action, reward, next_state, done):
-        raise NotImplementedError
-
-    def act(self, state, eps=0.):
-        raise NotImplementedError
-
-    def save(self, filename):
-        raise NotImplementedError
-
-    def load(self, filename):
-        raise NotImplementedError
-
-
 class ActorCritic(nn.Module):
-    def __init__(self, state_size, action_size, hidden_layer_size):
+    def __init__(self,
+                 state_size,
+                 action_size,
+                 critic_mlp_width,
+                 critic_mlp_depth,
+                 last_critic_layer_scaling,
+                 actor_mlp_width,
+                 actor_mlp_depth,
+                 last_actor_layer_scaling,
+                 activation):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
-        :param hidden_layer_size: The number of nodes in the hidden network
+        :param critic_mlp_width: The number of nodes in the critic's hidden network
+        :param critic_mlp_depth: The number of hidden layers + the input one of the critic's network
+        :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
+        :param actor_mlp_width: The number of nodes in the actor's hidden network
+        :param actor_mlp_depth: The number of hidden layers + the input one of the actor's network
+        :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
+        :param activation: the activation function (ReLU, Tanh)
         """
 
         super(ActorCritic, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
+        self.activation = activation
 
-        # The network that approximates the policy
-        self.actor_network = nn.Sequential(
-            nn.Linear(state_size, hidden_layer_size),
-            nn.Tanh(),
-            nn.Linear(hidden_layer_size, hidden_layer_size),
-            nn.Tanh(),
-            nn.Linear(hidden_layer_size, action_size),
-            nn.Softmax(dim=-1)
-        )
+        # Network creation
+        self.critic_network = self._build_network(False, critic_mlp_depth, critic_mlp_width)
+        self.actor_network = self._build_network(True, actor_mlp_depth, actor_mlp_width)
 
-        # The network that computes the values
-        self.critic_network = nn.Sequential(
-            nn.Linear(state_size, hidden_layer_size),
-            nn.Tanh(),
-            nn.Linear(hidden_layer_size, hidden_layer_size),
-            nn.Tanh(),
-            nn.Linear(hidden_layer_size, 1)
-        )
+        # Network initialization
+        # https://pytorch.org/docs/stable/nn.init.html#nn-init-doc
+        def weights_init(submodule):
+            # TODO
+            raise NotImplementedError()
+
+        # self.critic_network.apply(weights_init)
+        # self.actor_network.apply(weights_init)
+
+        # Last layer's weights rescaling
+        with torch.no_grad():
+            list(self.critic_network.children())[-1].weight.mul_(last_critic_layer_scaling)
+            # -2 because actor contains softmax as last layer
+            list(self.actor_network.children())[-2].weight.mul_(last_actor_layer_scaling)
+
+    def _build_network(self, is_actor, nn_depth, nn_width):
+        if nn_depth <= 0:
+            raise Exception("Networks' depths must be greater than 0")
+
+        network = nn.Sequential()
+        output_size = self.action_size if is_actor else 1
+        nn_type = "actor" if is_actor else "critic"
+
+        # First layer
+        network.add_module("%s_input" % nn_type, nn.Linear(self.state_size,
+                                                           nn_width if nn_depth > 1 else output_size))
+        # If it's not the last layer add the activation
+        if nn_depth > 1:
+            network.add_module("%s_input_activation(%s)" % (nn_type, self.activation), self._get_activation())
+
+        # Add hidden and last layers
+        for layer in range(1, nn_depth):
+            layer_name = "%s_layer_%d" % (nn_type, layer)
+            # Last layer
+            if layer == nn_depth - 1:
+                network.add_module(layer_name, nn.Linear(nn_width, output_size))
+            # Hidden layer
+            else:
+                network.add_module(layer_name, nn.Linear(nn_width, nn_width))
+                network.add_module(layer_name + ("_activation(%s)" % self.activation), self._get_activation())
+
+        # Actor needs softmax
+        if is_actor:
+            network.add_module("%s_softmax", nn.Softmax(dim=-1))
+
+        return network
+
+    def _get_activation(self):
+        if self.activation == "ReLU":
+            return nn.ReLU()
+        elif self.activation == "Tanh":
+            return nn.Tanh()
+        else:
+            raise Exception("The specified activation function don't exists or is not available")
 
     def act(self, state, memory, action=None):
         """
@@ -96,7 +138,7 @@ class ActorCritic(nn.Module):
         memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
 
         return action.item()
-      
+
     def evaluate(self, state, action):
         """
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
@@ -111,32 +153,71 @@ class ActorCritic(nn.Module):
 
 
 class PsPPO:
-    def __init__(self, n_agents, state_size, action_size, hidden_layer_size, lr, gamma, epochs, eps_clip):
+    def __init__(self,
+                 n_agents,
+                 state_size,
+                 action_size,
+                 # shared,
+                 critic_mlp_width,
+                 critic_mlp_depth,
+                 last_critic_layer_scaling,
+                 actor_mlp_width,
+                 actor_mlp_depth,
+                 last_actor_layer_scaling,
+                 learning_rate,
+                 activation,
+                 discount_factor,
+                 epochs,
+                 eps_clip,
+                 # advantage_estimator,
+                 # value_function_loss
+                 ):
         """
         :param n_agents: The number of agents
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
-        :param hidden_layer_size: The number of nodes in the hidden network
-        :param lr: The learning rate
-        :param gamma: The discount factor
+        :param critic_mlp_width: The number of nodes in the critic's hidden network
+        :param critic_mlp_depth: The number of layers in the critic's network
+        :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
+        :param actor_mlp_width: The number of nodes in the actor's hidden network
+        :param actor_mlp_depth: The number of layers in the actor's network
+        :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
+        :param learning_rate: The learning rate
+        :param discount_factor: The discount factor
         :param epochs: The number of training epochs for each batch
         :param eps_clip: The offset used in the minimum and maximum values of the clipping function
         """
 
         self.n_agents = n_agents
-        self.lr = lr
-        self.gamma = gamma
+        self.learning_rate = learning_rate
+        self.discount_factor = discount_factor
         self.epochs = epochs
         self.eps_clip = eps_clip
 
         # The policy updated at each learning epoch
-        self.policy = ActorCritic(state_size, action_size, hidden_layer_size).to(device)
+        self.policy = ActorCritic(state_size,
+                                  action_size,
+                                  critic_mlp_width,
+                                  critic_mlp_depth,
+                                  last_critic_layer_scaling,
+                                  actor_mlp_width,
+                                  actor_mlp_depth,
+                                  last_actor_layer_scaling,
+                                  activation).to(device)
         # TODO: Consider changing Adam or its hyperparameters
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate)
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
-        self.policy_old = ActorCritic(state_size, action_size, hidden_layer_size).to(device)
+        self.policy_old = ActorCritic(state_size,
+                                      action_size,
+                                      critic_mlp_width,
+                                      critic_mlp_depth,
+                                      last_critic_layer_scaling,
+                                      actor_mlp_width,
+                                      actor_mlp_depth,
+                                      last_actor_layer_scaling,
+                                      activation).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
         self.mse_loss = nn.MSELoss()
@@ -153,7 +234,7 @@ class PsPPO:
         for reward, done in zip(reversed(memory.rewards), reversed(memory.dones)):
             if done:
                 discounted_reward = 0
-            discounted_reward = reward + (self.gamma * discounted_reward)
+            discounted_reward = reward + (self.discount_factor * discounted_reward)
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
 
@@ -211,6 +292,7 @@ class PsPPO:
 
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -293,7 +375,8 @@ def _split_node_into_feature_groups(node: TreeObsForRailEnv.Node) -> (np.ndarray
     return data, distance, agent_data
 
 
-def _split_subtree_into_feature_groups(node: TreeObsForRailEnv.Node, current_tree_depth: int, max_tree_depth: int) -> (np.ndarray, np.ndarray, np.ndarray):
+def _split_subtree_into_feature_groups(node: TreeObsForRailEnv.Node, current_tree_depth: int, max_tree_depth: int) -> (
+        np.ndarray, np.ndarray, np.ndarray):
     if node == -np.inf:
         remaining_depth = max_tree_depth - current_tree_depth
         # reference: https://stackoverflow.com/questions/515214/total-number-of-nodes-in-a-tree-data-structure
@@ -315,14 +398,16 @@ def _split_subtree_into_feature_groups(node: TreeObsForRailEnv.Node, current_tre
     return data, distance, agent_data
 
 
-def split_tree_into_feature_groups(tree: TreeObsForRailEnv.Node, max_tree_depth: int) -> (np.ndarray, np.ndarray, np.ndarray):
+def split_tree_into_feature_groups(tree: TreeObsForRailEnv.Node, max_tree_depth: int) -> (
+        np.ndarray, np.ndarray, np.ndarray):
     """
     This function splits the tree into three difference arrays of values
     """
     data, distance, agent_data = _split_node_into_feature_groups(tree)
 
     for direction in TreeObsForRailEnv.tree_explored_actions_char:
-        sub_data, sub_distance, sub_agent_data = _split_subtree_into_feature_groups(tree.childs[direction], 1, max_tree_depth)
+        sub_data, sub_distance, sub_agent_data = _split_subtree_into_feature_groups(tree.childs[direction], 1,
+                                                                                    max_tree_depth)
         data = np.concatenate((data, sub_data))
         distance = np.concatenate((distance, sub_distance))
         agent_data = np.concatenate((agent_data, sub_agent_data))
@@ -380,7 +465,6 @@ from argparse import ArgumentParser, Namespace
 from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-import torch
 
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import sparse_rail_generator
@@ -408,8 +492,6 @@ if SUPPRESS_OUTPUT:
 
 def train_multiple_agents(env_params, train_params):
     # Environment parameters
-    print(env_params)
-
     n_agents = env_params.n_agents
     x_dim = env_params.x_dim
     y_dim = env_params.y_dim
@@ -422,17 +504,6 @@ def train_multiple_agents(env_params, train_params):
     observation_tree_depth = env_params.observation_tree_depth
     observation_radius = env_params.observation_radius
     observation_max_path_depth = env_params.observation_max_path_depth
-
-    # Training parameters
-    eps_clip = train_params.eps_clip
-    gamma = train_params.gamma
-    n_episodes = train_params.n_episodes
-    checkpoint_interval = train_params.checkpoint_interval
-    n_eval_episodes = train_params.n_evaluation_episodes
-    hidden_layer_size = train_params.hidden_layer_size
-    lr = train_params.learning_rate
-    epochs = train_params.epochs
-    update_timestep = train_params.update_timestep
 
     # Set the seeds
     random.seed(seed)
@@ -465,7 +536,8 @@ def train_multiple_agents(env_params, train_params):
             max_num_cities=n_cities,
             grid_mode=False,
             max_rails_between_cities=max_rails_between_cities,
-            max_rails_in_city=max_rails_in_city
+            max_rails_in_city=max_rails_in_city,
+            seed=seed
         ),
         schedule_generator=sparse_schedule_generator(speed_profiles),
         number_of_agents=n_agents,
@@ -475,6 +547,13 @@ def train_multiple_agents(env_params, train_params):
     )
 
     env.reset(regenerate_schedule=True, regenerate_rail=True)
+
+    n_episodes = train_params.n_episodes
+    checkpoint_interval = train_params.checkpoint_interval
+    update_timestep = train_params.update_timestep
+    # TODO: Mini-batch gd
+    # batch_mode = train_params.batch_mode
+    # batch_size = training_parameters.batch_size
 
     # Setup renderer
     if train_params.render:
@@ -488,11 +567,13 @@ def train_multiple_agents(env_params, train_params):
     state_size = n_features_per_node * n_nodes
 
     # The action space of flatland is 5 discrete actions
+    # TODO: from param
     action_size = 5
 
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
+    # TODO: from param
     max_steps = int(4 * 2 * (env.height + env.width + (n_agents / n_cities)))
 
     action_count = [0] * action_size
@@ -502,7 +583,24 @@ def train_multiple_agents(env_params, train_params):
 
     memory = Memory(n_agents)
 
-    ppo = PsPPO(n_agents, state_size + 1, action_size, hidden_layer_size, lr, gamma, epochs, eps_clip)
+    ppo = PsPPO(n_agents,
+                state_size + 1,
+                action_size,
+                # train_params.shared,
+                train_params.critic_mlp_width,
+                train_params.critic_mlp_depth,
+                train_params.last_critic_layer_scaling,
+                train_params.actor_mlp_width,
+                train_params.actor_mlp_depth,
+                train_params.last_actor_layer_scaling,
+                train_params.learning_rate,
+                train_params.activation,
+                train_params.discount_factor,
+                train_params.epochs,
+                train_params.eps_clip
+                # train_params.advantage_estimator,
+                # train_params.value_function_loss
+                )
 
     """
     # TensorBoard writer
@@ -514,11 +612,11 @@ def train_multiple_agents(env_params, train_params):
     training_timer = Timer()
     training_timer.start()
 
-    print("\nTraining {} trains on {}x{} grid for {} episodes, evaluating on {} episodes every {} episodes.\n"
-          .format(env.get_num_agents(), x_dim, y_dim, n_episodes, n_eval_episodes, checkpoint_interval))
+    print("\nTraining {} trains on {}x{} grid for {} episodes. Update every {} timesteps.\n"
+          .format(env.get_num_agents(), x_dim, y_dim, n_episodes, update_timestep))
 
     timestep = 0
-    for episode_idx in range(n_episodes + 1):
+    for episode in range(n_episodes + 1):
         # Timers
         step_timer = Timer()
         reset_timer = Timer()
@@ -538,8 +636,8 @@ def train_multiple_agents(env_params, train_params):
         # Run episode
         for step in range(max_steps - 1):
             timestep += 1
-            # Collect and preprocess observations
 
+            # Collect and preprocess observations
             for agent in env.get_agent_handles():
                 # TODO: check if
                 if obs[agent]:
@@ -549,7 +647,7 @@ def train_multiple_agents(env_params, train_params):
                     preproc_timer.end()
 
             action_dict = {a: ppo.policy_old.act(np.append(agent_obs[a], [a]), memory) if info['action_required'][a]
-                            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action=0)
+            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action=0)
                            for a in range(n_agents)}
 
             for a in list(action_dict.values()):
@@ -562,10 +660,10 @@ def train_multiple_agents(env_params, train_params):
 
             total_timestep_reward = np.sum(list(rewards.values()))
             score += total_timestep_reward
-            all_done = done['__all__']
             memory.rewards.append(total_timestep_reward)
-            memory.dones.append(all_done)
+            memory.dones.append(done['__all__'])
 
+            # Update
             if timestep % update_timestep == 0:
                 # print("update")
                 learn_timer.start()
@@ -573,8 +671,8 @@ def train_multiple_agents(env_params, train_params):
                 learn_timer.end()
                 memory.clear_memory()
                 timestep = 0
-            
-            if train_params.render and episode_idx % checkpoint_interval == 0:
+
+            if train_params.render and episode % checkpoint_interval == 0:
                 env_renderer.render_env(
                     show=True,
                     frames=False,
@@ -598,7 +696,7 @@ def train_multiple_agents(env_params, train_params):
         smoothed_completion = smoothed_completion * smoothing + completion * (1.0 - smoothing)
 
         # Print logs
-        if episode_idx % checkpoint_interval == 0:
+        if episode % checkpoint_interval == 0:
             # TODO: Save network params as checkpoints
             if train_params.render:
                 env_renderer.close_window()
@@ -610,7 +708,7 @@ def train_multiple_agents(env_params, train_params):
             '\tDone: {:.2f}%'
             ' Avg: {:.2f}%'
             '\tAction Probs: {}'.format(
-                episode_idx,
+                episode,
                 normalized_score,
                 smoothed_normalized_score,
                 100 * completion,
@@ -678,6 +776,8 @@ def format_action_prob(action_probs):
     return buffer
 
 
+myseed = 19
+
 environment_parameters = {
     # small_v0 config
     "n_agents": 2,
@@ -687,24 +787,63 @@ environment_parameters = {
     "max_rails_between_cities": 2,
     "max_rails_in_city": 3,
 
-    "seed": 42,
+    "seed": myseed,
     "observation_tree_depth": 2,
     "observation_radius": 10,
     "observation_max_path_depth": 30
 }
 
 training_parameters = {
+    "random_seed": myseed,
+    # ====================
+    # Network architecture
+    # ====================
+    # Shared actor-critic layer
+    # "shared": False,
+    # Policy network
+    "critic_mlp_width": 64,
+    "critic_mlp_depth": 2,
+    "last_critic_layer_scaling": 0.01,
+    # Actor network
+    "actor_mlp_width": 64,
+    "actor_mlp_depth": 2,
+    "last_actor_layer_scaling": 1.0,
+    # Adam learning rate
+    "learning_rate": 0.001,
+    # Activation
+    "activation": "ReLU",
+
+    # ==============
+    # Training setup
+    # ==============
     "n_episodes": 2500,
-    "n_evaluation_episodes": 25,
     "checkpoint_interval": 100,
-    "random_seed": 49,
     "update_timestep": 300,
-    "eps_clip": 0.2,
     "epochs": 4,
-    "gamma": 0.99,
-    "tau": 1e-3,
-    "learning_rate": 0.52e-4,
-    "hidden_layer_size": 64,
+    # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
+    # "batch_mode": None,
+    # 64, 128, 256
+    # "batch_size": 64,
+
+    # ==========================
+    # Normalization and clipping
+    # ==========================
+    # Discount factor (0.95, 0.97, 0.99, 0.999)
+    "discount_factor": 0.99,
+
+    # ====================
+    # Advantage estimation
+    # ====================
+    # PPO-style value clipping
+    "eps_clip": 0.2,
+    # GAE, N-steps
+    # "advantage_estimator": "n-steps",
+    # huber, mse
+    # "value_function_loss": "mse",
+
+    # ==========================
+    # Optimization and rendering
+    # ==========================
     "use_gpu": False,
     "num_threads": 1,
     "render": False,
