@@ -168,6 +168,7 @@ class PsPPO:
                  activation,
                  discount_factor,
                  epochs,
+                 batch_size,
                  eps_clip,
                  # advantage_estimator,
                  # value_function_loss
@@ -185,6 +186,7 @@ class PsPPO:
         :param learning_rate: The learning rate
         :param discount_factor: The discount factor
         :param epochs: The number of training epochs for each batch
+        :param batch_size: The size of data batches used for each agent in the training loop
         :param eps_clip: The offset used in the minimum and maximum values of the clipping function
         """
 
@@ -192,6 +194,7 @@ class PsPPO:
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.epochs = epochs
+        self.batch_size = batch_size
         self.eps_clip = eps_clip
 
         # The policy updated at each learning epoch
@@ -204,7 +207,7 @@ class PsPPO:
                                   actor_mlp_depth,
                                   last_actor_layer_scaling,
                                   activation).to(device)
-        # TODO: Consider changing Adam or its hyperparameters
+
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate)
 
         # The policy updated at the end of the training epochs where is used as the old policy.
@@ -228,7 +231,6 @@ class PsPPO:
         :param memory:
         :return:
         """
-        # TODO: Optim: Use an iterator, possibly combining with mini-batch gd
         rewards = []
         discounted_reward = 0
         for reward, done in zip(reversed(memory.rewards), reversed(memory.dones)):
@@ -238,25 +240,12 @@ class PsPPO:
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
 
-        """
-        from itertools import repeat
-        # Optimization that seems not to work lol, try with bigger lists
-        def myfunc(reward_done_tuple, discounted_reward):
-            if reward_done_tuple[1]:
-                discounted_reward[0] = 0
-            discounted_reward[0] = reward_done_tuple[0] + (self.gamma * discounted_reward[0])
-            return discounted_reward[0]
-
-        rewards = list(map(myfunc, zip(reversed(memory.rewards), reversed(memory.dones)), repeat([0])))[::-1]
-        """
-
-        # TODO Why normalizing
+        # TODO Why normalizing? boolean hyperparam
         # Normalizing the rewards:
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         # For each agent train the policy and the value network on personal observations
         for a in range(self.n_agents):
-            # TODO: Mini-batch
             # Convert lists to tensors
             old_states = torch.stack(memory.states[a]).to(device).detach()
             old_actions = torch.stack(memory.actions[a]).to(device).detach()
@@ -270,25 +259,37 @@ class PsPPO:
 
             # Optimize policy
             for _ in range(self.epochs):
-                # Evaluating old actions and values
-                log_of_action_prob, state_estimated_value, dist_entropy = policy_evaluate(old_states, old_actions)
+                for batch_start in range(0, len(old_states), self.batch_size):
+                    batch_end = batch_start + self.batch_size
+                    # Evaluating old actions and values
+                    log_of_action_prob, state_estimated_value, dist_entropy = \
+                        policy_evaluate(old_states[batch_start:batch_end], old_actions[batch_start:batch_end])
 
-                # Find the ratio (pi_theta / pi_theta__old)
-                probs_ratio = torch_exp(log_of_action_prob - old_logs_of_action_prob.detach())
-                # Find the "Surrogate Loss"
-                advantage = rewards - state_estimated_value.detach()
-                unclipped_objective = probs_ratio * advantage
-                clipped_objective = torch_clamp(probs_ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantage
-                """
-                loss = -torch_min(unclipped_objective, clipped_objective) + \
-                       0.5 * self.mse_loss(state_estimated_value, rewards) - 0.01 * dist_entropy
-                """
-                loss = -torch_min(unclipped_objective, clipped_objective)
+                    # print(old_states[batch_start:batch_end])
+                    # print(old_actions[batch_start:batch_end])
+                    # print(old_logs_of_action_prob[batch_start:batch_end])
+                    # print(rewards[batch_start:batch_end])
 
-                # Gradient descent
-                self.optimizer.zero_grad()
-                loss.mean().backward()
-                self.optimizer.step()
+                    # Find the ratio (pi_theta / pi_theta__old)
+                    probs_ratio = torch_exp(log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
+                    # Find the "Surrogate Loss"
+                    advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
+                    unclipped_objective = probs_ratio * advantage
+                    clipped_objective = torch_clamp(probs_ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantage
+
+                    # TODO: Specify hyperparameters
+                    loss = -torch_min(unclipped_objective, clipped_objective) + \
+                           0.5 * self.mse_loss(state_estimated_value.squeeze(), rewards[batch_start:batch_end]) -\
+                           0.01 * dist_entropy
+
+                    """
+                    loss = -torch_min(unclipped_objective, clipped_objective)
+                    """
+
+                    # Gradient descent
+                    self.optimizer.zero_grad()
+                    loss.mean().backward()
+                    self.optimizer.step()
 
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -550,10 +551,10 @@ def train_multiple_agents(env_params, train_params):
 
     n_episodes = train_params.n_episodes
     checkpoint_interval = train_params.checkpoint_interval
-    update_timestep = train_params.update_timestep
+    horizon = train_params.horizon
     # TODO: Mini-batch gd
     # batch_mode = train_params.batch_mode
-    # batch_size = training_parameters.batch_size
+    batch_size = train_params.batch_size
 
     # Setup renderer
     if train_params.render:
@@ -597,6 +598,7 @@ def train_multiple_agents(env_params, train_params):
                 train_params.activation,
                 train_params.discount_factor,
                 train_params.epochs,
+                train_params.batch_size,
                 train_params.eps_clip
                 # train_params.advantage_estimator,
                 # train_params.value_function_loss
@@ -613,7 +615,7 @@ def train_multiple_agents(env_params, train_params):
     training_timer.start()
 
     print("\nTraining {} trains on {}x{} grid for {} episodes. Update every {} timesteps.\n"
-          .format(env.get_num_agents(), x_dim, y_dim, n_episodes, update_timestep))
+          .format(env.get_num_agents(), x_dim, y_dim, n_episodes, horizon))
 
     timestep = 0
     for episode in range(n_episodes + 1):
@@ -664,7 +666,7 @@ def train_multiple_agents(env_params, train_params):
             memory.dones.append(done['__all__'])
 
             # Update
-            if timestep % update_timestep == 0:
+            if timestep % horizon == 0:
                 # print("update")
                 learn_timer.start()
                 ppo.update(memory)
@@ -780,7 +782,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 2,
+    "n_agents": 5,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 4,
@@ -801,11 +803,11 @@ training_parameters = {
     # Shared actor-critic layer
     # "shared": False,
     # Policy network
-    "critic_mlp_width": 64,
-    "critic_mlp_depth": 2,
+    "critic_mlp_width": 128,
+    "critic_mlp_depth": 3,
     "last_critic_layer_scaling": 0.01,
     # Actor network
-    "actor_mlp_width": 64,
+    "actor_mlp_width": 128,
     "actor_mlp_depth": 2,
     "last_actor_layer_scaling": 1.0,
     # Adam learning rate
@@ -817,13 +819,12 @@ training_parameters = {
     # Training setup
     # ==============
     "n_episodes": 2500,
-    "checkpoint_interval": 100,
-    "update_timestep": 300,
+    "horizon": 1200,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    # "batch_size": 64,
+    "batch_size": 64,
 
     # ==========================
     # Normalization and clipping
@@ -844,6 +845,7 @@ training_parameters = {
     # ==========================
     # Optimization and rendering
     # ==========================
+    "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
     "render": False,
