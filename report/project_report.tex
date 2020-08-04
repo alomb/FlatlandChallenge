@@ -3,7 +3,7 @@
 %----------------------------------------------------------------------------------------
 
 % !TeX spellcheck = it
-\documentclass[11pt, a4paper, hidelinks]{article}
+\documentclass[11pt, a4paper, hidelinks]{report}
 
 \usepackage{anyfontsize}
 \usepackage{siunitx} % Provides the \SI{}{} and \si{} command for typesetting SI units
@@ -23,6 +23,8 @@
 \usepackage{color}
 \usepackage{geometry}
 \usepackage{algorithm2e}
+\usepackage{titletoc}
+
 % To add numbers in algorithm lines
 \LinesNumbered
 
@@ -88,11 +90,12 @@ Academic Year {2019/2020}
 \newpage
 \setcounter{page}{1}
 
-\section{Flatland}\label{sec:flatland}
+\chapter{Flatland}\label{ch:flatland}
+\addcontentsline{toc}{chapter}{Flatland}
 
 The analyzed version is the 2.1.10
 
-\subsection{The classes RailAgentStatus and EnvAgent}\label{subsec:the-classes-railagentstatus-and-envagent}
+\section*{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
 
 RailAgentStatus extends Python IntEnum and assumes the following values:
 \begin{itemize}
@@ -123,7 +126,7 @@ The speed of an agent contains the keys 'position\_fraction' used as a counter o
 
 The malfunction of an agent contains the keys 'malfunction' which contains how many steps are necessary to fix the agent, 'malfunction\_rate', the mean rate (average number of events in an interval) of the Poisson distribution, 'next\_malfunction' the number of steps the next malfunction will occur and 'nr\_malfunctions' the number of previous malfunctions.
 
-\subsection{The class RailEnv}\label{subsec:the-class-railenv}
+\section*{The class RailEnv}\label{sec:the-class-railenv}
 
 From the documentation
 \begin{quotation}
@@ -137,7 +140,7 @@ In the \textit{step} function the number of steps is updated and if the overall 
 The info of the agent are prepared and finally the end malfunctions are repaired.
 Agents are handled in the order in which are passed.
 
-\subsubsection*{Environment Actions}
+\subsection{Environment Actions}\label{subsec:environment-actions}
 The avaiable actions are:
 \begin{itemize}
 	\item DO\_NOTHING (0) Default action if None has been provided or the value is not within this list.
@@ -207,7 +210,7 @@ No, agents check if the cell is free before moving.
 Deadlocks are possible when two agents are one in front the other without any chance to change path.
 \end{itemize}
 
-\subsubsection*{Malfunctions}
+\subsection{Malfunctions}\label{subsec:malfunctions}
 The strategy depends on the passed \textit{malfunction\_generator\_and\_process\_data}.
 TODO
 
@@ -218,12 +221,12 @@ TODO
 TODO Yes.
 \end{itemize}
 
-\subsubsection*{Speed}
+\subsection{Speed}\label{subsec:speed}
 The different speed profiles (speed is between 0 and 1) can be generated using the schedule\_generator.
 Speed configurations can be build using \textbf{ScheduleGenerator}s.
 TODO
 
-\subsubsection*{Rewards}
+\subsection{Rewards}\label{subsec:rewards}
 The rewards are based on the following values:
 \begin{itemize}
 	\item invalid\_action\_penalty which is currently set to 0, penalty for requesting an invalid action
@@ -247,13 +250,14 @@ Currently the other penalties are all set to zero.
 So each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
 Currently it is possible to say that rewards are always full step excluding the end of the episode and the single agents that have finished which have reward equal to 0.
 
-\section{Multi Agent Reinforcement Learning (MARL)}\label{sec:multi-agent-reinforcement-learning}
+\chapter{Multi-Agent Reinforcement Learning (MARL)}\label{ch:multi-agent-reinforcement-learning}
+\addcontentsline{toc}{chapter}{Multi-Agent Reinforcement Learning (MARL)}
 
 This section provides an overview of some useful works and theory behind MARL that we consider useful to suggest approaches or solutions to the Flatland Challenge.
 
-\subsection{Theoretical background}\label{subsec:marl-theoretical-background}
+\section*{Theoretical background}\label{sec:marl-theoretical-background}
 
-\subsubsection{Introduction}
+\subsection{Introduction}\label{subsec:introduction}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{MARL_definition}}]
 Specifically, MARL addresses the sequential decision-making problem of multiple autonomous agents that operate in a common environment, each of which aims to optimize its own long-term return by interacting with the environment and other agents.
@@ -296,7 +300,7 @@ The involvement of Deep Learning to tackle the problem of MARL defines a new spe
 	\item \textbf{Agents modeling agents}, they study how agents reason about others to fulfill a task.
 \end{itemize}
 
-\subsubsection{Challenges}
+\subsection{Challenges}\label{subsec:challenges}
 
 MARL frameworks inevitably adds many challenging problems on the single-agent scenario.
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{Hernandez_Leal_2019}}]
@@ -305,7 +309,7 @@ Learning in multiagent settings is fundamentally more difficult than the single-
 
 Below follow some problems that may affect the Flatland Challenge.
 
-\paragraph{Non-Stationarity}~\newline
+\subsubsection{Non-Stationarity}~\newline
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{papoudakis2019dealing}}]
 In Markov games, the state transition function $T$ and the reward function of each agent $r_i$ depend on the actions of all agents.
@@ -337,7 +341,7 @@ Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neur
 A popular alternative approach to MARL is \textbf{Independent Learning}, in which each agent independently learns its own policy, treating other agents as part of the environment.
 While this method avoid some scalability problems and has been successfully used in practice it introduces a non-stationary environment from the point of view of each agent.
 
-\paragraph{Partial observability}~\newline~\newline
+\subsubsection{Partial observability}~\newline
 As mentioned, in the single-agent scenario this type of problem is usually modelled with a POMDP\@.
 \textbf{Deep Recurrent Q-Networks (DRQN)} proposed using recurrent neural networks, in particular, Long Short-Term Memory (LSTMs) cells in DQN, to introduce a memory capability.
 An extension of DRQN for multi-agent environments is \textbf{Deep Distributed Recurrent Q-network (DDRQN)}~\cite{Nguyen_2020}.
@@ -345,13 +349,11 @@ Another technique to deal with partial observability is \textbf{Deep Recurrent P
 Methods to address partial observability in Markov Games usually involve communication (RIAL and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
 Alternatively to the Markov Game, the Dec-POMDP can be used to model this type of scenario in a more classical \textbf{centralized learning for decentralized execution} fashion or in a more modern \textbf{decentralized learning for decentralized execution} way.
 
-
-\paragraph{Scalability}~\newline~\newline
+\subsubsection{Scalability}~\newline
 To handle non-stationarity, each individual agent may need to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@~\cite{zhang2019multiagent}.
 Many methods have been proposed to tackle this problem, one of them is the extension of \textbf{Curriculum Learning} for a multi-agent scenario.
 
-
-\paragraph{Information Structures and Training Schemes}~\newline~\newline
+\subsubsection{Information Structures and Training Schemes}~\newline
 In the single-agent case is easier to understand what information is visible to the agent.
 In Markov games is sufficient to observe the current state, while on extensive-form games agents may need to recall the history of past decisions.
 In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by by individual agents~\cite{Nguyen_2020}~\cite{zhang2019multiagent}.
@@ -359,11 +361,89 @@ These considerations led to the development of different training schemes such a
 The former has become a standard as simulators are usually involved in MARL training, there are different types of communications between agents and the central controller such as centralized learning, concurrent learning and parameter sharing\cite{Nguyen_2020}.
 Usually decentralized settings may allow some sort of communication to address the non-convergence issue typical of the independent learning, this strategy is also referred as \textbf{decentralized setting with networked agents}.
 
+\subsubsection{Multi-agent credit assignment}~\newline
+TODO
 
-\paragraph{Multi-agent credit assignment}
+\chapter{Algorithms}\label{ch:algorithms}
+\addcontentsline{toc}{chapter}{Algorithms}
 
-\section{Algorithms}\label{sec:algorithms}
-\subsection{PS-PPO}\label{subsec:ps-ppo}
+This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
+
+\section*{PS-PPO}\label{sec:ps-ppo}
+\subsection{Algorithm}\label{subsec:the-algorithm}
+The algorithm is inspired by the work of Gupta et al.~\cite{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
+In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
+They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent suffer from the non-stationarity of the multi-agents environments and the lack of communication.
+Parameter sharing represents an ideal trade off to tackle the major challenges of multi-agent systems and provide a scalable framework.
+The authors suggest the policy gradient algorithm \textbf{Trust Region Policy Optimization (TRPO)} while in this work we present an alternative version based on \textbf{Proximal Policy Optimization (PPO)}.
+We will mot report here all the details of the two above mentioned algorithms in single-agent setting, which can be found in the references~\cite{trpo}~\cite{ppo}.
+The basic principle of Policy Gradient methods relies on the concept of gradient ascent to follow policies with the steepest increase in rewards.
+However, this simple setting may lead the algorithm to get overconfidence and make bad moves that ruin almost irreversibly the progress of the training.
+TRPO has been proposed to solve this issue by introducing the concept of guaranteed monotonic improvement.
+Theoretically, TRPO can guarantee a policy improvement as long as it optimizes the local approximation within a trusted region, creating at each update a better policy.
+PPO was conceived to improve the policy-based techniques by introducing an algorithm that attains the data efficiency and reliable performance of TRPO, while using only first-order optimization, as one of the most remarkable drawback of TRPO is its complexity.
+PPO relies on clipped probability ratios, which forms a pessimistic estimate of the performance of the policy, and data sampled from applying for several time steps the policy to obtain a so called trajectory.
+Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
+
+\subsection{Implementation}\label{subsec:the-implementation}
+
+This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\cite{ppo_implementation_1}~\cite{ppo_implementation_2} to be crucial for the overall algorithm performance.
+Our studies will be guided by this outcomes taking into account that our environment is discrete and not continuous.
+The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\cite{ppo_baselines} as mentioned in this article~\cite{ppo-32-implementations-details}.
+
+\subsubsection{Network architecture}
+
+PPO belongs to the family of actor-critic algorithms, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
+Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid sharing because it makes it harder to train and tune hyperparameters.
+This is because the norm of gradients flowing back from the actor gradients and the critic gradients are at completely different scales which is often hard to calibrate.
+First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is beneficial and Tanh activation functions are better than ReLU\@.
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{ppo_implementation_2}}]
+Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
+The key recipe appears is to initialize the policy at the beginning of training so that the action distribution is centered around $0^8$
+regardless of the observation and has a rather small standard deviation.
+This can be achieved by initializing the policy MLP with smaller weights in the last layer so that the initial action distribution is almost independent of the observation and by introducing an offset in the standard deviation of actions.
+\end{quoting}
+From the quote is possible to observe the importance of network weights initialization especially in the last layer of the policy network.
+In their case the action distribution is centered on 0 because action space is normalized between -1 and 1.
+
+TODO: initialization (C56), adam epsilon (C28) and learning rate (C24) and its decaying (C31) and Adam beta/momentum (C26)
+TODO: standard deviation of actions (C59-C62)
+
+\subsubsection{Training setup}
+
+The training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents.
+In particular in the first part each agent interact with the environment gathering some experience, called also trajectory.
+Each agent's trajectory includes for each time step the related observation and the action performed, rewards and information about the termination of the problem are joined from each agent.
+Trajectories' lengths depend on the chosen horizon.
+For each agent the learning phase is repeated in each epoch using batches of length according to the size of batches set as an hyperparameter.
+Increasing batch size should increase the speed of learning while adjust the horizon may have a great impact on the final result.
+
+\subsubsection{Normalization and clipping}
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{ppo_implementation_2}}]
+Always use observation normalization and check if value function normalization improves performance.
+Gradient clipping might slightly help but is of secondary importance.
+\end{quoting}
+
+TODO: (C67)
+We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss.
+
+TODO: value function normalization (C66)
+
+Obviously as it represents a core part of the PPO algorithm the surrogate objective function is clipped using the hyperparameter epsilon.
+The references mention also the usage of a clipping function for the value function loss (as present in the original PPO implementation) with poor results.
+
+TODO: global gradient clipping (C68)
+
+\subsubsection{Advantage estimation and loss}
+
+The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
+
+
+TODO: overall loss include value and entropy (value and entropy coefficients)
+
+\subsection{Testing}\label{subsec:testing}
 
 \newpage
 ~\nocite{*}
