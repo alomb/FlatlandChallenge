@@ -147,9 +147,9 @@ class ActorCritic(nn.Module):
         :param action: the performed action
         :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
         """
-        action_distribution = Categorical(self.actor_network(state))
+        action_distribution = Categorical(self.actor_network(state[-1]))
 
-        return action_distribution.log_prob(action), self.critic_network(state), action_distribution.entropy()
+        return action_distribution.log_prob(action[-1]), self.critic_network(state), action_distribution.entropy()
 
 
 class PsPPO:
@@ -170,6 +170,7 @@ class PsPPO:
                  epochs,
                  batch_size,
                  eps_clip,
+                 lmbda,
                  # advantage_estimator,
                  # value_function_loss
                  ):
@@ -196,6 +197,7 @@ class PsPPO:
         self.epochs = epochs
         self.batch_size = batch_size
         self.eps_clip = eps_clip
+        self.lmbda = lmbda
 
         # The policy updated at each learning epoch
         self.policy = ActorCritic(state_size,
@@ -225,11 +227,26 @@ class PsPPO:
 
         self.mse_loss = nn.MSELoss()
 
+    def get_advantages(lmbda, gamma, state_estimated_value, rewards):
+        returns = []
+        gae = 0
+
+        for i in reversed(range(len(rewards))):
+            delta = rewards[i] + gamma * state_estimated_value[i + 1] - state_estimated_value[i]
+            gae = delta + gamma * lmbda * gae
+            returns.append(gae + state_estimated_value[i])
+
+        returns = torch.tensor(returns[::-1], dtype=torch.float32).to(device)
+        adv = returns - state_estimated_value[:-1]
+
+        return (adv - torch.mean(adv)) / (torch.std(adv) + 1e-10)
+
     def update(self, memory):
         """
 
         :param memory:
         :return:
+        """
         """
         rewards = []
         discounted_reward = 0
@@ -239,13 +256,22 @@ class PsPPO:
             discounted_reward = reward + (self.discount_factor * discounted_reward)
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
+        """
+        lmbda = self.lmbda
+        discount_factor = self.discount_factor
+        last_reward = memory.rewards.pop()
+        last_done = memory.dones.pop()
 
         # TODO Why normalizing? boolean hyperparam
         # Normalizing the rewards:
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        #rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
+        #rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         # For each agent train the policy and the value network on personal observations
         for a in range(self.n_agents):
+            last_state = memory.states[a].pop()
+            last_action = memory.actions[a].pop()
+            last_logs_action_of_prop = memory.logs_of_action_prob[a].pop()
+
             # Convert lists to tensors
             old_states = torch.stack(memory.states[a]).to(device).detach()
             old_actions = torch.stack(memory.actions[a]).to(device).detach()
@@ -261,9 +287,22 @@ class PsPPO:
             for _ in range(self.epochs):
                 for batch_start in range(0, len(old_states), self.batch_size):
                     batch_end = batch_start + self.batch_size
-                    # Evaluating old actions and values
-                    log_of_action_prob, state_estimated_value, dist_entropy = \
-                        policy_evaluate(old_states[batch_start:batch_end], old_actions[batch_start:batch_end])
+                    if batch_end >= len(old_states):
+                        # Evaluating old actions and values
+                        #print("Old_states: ",old_states[batch_start:batch_end].shape)
+                        #print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
+                        #print("Action: ", old_actions[batch_start:batch_end].shape)
+                        #print("Last action", torch.unsqueeze(last_action, 0).shape)
+                        log_of_action_prob, state_estimated_value, dist_entropy = \
+                            policy_evaluate(torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
+                                            torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))))
+                    else:
+                        # Evaluating old actions and values
+                        #print("Old_states: ",old_states[batch_start:batch_end].shape)
+                        #print("Action: ", old_actions[batch_start:batch_end].shape)
+                        log_of_action_prob, state_estimated_value, dist_entropy = \
+                            policy_evaluate(old_states[batch_start:batch_end + 1],
+                                            old_actions[batch_start:batch_end + 1])
 
                     # print(old_states[batch_start:batch_end])
                     # print(old_actions[batch_start:batch_end])
@@ -273,13 +312,15 @@ class PsPPO:
                     # Find the ratio (pi_theta / pi_theta__old)
                     probs_ratio = torch_exp(log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
                     # Find the "Surrogate Loss"
-                    advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
+                    advantage = PsPPO.get_advantages(lmbda, discount_factor, state_estimated_value.detach(), memory.rewards[batch_start:batch_end])
+                    # advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
                     unclipped_objective = probs_ratio * advantage
                     clipped_objective = torch_clamp(probs_ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantage
 
                     # TODO: Specify hyperparameters
                     loss = -torch_min(unclipped_objective, clipped_objective) + \
-                           0.5 * self.mse_loss(state_estimated_value.squeeze(), rewards[batch_start:batch_end]) -\
+                           0.5 * self.mse_loss(state_estimated_value[:-1].squeeze(),
+                                               torch.tensor(memory.rewards[batch_start:batch_end], dtype=torch.float32).to(device)) -\
                            0.01 * dist_entropy
 
                     """
@@ -291,9 +332,21 @@ class PsPPO:
                     loss.mean().backward()
                     self.optimizer.step()
 
-        # Copy new weights into old policy:
-        self.policy_old.load_state_dict(self.policy.state_dict())
+                    # To show graph
+                    """
+                    from datetime import datetime
+                    from torchviz import make_dot
 
+                    now = datetime.now()
+                    make_dot(loss.mean()).render("attached" + now.strftime("%H-%M-%S"), format="png")
+                    exit()
+                    """
+
+
+
+        # Copy new weights into old policy:
+
+        self.policy_old.load_state_dict(self.policy.state_dict())
 
 ########################################################################################################################
 ########################################################################################################################
@@ -599,7 +652,8 @@ def train_multiple_agents(env_params, train_params):
                 train_params.discount_factor,
                 train_params.epochs,
                 train_params.batch_size,
-                train_params.eps_clip
+                train_params.eps_clip,
+                train_params.lmbda,
                 # train_params.advantage_estimator,
                 # train_params.value_function_loss
                 )
@@ -636,7 +690,7 @@ def train_multiple_agents(env_params, train_params):
         score = 0
 
         # Run episode
-        for step in range(max_steps - 1):
+        for step in range(max_steps):
             timestep += 1
 
             # Collect and preprocess observations
@@ -666,8 +720,7 @@ def train_multiple_agents(env_params, train_params):
             memory.dones.append(done['__all__'])
 
             # Update
-            if timestep % horizon == 0:
-                # print("update")
+            if timestep % (horizon + 1) == 0:
                 learn_timer.start()
                 ppo.update(memory)
                 learn_timer.end()
@@ -686,9 +739,9 @@ def train_multiple_agents(env_params, train_params):
                 break
 
         # Collection information about training
-        tasks_finished = sum(done[idx] for idx in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
-        normalized_score = score / (max_steps * env.get_num_agents())
+        tasks_finished = sum(info["status"][idx] == 2 or info["status"][idx] == 3 for idx in env.get_agent_handles())
+        completion = tasks_finished / max(1, n_agents)
+        normalized_score = score / (max_steps * n_agents)
         action_probs = action_count / np.sum(action_count)
         action_count = [1] * action_size
 
@@ -814,12 +867,14 @@ training_parameters = {
     "learning_rate": 0.001,
     # Activation
     "activation": "ReLU",
-
+    "lmbda": 0.95,
+    "entropy_coefficient": 0.01,
+    "value_loss_coefficient": 0.5,
     # ==============
     # Training setup
     # ==============
     "n_episodes": 2500,
-    "horizon": 1200,
+    "horizon": 1000,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,

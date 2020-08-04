@@ -24,5 +24,6 @@ dependencies:
     - ipycanvas
     # Neural networks
     - tensorflow
+    - torch
     # To keep the env clean
     - pip-autoremove
