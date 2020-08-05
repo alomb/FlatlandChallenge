@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
+from collections import OrderedDict
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -24,6 +25,7 @@ class ActorCritic(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
+                 shared,
                  critic_mlp_width,
                  critic_mlp_depth,
                  last_critic_layer_scaling,
@@ -34,6 +36,7 @@ class ActorCritic(nn.Module):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
+        :param shared: The actor and critic hidden and first layers are shared
         :param critic_mlp_width: The number of nodes in the critic's hidden network
         :param critic_mlp_depth: The number of hidden layers + the input one of the critic's network
         :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
@@ -49,8 +52,18 @@ class ActorCritic(nn.Module):
         self.activation = activation
 
         # Network creation
-        self.critic_network = self._build_network(False, critic_mlp_depth, critic_mlp_width)
-        self.actor_network = self._build_network(True, actor_mlp_depth, actor_mlp_width)
+        critic_layers = self._build_network(False, critic_mlp_depth, critic_mlp_width)
+        self.critic_network = nn.Sequential(critic_layers)
+        if not shared:
+            self.actor_network = nn.Sequential(self._build_network(True, actor_mlp_depth, actor_mlp_width))
+        else:
+            if critic_mlp_depth <= 1:
+                raise Exception("Shared networks must have depth greater than 1")
+            actor_layers = critic_layers.copy()
+            actor_layers.popitem()
+            actor_layers["actor_output_layer"] = nn.Linear(critic_mlp_width, action_size)
+            actor_layers["actor_softmax"] = nn.Softmax(dim=-1)
+            self.actor_network = nn.Sequential(actor_layers)
 
         # Network initialization
         # https://pytorch.org/docs/stable/nn.init.html#nn-init-doc
@@ -71,31 +84,31 @@ class ActorCritic(nn.Module):
         if nn_depth <= 0:
             raise Exception("Networks' depths must be greater than 0")
 
-        network = nn.Sequential()
+        network = OrderedDict()
         output_size = self.action_size if is_actor else 1
         nn_type = "actor" if is_actor else "critic"
 
         # First layer
-        network.add_module("%s_input" % nn_type, nn.Linear(self.state_size,
-                                                           nn_width if nn_depth > 1 else output_size))
+        network["%s_input" % nn_type] = nn.Linear(self.state_size,
+                                                  nn_width if nn_depth > 1 else output_size)
         # If it's not the last layer add the activation
         if nn_depth > 1:
-            network.add_module("%s_input_activation(%s)" % (nn_type, self.activation), self._get_activation())
+            network["%s_input_activation(%s)" % (nn_type, self.activation)] = self._get_activation()
 
         # Add hidden and last layers
         for layer in range(1, nn_depth):
             layer_name = "%s_layer_%d" % (nn_type, layer)
             # Last layer
             if layer == nn_depth - 1:
-                network.add_module(layer_name, nn.Linear(nn_width, output_size))
+                network[layer_name] = nn.Linear(nn_width, output_size)
             # Hidden layer
             else:
-                network.add_module(layer_name, nn.Linear(nn_width, nn_width))
-                network.add_module(layer_name + ("_activation(%s)" % self.activation), self._get_activation())
+                network[layer_name] = nn.Linear(nn_width, nn_width)
+                network[layer_name + ("_activation(%s)" % self.activation)] = self._get_activation()
 
         # Actor needs softmax
         if is_actor:
-            network.add_module("%s_softmax", nn.Softmax(dim=-1))
+            network["%s_softmax" % nn_type] = nn.Softmax(dim=-1)
 
         return network
 
@@ -157,7 +170,7 @@ class PsPPO:
                  n_agents,
                  state_size,
                  action_size,
-                 # shared,
+                 shared,
                  critic_mlp_width,
                  critic_mlp_depth,
                  last_critic_layer_scaling,
@@ -165,6 +178,7 @@ class PsPPO:
                  actor_mlp_depth,
                  last_actor_layer_scaling,
                  learning_rate,
+                 adam_eps,
                  activation,
                  discount_factor,
                  epochs,
@@ -172,12 +186,15 @@ class PsPPO:
                  eps_clip,
                  lmbda,
                  # advantage_estimator,
-                 # value_function_loss
+                 value_function_loss,
+                 entropy_coefficient=None,
+                 value_loss_coefficient=None
                  ):
         """
         :param n_agents: The number of agents
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
+        :param shared: The actor and critic hidden and first layers are shared
         :param critic_mlp_width: The number of nodes in the critic's hidden network
         :param critic_mlp_depth: The number of layers in the critic's network
         :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
@@ -185,23 +202,31 @@ class PsPPO:
         :param actor_mlp_depth: The number of layers in the actor's network
         :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
         :param learning_rate: The learning rate
+        :param adam_eps: Adam optimizer epsilon value
         :param discount_factor: The discount factor
         :param epochs: The number of training epochs for each batch
         :param batch_size: The size of data batches used for each agent in the training loop
         :param eps_clip: The offset used in the minimum and maximum values of the clipping function
+        :param value_function_loss: The function used to compute the value loss mse of huber (L1 loss)
+        :param entropy_coefficient: Coefficient multiplied by the entropy and used in the shared setting loss function
+        :param value_loss_coefficient: Coefficient multiplied by the value loss and used in the loss function
         """
 
         self.n_agents = n_agents
+        self.shared = shared
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.epochs = epochs
         self.batch_size = batch_size
         self.eps_clip = eps_clip
         self.lmbda = lmbda
+        self.value_loss_coefficient = value_loss_coefficient
+        self.entropy_coefficient = entropy_coefficient
 
         # The policy updated at each learning epoch
         self.policy = ActorCritic(state_size,
                                   action_size,
+                                  shared,
                                   critic_mlp_width,
                                   critic_mlp_depth,
                                   last_critic_layer_scaling,
@@ -210,12 +235,13 @@ class PsPPO:
                                   last_actor_layer_scaling,
                                   activation).to(device)
 
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, eps=adam_eps)
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
         self.policy_old = ActorCritic(state_size,
                                       action_size,
+                                      shared,
                                       critic_mlp_width,
                                       critic_mlp_depth,
                                       last_critic_layer_scaling,
@@ -225,9 +251,15 @@ class PsPPO:
                                       activation).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-        self.mse_loss = nn.MSELoss()
+        if value_function_loss == "mse":
+            self.value_loss_function = nn.MSELoss()
+        elif value_function_loss == "huber":
+            self.value_loss_function = nn.SmoothL1Loss()
+        else:
+            raise Exception("The provided value loss function is not available!")
 
-    def get_advantages(lmbda, gamma, state_estimated_value, rewards):
+
+    def _get_advantages(self, lmbda, gamma, state_estimated_value, rewards):
         returns = []
         gae = 0
 
@@ -239,7 +271,7 @@ class PsPPO:
         returns = torch.tensor(returns[::-1], dtype=torch.float32).to(device)
         adv = returns - state_estimated_value[:-1]
 
-        return (adv - torch.mean(adv)) / (torch.std(adv) + 1e-10)
+        return adv
 
     def update(self, memory):
         """
@@ -257,17 +289,34 @@ class PsPPO:
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
         """
+        # Save functions as objects outside to optimize code
+        epochs = self.epochs
+        n_agents = self.n_agents
+        batch_size = self.batch_size
+
         lmbda = self.lmbda
         discount_factor = self.discount_factor
+        policy_evaluate = self.policy.evaluate
+        get_advantages = self._get_advantages
+        torch_clamp = torch.clamp
+        torch_min = torch.min
+        obj_eps = self.eps_clip
+        torch_exp = torch.exp
+        shared = self.shared
+        ec = self.entropy_coefficient
+        vlc = self.value_loss_coefficient
+        value_loss_function = self.value_loss_function
+        optimizer = self.optimizer
+
         last_reward = memory.rewards.pop()
         last_done = memory.dones.pop()
 
         # TODO Why normalizing? boolean hyperparam
         # Normalizing the rewards:
-        #rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        #rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        # rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         # For each agent train the policy and the value network on personal observations
-        for a in range(self.n_agents):
+        for a in range(n_agents):
             last_state = memory.states[a].pop()
             last_action = memory.actions[a].pop()
             last_logs_action_of_prop = memory.logs_of_action_prob[a].pop()
@@ -277,29 +326,24 @@ class PsPPO:
             old_actions = torch.stack(memory.actions[a]).to(device).detach()
             old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(device).detach()
 
-            # Save functions as objects outside to optimize code
-            policy_evaluate = self.policy.evaluate
-            torch_clamp = torch.clamp
-            torch_min = torch.min
-            torch_exp = torch.exp
-
             # Optimize policy
-            for _ in range(self.epochs):
-                for batch_start in range(0, len(old_states), self.batch_size):
-                    batch_end = batch_start + self.batch_size
+            for _ in range(epochs):
+                for batch_start in range(0, len(old_states), batch_size):
+                    batch_end = batch_start + batch_size
                     if batch_end >= len(old_states):
                         # Evaluating old actions and values
-                        #print("Old_states: ",old_states[batch_start:batch_end].shape)
-                        #print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
-                        #print("Action: ", old_actions[batch_start:batch_end].shape)
-                        #print("Last action", torch.unsqueeze(last_action, 0).shape)
+                        # print("Old_states: ",old_states[batch_start:batch_end].shape)
+                        # print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
+                        # print("Action: ", old_actions[batch_start:batch_end].shape)
+                        # print("Last action", torch.unsqueeze(last_action, 0).shape)
                         log_of_action_prob, state_estimated_value, dist_entropy = \
-                            policy_evaluate(torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
-                                            torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))))
+                            policy_evaluate(
+                                torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
+                                torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))))
                     else:
                         # Evaluating old actions and values
-                        #print("Old_states: ",old_states[batch_start:batch_end].shape)
-                        #print("Action: ", old_actions[batch_start:batch_end].shape)
+                        # print("Old_states: ",old_states[batch_start:batch_end].shape)
+                        # print("Action: ", old_actions[batch_start:batch_end].shape)
                         log_of_action_prob, state_estimated_value, dist_entropy = \
                             policy_evaluate(old_states[batch_start:batch_end + 1],
                                             old_actions[batch_start:batch_end + 1])
@@ -310,27 +354,31 @@ class PsPPO:
                     # print(rewards[batch_start:batch_end])
 
                     # Find the ratio (pi_theta / pi_theta__old)
-                    probs_ratio = torch_exp(log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
+                    probs_ratio = torch_exp(
+                        log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
                     # Find the "Surrogate Loss"
-                    advantage = PsPPO.get_advantages(lmbda, discount_factor, state_estimated_value.detach(), memory.rewards[batch_start:batch_end])
+                    advantage = get_advantages(lmbda, discount_factor, state_estimated_value.detach(),
+                                                     memory.rewards[batch_start:batch_end])
                     # advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
+
+                    # Advantage normalization
+                    advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
+
                     unclipped_objective = probs_ratio * advantage
-                    clipped_objective = torch_clamp(probs_ratio, 1 - self.eps_clip, 1 + self.eps_clip) * advantage
+                    clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
 
-                    # TODO: Specify hyperparameters
-                    loss = -torch_min(unclipped_objective, clipped_objective) + \
-                           0.5 * self.mse_loss(state_estimated_value[:-1].squeeze(),
-                                               torch.tensor(memory.rewards[batch_start:batch_end], dtype=torch.float32).to(device)) -\
-                           0.01 * dist_entropy
+                    loss = -torch_min(unclipped_objective,
+                                      clipped_objective) + vlc * value_loss_function(
+                        state_estimated_value[:-1].squeeze(),
+                        torch.tensor(memory.rewards[batch_start:batch_end], dtype=torch.float32).to(device))
 
-                    """
-                    loss = -torch_min(unclipped_objective, clipped_objective)
-                    """
+                    if shared:
+                        loss -= ec * dist_entropy
 
                     # Gradient descent
-                    self.optimizer.zero_grad()
+                    optimizer.zero_grad()
                     loss.mean().backward()
-                    self.optimizer.step()
+                    optimizer.step()
 
                     # To show graph
                     """
@@ -341,12 +389,9 @@ class PsPPO:
                     make_dot(loss.mean()).render("attached" + now.strftime("%H-%M-%S"), format="png")
                     exit()
                     """
-
-
-
         # Copy new weights into old policy:
-
         self.policy_old.load_state_dict(self.policy.state_dict())
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -605,8 +650,6 @@ def train_multiple_agents(env_params, train_params):
     n_episodes = train_params.n_episodes
     checkpoint_interval = train_params.checkpoint_interval
     horizon = train_params.horizon
-    # TODO: Mini-batch gd
-    # batch_mode = train_params.batch_mode
     batch_size = train_params.batch_size
 
     # Setup renderer
@@ -640,7 +683,7 @@ def train_multiple_agents(env_params, train_params):
     ppo = PsPPO(n_agents,
                 state_size + 1,
                 action_size,
-                # train_params.shared,
+                train_params.shared,
                 train_params.critic_mlp_width,
                 train_params.critic_mlp_depth,
                 train_params.last_critic_layer_scaling,
@@ -648,14 +691,17 @@ def train_multiple_agents(env_params, train_params):
                 train_params.actor_mlp_depth,
                 train_params.last_actor_layer_scaling,
                 train_params.learning_rate,
+                train_params.adam_eps,
                 train_params.activation,
                 train_params.discount_factor,
                 train_params.epochs,
                 train_params.batch_size,
                 train_params.eps_clip,
                 train_params.lmbda,
-                # train_params.advantage_estimator,
-                # train_params.value_function_loss
+                train_params.value_loss_function,
+                # train_params.advantage_estimator
+                train_params.entropy_coefficient,
+                train_params.value_loss_coefficient
                 )
 
     """
@@ -854,27 +900,33 @@ training_parameters = {
     # Network architecture
     # ====================
     # Shared actor-critic layer
-    # "shared": False,
+    # If shared is True then the considered sizes are taken from the critic
+    "shared": False,
     # Policy network
     "critic_mlp_width": 128,
-    "critic_mlp_depth": 3,
-    "last_critic_layer_scaling": 0.01,
+    "critic_mlp_depth": 4,
+    "last_critic_layer_scaling": 1.0,
     # Actor network
-    "actor_mlp_width": 128,
-    "actor_mlp_depth": 2,
-    "last_actor_layer_scaling": 1.0,
+    "actor_mlp_width": 256,
+    "actor_mlp_depth": 4,
+    "last_actor_layer_scaling": 0.01,
     # Adam learning rate
     "learning_rate": 0.001,
+    # Adam epsilon
+    "adam_eps": 1e-5,
     # Activation
-    "activation": "ReLU",
+    "activation": "Tanh",
     "lmbda": 0.95,
     "entropy_coefficient": 0.01,
-    "value_loss_coefficient": 0.5,
+    # Called also baseline cost in shared setting (0.5)
+    # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
+    "value_loss_coefficient": 0.001,
     # ==============
     # Training setup
     # ==============
     "n_episodes": 2500,
-    "horizon": 1000,
+    # 512, 1024, 2048, 4096
+    "horizon": 1024,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
@@ -891,11 +943,11 @@ training_parameters = {
     # Advantage estimation
     # ====================
     # PPO-style value clipping
-    "eps_clip": 0.2,
+    "eps_clip": 0.25,
     # GAE, N-steps
     # "advantage_estimator": "n-steps",
-    # huber, mse
-    # "value_function_loss": "mse",
+    # huber or mse
+    "value_loss_function": "huber",
 
     # ==========================
     # Optimization and rendering

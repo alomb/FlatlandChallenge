@@ -400,7 +400,7 @@ First and last layers sizes are bound to the observation and action dimensions, 
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{ppo_implementation_2}}]
 Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
-The key recipe appears is to initialize the policy at the beginning of training so that the action distribution is centered around $0^8$
+The key recipe appears is to initialize the policy at the beginning of training so that the action distribution is centered around 0
 regardless of the observation and has a rather small standard deviation.
 This can be achieved by initializing the policy MLP with smaller weights in the last layer so that the initial action distribution is almost independent of the observation and by introducing an offset in the standard deviation of actions.
 \end{quoting}
@@ -440,8 +440,21 @@ TODO: global gradient clipping (C68)
 
 The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
 
+\begin{equation}
+	V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V(s_{t + N})\label{eq:N-step}
+\end{equation}
 
-TODO: overall loss include value and entropy (value and entropy coefficients)
+where $V$ is a value function approximator and $N$ controls the bias–variance tradeoff of the estimator.
+Bigger $N$ values results in an estimator closer to empirical returns and induce less bias and more variance.
+On the other hand GAE is defined in the following way:
+
+\begin{equation}
+	V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}V_t^{(N)}\label{eq:GAE}
+\end{equation}
+
+where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
+
+TODO: overall loss include value and entropy (value (C56) and entropy coefficients (C))
 
 \subsection{Testing}\label{subsec:testing}
 
