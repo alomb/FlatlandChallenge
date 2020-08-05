@@ -25,5 +25,6 @@ dependencies:
     # Neural networks
     - tensorflow
     - torch
+    - torchviz
     # To keep the env clean
     - pip-autoremove
