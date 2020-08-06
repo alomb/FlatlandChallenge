@@ -112,6 +112,7 @@ for episode in range(0, EPISODES):
     action_counter = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
 
     for time_step in range(TIMESTEPS):
+        print(shortest_paths_rewards)
         if print_stats:
             print("Episode " + str(time_step) + " in episode " + str(episode + 1))
 

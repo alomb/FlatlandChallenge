@@ -1,8 +1,10 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from flatland.envs.rail_env_shortest_paths import get_shortest_paths
 from torch.distributions import Categorical
 from collections import OrderedDict
+import math
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -131,10 +133,10 @@ class ActorCritic(nn.Module):
         """
 
         # The agent name is appended at the state
-        agent_id = int(state)
+        agent_id = int(state[-1])
         # Transform the state Numpy array to a Torch Tensor
         state = torch.from_numpy(state).float().to(device)
-        action_probs = self.actor_network(state[-1])
+        action_probs = self.actor_network(state)
         """
         From the paper: "The stochastic policy πθ can be represented by a categorical distribution when the actions of
         the agent are discrete and by a Gaussian distribution when the actions are continuous."
@@ -158,6 +160,7 @@ class ActorCritic(nn.Module):
         :param action: the performed action
         :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
         """
+
         action_distribution = Categorical(self.actor_network(state[-1]))
 
         return action_distribution.log_prob(action[-1]), self.critic_network(state), action_distribution.entropy()
@@ -256,7 +259,7 @@ class PsPPO:
         else:
             raise Exception("The provided value loss function is not available!")
 
-
+    """
     def _get_advantages(self, lmbda, gamma, state_estimated_value, rewards):
         returns = []
         gae = 0
@@ -270,6 +273,22 @@ class PsPPO:
         adv = returns - state_estimated_value[:-1]
 
         return adv
+    """
+
+    def _get_advantages(self, lmbda, gamma, state_estimated_value, rewards):
+        advantages = []
+
+        for i in range(len(rewards)):
+            if i == 0:
+                adv = rewards[i] + gamma * state_estimated_value[i + 1] - state_estimated_value[i]
+            else:
+                adv = adv - math.pow(gamma, i) * state_estimated_value[i] + math.pow(gamma, i) * rewards[i] + math.pow(
+                    gamma, i + 1) * state_estimated_value[i + 1]
+            advantages.append(adv * math.pow(lmbda, i))
+
+        gae = (1 - lmbda) * torch.tensor(advantages, dtype=torch.float32).to(device)
+
+        return (gae - torch.mean(gae)) / (torch.std(gae) + 1e-10)
 
     def update(self, memory):
         """
@@ -310,8 +329,8 @@ class PsPPO:
 
         # TODO Why normalizing? boolean hyperparam
         # Normalizing the rewards:
-        # rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        rewards = torch.tensor(memory.rewards, dtype=torch.float32).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         # For each agent train the policy and the value network on personal observations
         for a in range(n_agents):
             last_state = memory.states[a].pop()
@@ -355,7 +374,7 @@ class PsPPO:
                         log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
                     # Find the "Surrogate Loss"
                     advantage = get_advantages(lmbda, discount_factor, state_estimated_value.detach(),
-                                                     memory.rewards[batch_start:batch_end])
+                                               rewards[batch_start:batch_end])
                     # advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
 
                     # Advantage normalization
@@ -367,7 +386,7 @@ class PsPPO:
                     loss = -torch_min(unclipped_objective,
                                       clipped_objective) + vlc * value_loss_function(
                         state_estimated_value[:-1].squeeze(),
-                        torch.tensor(memory.rewards[batch_start:batch_end], dtype=torch.float32).to(device))
+                        torch.tensor(rewards[batch_start:batch_end], dtype=torch.float32).to(device))
 
                     if shared:
                         loss -= ec * dist_entropy
@@ -555,19 +574,19 @@ class Timer(object):
 ########################################################################################################################
 
 import random
-from argparse import ArgumentParser, Namespace
+from argparse import Namespace
 
 from flatland.utils.rendertools import RenderTool
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
-from flatland.envs.rail_env import RailEnv, RailEnvActions
+from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.envs.observations import TreeObsForRailEnv
 
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+
 
 try:
     import wandb
@@ -583,6 +602,31 @@ if SUPPRESS_OUTPUT:
     # they currently have a bug which prevents runs that output emojis to run :(
     def print(*args, **kwargs):
         pass
+
+
+def step_shaping(env, action_dict, deadlocks):
+
+    previous_shortest_path = [len(get_shortest_paths(env.distance_map, max_depth=2*(env.height + env.width), agent_handle=a)[a])
+                              if get_shortest_paths(env.distance_map, max_depth=2*(env.height + env.width), agent_handle=a)[a] is not None
+                              else 0 for a in range(env.get_num_agents())]
+
+    # Environment step
+    obs, rewards, done, info = env.step(action_dict)
+
+    shortest_path = [len(get_shortest_paths(env.distance_map, max_depth=2*(env.height + env.width), agent_handle=a)[a])
+                              if get_shortest_paths(env.distance_map, max_depth=2*(env.height + env.width), agent_handle=a)[a] is not None
+                     else 0 for a in range(env.get_num_agents())]
+
+    deadlocks = [deadlocks[a] + 1 if info['status'][a] == 2 and shortest_path[a] == previous_shortest_path[a]
+                 and info['malfunction'][a] != 0 else 0 for a in range(env.get_num_agents())]
+
+    rewards_shaped_shortest_path = {a: 2 * rewards[a] if shortest_path[a] < previous_shortest_path[a] else rewards[a]
+                                    for a in range(env.get_num_agents())}
+
+    rewards_shaped_deadlocks = {a: rewards_shaped_shortest_path[a] - 10 if deadlocks[a] >= 2 else rewards_shaped_shortest_path[a]
+                                for a in range(env.get_num_agents())}
+
+    return obs, rewards, done, info, rewards_shaped_deadlocks
 
 
 def train_multiple_agents(env_params, train_params):
@@ -730,6 +774,8 @@ def train_multiple_agents(env_params, train_params):
             env_renderer.set_new_rail()
 
         score = 0
+        PATH = "model.pt"
+        deadlocks = [0 for agent in range(env.get_num_agents())]
 
         # Run episode
         for step in range(max_steps):
@@ -752,13 +798,19 @@ def train_multiple_agents(env_params, train_params):
                 action_count[a] += 1
 
             # Environment step
+            """
             step_timer.start()
             obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
+            """
+
+            obs, rewards, done, info, rewards_shaped = step_shaping(env, action_dict, deadlocks)
 
             total_timestep_reward = np.sum(list(rewards.values()))
             score += total_timestep_reward
-            memory.rewards.append(total_timestep_reward)
+            total_timestep_reward_shaped = np.sum(list(rewards_shaped.values()))
+
+            memory.rewards.append(total_timestep_reward_shaped)
             memory.dones.append(done['__all__'])
 
             # Update
@@ -795,6 +847,8 @@ def train_multiple_agents(env_params, train_params):
         # Print logs
         if episode % checkpoint_interval == 0:
             # TODO: Save network params as checkpoints
+            print("..saving model..")
+            #torch.save(ppo.policy.state_dict(), PATH)
             if train_params.render:
                 env_renderer.close_window()
 
@@ -897,11 +951,11 @@ training_parameters = {
     # If shared is True then the considered sizes are taken from the critic
     "shared": False,
     # Policy network
-    "critic_mlp_width": 128,
+    "critic_mlp_width": 256,
     "critic_mlp_depth": 4,
     "last_critic_layer_scaling": 1.0,
     # Actor network
-    "actor_mlp_width": 256,
+    "actor_mlp_width": 128,
     "actor_mlp_depth": 4,
     "last_actor_layer_scaling": 0.01,
     # Adam learning rate
