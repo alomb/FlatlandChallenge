@@ -440,16 +440,35 @@ TODO: global gradient clipping (C68)
 
 The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
 
+The $Q$ value can be estimated in the following way:
 \begin{equation}
-	V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V(s_{t + N})\label{eq:N-step}
+	V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V^{\pi}(s_{t + N})\label{eq:N-step}
 \end{equation}
 
-where $V$ is a value function approximator and $N$ controls the bias–variance tradeoff of the estimator.
+where $V^{\pi}$ is a value function approximator and $N$ controls the bias–variance tradeoff of the estimator.
+$V^{\pi}$ tends to be biased because it is computed with a function approximator but has lower variance than the actual summed rewards since they are obtained from a single trajectory.
 Bigger $N$ values results in an estimator closer to empirical returns and induce less bias and more variance.
-On the other hand GAE is defined in the following way:
+Variance of the actual rewards typically increases the more steps away from the current step $t$ are taken, while close to $t$, the benefits of using an unbiased estimate may outweigh the variance introduced.
+As $N$ increases, the variance in the estimates will likely start to become problematic, and switching to a lower variance but biased estimate can be better.
+The advantage is measured subtracting from $V_t^{(N)}$ the estimated value $V^{\pi}(s_t)$.
 
 \begin{equation}
-	V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}V_t^{(N)}\label{eq:GAE}
+	A_t^{(N)} = V_t^{(N)} - V^{\pi}(s_t)\label{eq:N-step_advantage}
+\end{equation}
+
+GAE was proposed as an improvement over the N-steps result~\cite{gae}.
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{graesser2019foundations}}]
+It addresses the problem of having to explicitly choose the number of steps of returns, n.
+The main idea behind GAE is that instead of picking one value of n, we mix multiple values of n.
+That is, calculate the advantage using a weighted average of individual advantages calculated with n = 1, 2, 3, . . . , k.
+The purpose of GAE is to significantly reduce the variance of the estimator while keeping the bias introduced as low as possible.
+\end{quoting}
+
+GAE is defined in the following way:
+
+\begin{equation}
+	V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}A_t^{(N)}\label{eq:GAE}
 \end{equation}
 
 where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.

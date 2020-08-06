@@ -160,9 +160,9 @@ class ActorCritic(nn.Module):
         :param action: the performed action
         :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
         """
-        action_distribution = Categorical(self.actor_network(state[-1]))
+        action_distribution = Categorical(self.actor_network(state[:-1]))
 
-        return action_distribution.log_prob(action[-1]), self.critic_network(state), action_distribution.entropy()
+        return action_distribution.log_prob(action[:-1]), self.critic_network(state), action_distribution.entropy()
 
 
 class PsPPO:
@@ -185,7 +185,7 @@ class PsPPO:
                  batch_size,
                  eps_clip,
                  lmbda,
-                 # advantage_estimator,
+                 advantage_estimator,
                  value_function_loss,
                  entropy_coefficient=None,
                  value_loss_coefficient=None
@@ -207,6 +207,8 @@ class PsPPO:
         :param epochs: The number of training epochs for each batch
         :param batch_size: The size of data batches used for each agent in the training loop
         :param eps_clip: The offset used in the minimum and maximum values of the clipping function
+        :param lmbda: Controls gae bias–variance trade-off
+        :param advantage_estimator: The advantage estimation technique n-steps or gae (Generalized Advantage estimation)
         :param value_function_loss: The function used to compute the value loss mse of huber (L1 loss)
         :param entropy_coefficient: Coefficient multiplied by the entropy and used in the shared setting loss function
         :param value_loss_coefficient: Coefficient multiplied by the value loss and used in the loss function
@@ -222,6 +224,13 @@ class PsPPO:
         self.lmbda = lmbda
         self.value_loss_coefficient = value_loss_coefficient
         self.entropy_coefficient = entropy_coefficient
+
+        if advantage_estimator == "gae":
+            self.gae = True
+        elif advantage_estimator == "n-steps":
+            self.gae = False
+        else:
+            raise Exception("Advantage estimator not available")
 
         # The policy updated at each learning epoch
         self.policy = ActorCritic(state_size,
@@ -258,20 +267,48 @@ class PsPPO:
         else:
             raise Exception("The provided value loss function is not available!")
 
+    def _get_advs(self, gae, rewards, dones, gamma, state_estimated_value, lmbda=None):
+        """
+        advantages = []
+        import math
 
-    def _get_advantages(self, lmbda, gamma, state_estimated_value, rewards):
-        returns = []
-        gae = 0
+        for t in range(len(rewards)):
+            if t == 0:
+                adv = rewards[t] + gamma * state_estimated_value[t + 1] - state_estimated_value[t]
+            else:
+                adv = adv + math.pow(gamma, t) * rewards[t] +\
+                      math.pow(gamma, t + 1) * state_estimated_value[t + 1] -\
+                      math.pow(gamma, t) * state_estimated_value[t]
+            advantages.append(adv * math.pow(lmbda, t))
 
-        for i in reversed(range(len(rewards))):
-            delta = rewards[i] + gamma * state_estimated_value[i + 1] - state_estimated_value[i]
-            gae = delta + gamma * lmbda * gae
-            returns.append(gae + state_estimated_value[i])
+        gae = (1 - lmbda) * torch.tensor(advantages, dtype=torch.float32).to(device)
 
-        returns = torch.tensor(returns[::-1], dtype=torch.float32).to(device)
-        adv = returns - state_estimated_value[:-1]
+        """
 
-        return adv
+        if gae:
+            assert len(rewards) + 1 == len(state_estimated_value)
+
+            rewards = torch.tensor(rewards).to(device)
+            gaes = torch.zeros_like(rewards)
+            future_gae = torch.tensor(0.0, dtype=rewards.dtype).to(device)
+
+            # to multiply with not_dones to handle episode boundary (last state has no V(s'))
+            not_dones = 1 - torch.tensor(dones, dtype=torch.int).to(device)
+            for t in reversed(range(len(rewards))):
+                delta = rewards[t] + gamma * state_estimated_value[t + 1] * not_dones[t] - state_estimated_value[t]
+                gaes[t] = future_gae = delta + gamma * lmbda * not_dones[t] * future_gae
+
+            return gaes
+        else:
+            rewards = torch.tensor(rewards).to(device)
+            returns = torch.zeros_like(rewards)
+            future_ret = state_estimated_value[-1]
+
+            not_dones = 1 - torch.tensor(dones, dtype=torch.int).to(device)
+            for t in reversed(range(len(rewards))):
+                returns[t] = future_ret = rewards[t] + gamma * future_ret * not_dones[t]
+
+            return returns - state_estimated_value[:-1]
 
     def update(self, memory):
         """
@@ -279,6 +316,7 @@ class PsPPO:
         :param memory:
         :return:
         """
+
         """
         rewards = []
         discounted_reward = 0
@@ -288,6 +326,10 @@ class PsPPO:
             discounted_reward = reward + (self.discount_factor * discounted_reward)
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
+        
+        # Normalizing the rewards:
+        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         """
         # Save functions as objects outside to optimize code
         epochs = self.epochs
@@ -297,7 +339,8 @@ class PsPPO:
         lmbda = self.lmbda
         discount_factor = self.discount_factor
         policy_evaluate = self.policy.evaluate
-        get_advantages = self._get_advantages
+        get_advantages = self._get_advs
+        gae = self.gae
         torch_clamp = torch.clamp
         torch_min = torch.min
         obj_eps = self.eps_clip
@@ -308,22 +351,19 @@ class PsPPO:
         value_loss_function = self.value_loss_function
         optimizer = self.optimizer
 
-        last_reward = memory.rewards.pop()
-        last_done = memory.dones.pop()
+        _ = memory.rewards.pop()
+        _ = memory.dones.pop()
 
-        # TODO Why normalizing? boolean hyperparam
-        # Normalizing the rewards:
-        # rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         # For each agent train the policy and the value network on personal observations
         for a in range(n_agents):
             last_state = memory.states[a].pop()
             last_action = memory.actions[a].pop()
-            last_logs_action_of_prop = memory.logs_of_action_prob[a].pop()
+            _ = memory.logs_of_action_prob[a].pop()
 
             # Convert lists to tensors
             old_states = torch.stack(memory.states[a]).to(device).detach()
-            old_actions = torch.stack(memory.actions[a]).to(device).detach()
+            # old_actions = torch.stack(memory.actions[a]).to(device).unsqueeze(1).detach()
+            old_actions = torch.stack(memory.actions[a]).to(device)
             old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(device).detach()
 
             # Optimize policy
@@ -332,7 +372,7 @@ class PsPPO:
                     batch_end = batch_start + batch_size
                     if batch_end >= len(old_states):
                         # Evaluating old actions and values
-                        # print("Old_states: ",old_states[batch_start:batch_end].shape)
+                        # print("Old_states: ", old_states[batch_start:batch_end].shape)
                         # print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
                         # print("Action: ", old_actions[batch_start:batch_end].shape)
                         # print("Last action", torch.unsqueeze(last_action, 0).shape)
@@ -340,10 +380,11 @@ class PsPPO:
                             policy_evaluate(
                                 torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
                                 torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))))
+                        # torch.cat((old_actions[batch_start:batch_end], torch.tensor(last_action).reshape(1, 1))))
                     else:
                         # Evaluating old actions and values
-                        # print("Old_states: ",old_states[batch_start:batch_end].shape)
-                        # print("Action: ", old_actions[batch_start:batch_end].shape)
+                        # print("Old_states: ",old_states[batch_start:batch_end + 1].shape)
+                        # print("Action: ", old_actions[batch_start:batch_end + 1].shape)
                         log_of_action_prob, state_estimated_value, dist_entropy = \
                             policy_evaluate(old_states[batch_start:batch_end + 1],
                                             old_actions[batch_start:batch_end + 1])
@@ -351,15 +392,30 @@ class PsPPO:
                     # print(old_states[batch_start:batch_end])
                     # print(old_actions[batch_start:batch_end])
                     # print(old_logs_of_action_prob[batch_start:batch_end])
+                    # print(log_of_action_prob)
                     # print(rewards[batch_start:batch_end])
 
                     # Find the ratio (pi_theta / pi_theta__old)
                     probs_ratio = torch_exp(
                         log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
                     # Find the "Surrogate Loss"
-                    advantage = get_advantages(lmbda, discount_factor, state_estimated_value.detach(),
-                                                     memory.rewards[batch_start:batch_end])
+                    advantage = get_advantages(
+                        gae,
+                        memory.rewards[batch_start:batch_end],
+                        memory.dones[batch_start:batch_end],
+                        discount_factor,
+                        state_estimated_value.detach(),
+                        lmbda)
+
                     # advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
+
+                    """
+                    print("estimated value\t " + str(torch.mean(state_estimated_value).item()))
+                    print("reward\t " + str(
+                        torch.mean(torch.tensor(memory.rewards[batch_start:batch_end]).to(device)).item()))
+                    print("advantage\t " + str(torch.mean(advantage).item()))
+                    print("probsratio\t " + str(torch.mean(probs_ratio).item()))
+                    """
 
                     # Advantage normalization
                     advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
@@ -604,9 +660,15 @@ def train_multiple_agents(env_params, train_params):
     observation_radius = env_params.observation_radius
     observation_max_path_depth = env_params.observation_max_path_depth
 
+    # Training setup parameters
+    n_episodes = train_params.n_episodes
+    checkpoint_interval = train_params.checkpoint_interval
+    horizon = train_params.horizon
+
     # Set the seeds
     random.seed(seed)
     np.random.seed(seed)
+    torch.manual_seed(seed)
 
     # Break agents from time to time
     malfunction_parameters = MalfunctionParameters(
@@ -621,10 +683,14 @@ def train_multiple_agents(env_params, train_params):
 
     # Fraction of train which each speed
     speed_profiles = {
-        1.: 1.0,  # Fast passenger train
-        1. / 2.: 0.0,  # Fast freight train
-        1. / 3.: 0.0,  # Slow commuter train
-        1. / 4.: 0.0  # Slow freight train
+        # Fast passenger train
+        1.: 1.0,
+        # Fast freight train
+        1. / 2.: 0.0,
+        # Slow commuter train
+        1. / 3.: 0.0,
+        # Slow freight train
+        1. / 4.: 0.0
     }
 
     # Setup the environment
@@ -647,40 +713,31 @@ def train_multiple_agents(env_params, train_params):
 
     env.reset(regenerate_schedule=True, regenerate_rail=True)
 
-    n_episodes = train_params.n_episodes
-    checkpoint_interval = train_params.checkpoint_interval
-    horizon = train_params.horizon
-    batch_size = train_params.batch_size
-
     # Setup renderer
     if train_params.render:
         env_renderer = RenderTool(env, gl="PGL")
 
     # Calculate the state size given the depth of the tree observation and the number of features
     n_features_per_node = env.obs_builder.observation_dim
-    n_nodes = 0
-    for i in range(observation_tree_depth + 1):
-        n_nodes += np.power(4, i)
+    n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
     state_size = n_features_per_node * n_nodes
 
     # The action space of flatland is 5 discrete actions
-    # TODO: from param
-    action_size = 5
+    action_size = env.action_space[0]
 
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
-    # TODO: from param
     max_steps = int(4 * 2 * (env.height + env.width + (n_agents / n_cities)))
 
     action_count = [0] * action_size
-    agent_obs = [None] * env.get_num_agents()
     smoothed_normalized_score = -1.0
     smoothed_completion = 0.0
 
     memory = Memory(n_agents)
 
     ppo = PsPPO(n_agents,
+                # + 1 because also agent id is passed
                 state_size + 1,
                 action_size,
                 train_params.shared,
@@ -698,11 +755,10 @@ def train_multiple_agents(env_params, train_params):
                 train_params.batch_size,
                 train_params.eps_clip,
                 train_params.lmbda,
+                train_params.advantage_estimator,
                 train_params.value_loss_function,
-                # train_params.advantage_estimator
                 train_params.entropy_coefficient,
-                train_params.value_loss_coefficient
-                )
+                train_params.value_loss_coefficient)
 
     """
     # TensorBoard writer
@@ -725,6 +781,7 @@ def train_multiple_agents(env_params, train_params):
         learn_timer = Timer()
         preproc_timer = Timer()
 
+        agent_obs = [None] * env.get_num_agents()
         # Reset environment
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
@@ -741,15 +798,17 @@ def train_multiple_agents(env_params, train_params):
 
             # Collect and preprocess observations
             for agent in env.get_agent_handles():
-                # TODO: check if
+                # Agents always enter here so there is no further controls
+                # When obs is absent the agent has arrived and the observation remains the same
                 if obs[agent]:
                     preproc_timer.start()
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
-                                                             observation_radius=observation_radius)
+                                                                  observation_radius=observation_radius)
                     preproc_timer.end()
 
+            # TODO try excluding completely arrived networks from changing policy
             action_dict = {a: ppo.policy_old.act(np.append(agent_obs[a], [a]), memory) if info['action_required'][a]
-            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action=0)
+            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action=torch.tensor([0]))
                            for a in range(n_agents)}
 
             for a in list(action_dict.values()):
@@ -881,7 +940,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 5,
+    "n_agents": 3,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 4,
@@ -903,13 +962,13 @@ training_parameters = {
     # If shared is True then the considered sizes are taken from the critic
     "shared": False,
     # Policy network
-    "critic_mlp_width": 128,
+    "critic_mlp_width": 256,
     "critic_mlp_depth": 4,
     "last_critic_layer_scaling": 1.0,
     # Actor network
-    "actor_mlp_width": 256,
+    "actor_mlp_width": 128,
     "actor_mlp_depth": 4,
-    "last_actor_layer_scaling": 0.01,
+    "last_actor_layer_scaling": 1.0,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -944,10 +1003,10 @@ training_parameters = {
     # ====================
     # PPO-style value clipping
     "eps_clip": 0.25,
-    # GAE, N-steps
-    # "advantage_estimator": "n-steps",
+    # gae, n-steps
+    "advantage_estimator": "gae",
     # huber or mse
-    "value_loss_function": "huber",
+    "value_loss_function": "mse",
 
     # ==========================
     # Optimization and rendering
