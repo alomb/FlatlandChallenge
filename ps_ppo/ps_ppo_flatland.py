@@ -20,6 +20,14 @@ class Memory:
     def clear_memory(self):
         self.__init__(self.num_agents)
 
+    def clear_memory_except_last(self):
+        self.actions = list(map(lambda l: l[-1:], self.actions))
+        self.states = list(map(lambda l: l[-1:], self.states))
+        self.logs_of_action_prob = list(map(lambda l: l[-1:], self.logs_of_action_prob))
+
+        self.rewards = self.rewards[-1:]
+        self.dones = self.dones[-1:]
+
 
 class ActorCritic(nn.Module):
     def __init__(self,
@@ -461,13 +469,13 @@ def max_lt(seq, val):
     Return greatest item in seq for which item < val applies.
     None is returned if seq was empty or all items in seq were >= val.
     """
-    max = 0
+    max_item = 0
     idx = len(seq) - 1
     while idx >= 0:
-        if val > seq[idx] >= 0 and seq[idx] > max:
-            max = seq[idx]
+        if val > seq[idx] >= 0 and seq[idx] > max_item:
+            max_item = seq[idx]
         idx -= 1
-    return max
+    return max_item
 
 
 def min_gt(seq, val):
@@ -475,13 +483,13 @@ def min_gt(seq, val):
     Return smallest item in seq for which item > val applies.
     None is returned if seq was empty or all items in seq were >= val.
     """
-    min = np.inf
+    min_item = np.inf
     idx = len(seq) - 1
     while idx >= 0:
-        if val <= seq[idx] < min:
-            min = seq[idx]
+        if val <= seq[idx] < min_item:
+            min_item = seq[idx]
         idx -= 1
-    return min
+    return min_item
 
 
 def norm_obs_clip(obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_range=False):
@@ -490,7 +498,9 @@ def norm_obs_clip(obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_ran
     :param obs: Observation that should be normalized
     :param clip_min: min value where observation will be clipped
     :param clip_max: max value where observation will be clipped
-    :return: returnes normalized and clipped observatoin
+    :param fixed_radius:
+    :param normalize_to_range:
+    :return: returns normalized and clipped observation
     """
     if fixed_radius > 0:
         max_obs = fixed_radius
@@ -716,6 +726,8 @@ def train_multiple_agents(env_params, train_params):
     # Setup renderer
     if train_params.render:
         env_renderer = RenderTool(env, gl="PGL")
+    else:
+        env_renderer = None
 
     # Calculate the state size given the depth of the tree observation and the number of features
     n_features_per_node = env.obs_builder.observation_dim
@@ -824,13 +836,23 @@ def train_multiple_agents(env_params, train_params):
             memory.rewards.append(total_timestep_reward)
             memory.dones.append(done['__all__'])
 
+            # Set dones to True when the episode is finished because the maximum number of steps has been reached
+            if step == max_steps - 1:
+                memory.dones[-1] = True
+
             # Update
             if timestep % (horizon + 1) == 0:
                 learn_timer.start()
                 ppo.update(memory)
                 learn_timer.end()
-                memory.clear_memory()
-                timestep = 0
+
+                """
+                Set timestep to 1 because the batch includes an additional step which has not been considered in the 
+                current trajectory (it has been inserted to compute the advantage) but must be considered in the next
+                trajectory or is discarded.
+                """
+                memory.clear_memory_except_last()
+                timestep = 1
 
             if train_params.render and episode % checkpoint_interval == 0:
                 env_renderer.render_env(
