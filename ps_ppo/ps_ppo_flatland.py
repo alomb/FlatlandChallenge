@@ -275,7 +275,6 @@ class PsPPO:
         else:
             raise Exception("The provided value loss function is not available!")
 
-
     def _get_advs(self, gae, rewards, dones, gamma, state_estimated_value, lmbda=None):
         """
         advantages = []
@@ -637,7 +636,6 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-
 try:
     import wandb
 
@@ -654,21 +652,135 @@ if SUPPRESS_OUTPUT:
         pass
 
 
+def check_feasible_transitions(pos_a1, transitions, env):
+
+    if transitions[0] == 1:
+        position_check = (pos_a1[0] - 1, pos_a1[1])
+        if not (env.cell_free(position_check)):
+            for a2 in range(env.get_num_agents()):
+                if env.agents[a2].position == position_check:
+                    return a2
+
+    if transitions[1] == 1:
+        position_check = (pos_a1[0], pos_a1[1] + 1)
+        if not(env.cell_free(position_check)):
+            for a2 in range(env.get_num_agents()):
+                if env.agents[a2].position == position_check:
+                    return a2
+
+    if transitions[2] == 1:
+        position_check = (pos_a1[0] + 1, pos_a1[1])
+        if not(env.cell_free(position_check)):
+            for a2 in range(env.get_num_agents()):
+                if env.agents[a2].position == position_check:
+                    return a2
+
+    if transitions[3] == 1:
+        position_check = (pos_a1[0], pos_a1[1] - 1)
+        if not(env.cell_free(position_check)):
+            for a2 in range(env.get_num_agents()):
+                if env.agents[a2].position == position_check:
+                    return a2
+
+    return None
+
+
+def check_next_pos(a1, env):
+    if env.agents[a1].position is not None:
+        pos_a1 = env.agents[a1].position
+        dir_a1 = env.agents[a1].direction
+    else:
+        pos_a1 = env.agents[a1].initial_position
+        dir_a1 = env.agents[a1].initial_direction
+
+    # NORTH
+    if dir_a1 == 0:
+        if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
+            position_check = (pos_a1[0] - 1, pos_a1[1])
+            if not(env.cell_free(position_check)):
+                for a2 in range(env.get_num_agents()):
+                    if env.agents[a2].position == position_check:
+                        return a2
+        else:
+            return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), env)
+
+    # EAST
+    if dir_a1 == 1:
+        if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
+            position_check = (pos_a1[0], pos_a1[1] + 1)
+            if position_check[1] and not(env.cell_free(position_check)):
+                for a2 in range(env.get_num_agents()):
+                    if env.agents[a2].position == position_check:
+                        return a2
+        else:
+            return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), env)
+
+    # SOUTH
+    if dir_a1 == 2:
+        if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
+            position_check = (pos_a1[0] + 1, pos_a1[1])
+            if position_check[0] < env.width and not(env.cell_free(position_check)):
+                for a2 in range(env.get_num_agents()):
+                    if env.agents[a2].position == position_check:
+                        return a2
+        else:
+            return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), env)
+
+    # WEST
+    if dir_a1 == 3:
+        if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
+            position_check = (pos_a1[0], pos_a1[1] - 1)
+            if position_check[1] < env.height and not(env.cell_free(position_check)):
+                for a2 in range(env.get_num_agents()):
+                    if env.agents[a2].position == position_check:
+                        return a2
+        else:
+            return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), env)
+
+    return None
+
+
+def check_deadlocks(a1, deadlocks, env):
+    a2 = check_next_pos(a1[-1], env)
+
+    if a2 is None:
+        return False
+    if deadlocks[a2] or a2 in a1:
+        return True
+    a1.append(a2)
+    deadlocks[a2] = check_deadlocks(a1, deadlocks, env)
+    if deadlocks[a2]:
+        return True
+    del a1[-1]
+    return False
+
+
 def step_shaping(env, action_dict, deadlocks, shortest_path):
 
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
 
+    agents = []
+    for a in range(env.get_num_agents()):
+        if not done[a]:
+            agents.append(a)
+            if not deadlocks[a]:
+                deadlocks[a] = check_deadlocks(agents, deadlocks, env)
+            if not (deadlocks[a]):
+                del agents[-1]
+        else:
+            deadlocks[a] = False
+
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
-    #TODO: implement good deadlock detection
-    deadlocks = [deadlocks[a] + 1 if info['status'][a] == 2 and new_shortest_path[a] == shortest_path[a] and new_shortest_path[a] != 0
-                 and info['malfunction'][a] != 0 else 0 for a in range(env.get_num_agents())]
+    # TODO: implement good deadlock detection
+    # deadlocks = [deadlocks[a] + 1 if info['status'][a] == 2 and new_shortest_path[a] == shortest_path[a] and new_shortest_path[a] != 0
+    #             and info['malfunction'][a] != 0 else 0 for a in range(env.get_num_agents())]
 
-    rewards_shaped_shortest_path = {a: 2 * rewards[a] if shortest_path[a] < new_shortest_path[a] else rewards[a]
+    rewards_shaped_shortest_path = {a: 2.0 * rewards[a] if shortest_path[a] < new_shortest_path[a] else rewards[a]
                                     for a in range(env.get_num_agents())}
 
-    rewards_shaped_deadlocks = {a: -10 if deadlocks[a] >= 2 else rewards_shaped_shortest_path[a]
+    rewards_shaped_deadlocks = {a: -5.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
                                 for a in range(env.get_num_agents())}
 
     return obs, rewards, done, info, rewards_shaped_deadlocks, deadlocks, new_shortest_path
@@ -743,10 +855,12 @@ def train_multiple_agents(env_params, train_params):
     env.reset(regenerate_schedule=True, regenerate_rail=True)
 
     # Setup renderer
+
     if train_params.render:
         env_renderer = RenderTool(env, gl="PGL")
     else:
         env_renderer = None
+
 
     # Calculate the state size given the depth of the tree observation and the number of features
     n_features_per_node = env.obs_builder.observation_dim
@@ -805,8 +919,10 @@ def train_multiple_agents(env_params, train_params):
           .format(env.get_num_agents(), x_dim, y_dim, n_episodes, horizon))
 
     timestep = 0
+    PATH = "model.pt"
 
     for episode in range(n_episodes + 1):
+
         # Timers
         step_timer = Timer()
         reset_timer = Timer()
@@ -819,13 +935,13 @@ def train_multiple_agents(env_params, train_params):
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
         reset_timer.end()
 
+
         if train_params.render:
             env_renderer.set_new_rail()
 
         score = 0
-        PATH = "model.pt"
 
-        deadlocks = [0 for agent in range(env.get_num_agents())]
+        deadlocks = [False for agent in range(env.get_num_agents())]
         shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
         # Run episode
@@ -839,7 +955,7 @@ def train_multiple_agents(env_params, train_params):
                 if obs[agent]:
                     preproc_timer.start()
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
-                                                                  observation_radius=observation_radius)
+                                                             observation_radius=observation_radius)
                     preproc_timer.end()
 
             # TODO try excluding completely arrived networks from changing policy
@@ -896,8 +1012,6 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
-            if done['__all__']:
-                break
 
         # Collection information about training
         tasks_finished = sum(info["status"][idx] == 2 or info["status"][idx] == 3 for idx in env.get_agent_handles())
@@ -914,8 +1028,8 @@ def train_multiple_agents(env_params, train_params):
         # Print logs
         if episode % checkpoint_interval == 0:
             # TODO: Save network params as checkpoints
-            #print("..saving model..")
-            #torch.save(ppo.policy.state_dict(), PATH)
+            print("..saving model..")
+            # torch.save(ppo.policy.state_dict(), PATH)
             if train_params.render:
                 env_renderer.close_window()
 
@@ -996,16 +1110,16 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 3,
+    "n_agents": 5,
     "x_dim": 35,
     "y_dim": 35,
-    "n_cities": 4,
+    "n_cities": 2,
     "max_rails_between_cities": 2,
     "max_rails_in_city": 3,
 
     "seed": myseed,
-    "observation_tree_depth": 2,
-    "observation_radius": 10,
+    "observation_tree_depth": 3,
+    "observation_radius": 25,
     "observation_max_path_depth": 30
 }
 
@@ -1041,12 +1155,12 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 1024,
+    "horizon": 2048,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    "batch_size": 64,
+    "batch_size": 256,
 
     # ==========================
     # Normalization and clipping
