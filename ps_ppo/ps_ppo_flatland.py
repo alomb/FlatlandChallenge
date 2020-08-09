@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from flatland.envs.rail_env_shortest_paths import get_shortest_paths
 from torch.distributions import Categorical
 from collections import OrderedDict
 
@@ -628,7 +627,7 @@ from argparse import Namespace
 from flatland.utils.rendertools import RenderTool
 import numpy as np
 
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.envs.observations import TreeObsForRailEnv
@@ -708,7 +707,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 1:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0], pos_a1[1] + 1)
-            if position_check[1] and not(env.cell_free(position_check)):
+            if not(env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -719,7 +718,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 2:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0] + 1, pos_a1[1])
-            if position_check[0] < env.width and not(env.cell_free(position_check)):
+            if not(env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -730,7 +729,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 3:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0], pos_a1[1] - 1)
-            if position_check[1] < env.height and not(env.cell_free(position_check)):
+            if not(env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -755,8 +754,45 @@ def check_deadlocks(a1, deadlocks, env):
     return False
 
 
+def check_invalid_transitions(env, action_dict):
+
+    invalid_rewards_shaped = {a: 0 for a in range(env.get_num_agents())}
+    moving = [env.agents[a].moving for a in range(env.get_num_agents())]
+    agent_speed_data = [env.agents[a].speed_data['transition_action_on_cellexit'] for a in range(env.get_num_agents())]
+    action_dict_app = action_dict
+
+    for a in range(env.get_num_agents()):
+        if np.isclose(env.agents[a].speed_data['position_fraction'], 0.0, rtol=1e-03):
+            if action_dict_app[a] is None:
+                action_dict_app[a] = 0
+            if action_dict_app[a] < 0:
+                action_dict_app[a] = 0
+            if action_dict_app[a] == 0 and moving[a]:
+                action_dict_app[a] = 2
+            if action_dict_app[a] == 4 and moving[a] == True:
+                moving[a] = False
+                invalid_rewards_shaped[a] -= 1
+            if not moving[a] and not(action_dict_app[a] == 0 and action_dict_app[a] == 4):
+                moving[a] = False
+                invalid_rewards_shaped[a] -= 1                          # Start penalty
+            if moving[a]:
+                action_stored = False
+                _, new_cell_valid, new_direction, new_position, transition_valid = \
+                    env._check_action_on_agent(RailEnvActions.MOVE_FORWARD, env.agents[a])
+                if all([new_cell_valid, transition_valid]):
+                    agent_speed_data[a] = action_dict[a]
+                    action_stored = True
+                if not action_stored:
+                    # If the agent cannot move due to an invalid transition, we set its state to not moving
+                    invalid_rewards_shaped[a] -= 2                      # Invalid action penalty
+                    invalid_rewards_shaped[a] -= 1                      # Stop penalty
+
+    return invalid_rewards_shaped
+
+
 def step_shaping(env, action_dict, deadlocks, shortest_path):
 
+    invalid_rewards_shaped = check_invalid_transitions(env, action_dict)
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
 
@@ -768,17 +804,13 @@ def step_shaping(env, action_dict, deadlocks, shortest_path):
                 deadlocks[a] = check_deadlocks(agents, deadlocks, env)
             if not (deadlocks[a]):
                 del agents[-1]
-        else:
-            deadlocks[a] = False
 
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
-    # TODO: implement good deadlock detection
-    # deadlocks = [deadlocks[a] + 1 if info['status'][a] == 2 and new_shortest_path[a] == shortest_path[a] and new_shortest_path[a] != 0
-    #             and info['malfunction'][a] != 0 else 0 for a in range(env.get_num_agents())]
+    invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped_shortest_path = {a: 2.0 * rewards[a] if shortest_path[a] < new_shortest_path[a] else rewards[a]
-                                    for a in range(env.get_num_agents())}
+    rewards_shaped_shortest_path = {a: 2.0 * invalid_rewards_shaped[a] if shortest_path[a] < new_shortest_path[a]
+                                    else invalid_rewards_shaped[a] for a in range(env.get_num_agents())}
 
     rewards_shaped_deadlocks = {a: -5.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
                                 for a in range(env.get_num_agents())}
@@ -934,7 +966,6 @@ def train_multiple_agents(env_params, train_params):
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
         reset_timer.end()
-
 
         if train_params.render:
             env_renderer.set_new_rail()
@@ -1110,7 +1141,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 5,
+    "n_agents": 3,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1132,12 +1163,12 @@ training_parameters = {
     # If shared is True then the considered sizes are taken from the critic
     "shared": False,
     # Policy network
-    "critic_mlp_width": 256,
-    "critic_mlp_depth": 4,
+    "critic_mlp_width": 512,
+    "critic_mlp_depth": 16,
     "last_critic_layer_scaling": 1.0,
     # Actor network
-    "actor_mlp_width": 128,
-    "actor_mlp_depth": 4,
+    "actor_mlp_width": 256,
+    "actor_mlp_depth": 16,
     "last_actor_layer_scaling": 1.0,
     # Adam learning rate
     "learning_rate": 0.001,
@@ -1155,12 +1186,12 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 2048,
+    "horizon": 4096,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    "batch_size": 256,
+    "batch_size": 1024,
 
     # ==========================
     # Normalization and clipping
@@ -1184,7 +1215,7 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": False,
+    "render": True,
 }
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
