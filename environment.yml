@@ -26,5 +26,7 @@ dependencies:
     - tensorflow
     - torch
     - torchviz
+    # To read config files
+    - pyyaml
     # To keep the env clean
     - pip-autoremove
