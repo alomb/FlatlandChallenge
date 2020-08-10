@@ -369,6 +369,30 @@ TODO
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 
+\section{Observations, actions and rewards}\label{sec:observations-and-actions}
+
+This section provides some details on how observations and actions have been modeled in the various implementations.
+
+\subsection{Observations}\label{subsec:observations}
+
+% TODO
+
+\subsection{Actions}\label{subsec:actions}
+As mentioned before~\ref{subsec:environment-actions} the Flatland environments provides for each agent five different actions.
+The DO\_NOTHING is not necessary to reach a solution, because the agent can continue moving forward deciding each time the action MOVE\_FORWARD or stop using STOP\_MOVING\@.
+As we think that further from being useless it may also damage the overall performance we decided to consider its removal.
+It has already mentioned the ambiguity of the actions MOVE\_LEFT and MOVE\_RIGHT where they are forbidden, it is natural to conclude that the agents may learn bad policies that maps these actions to the same effect of the MOVE\_FORWARD action.
+We observed that this phenomenon is very common due to the presence of long straight paths where the agent is allowed only to stop or move forward and concluded that even stopping in the middle of the rail does not have much sense because agents still stop when other agents block their way due to deadlocks, different speeds or malfunctions.
+For this reason we considered the possibility to force agents to only decide and learn in switches, where multiple actions are allowed and agents may learn to give way to other agents, avoid deadlocks, reach the target and more.
+This considerations lead to skipping a lot of choices during learning and deploy \textbf{Action Masking} to avoid illegal actions.
+Actions masking is described in details in the respective implementations~\ref{subsubsec:action_masking_ppo}.
+% TODO complete refs to implementations
+~\ref{subsec:rewards2} analyze an alternative approach to action masking based on rewards.
+
+\subsection{Rewards}\label{subsec:rewards2}
+
+% TODO reward shaping
+
 \section*{PS-PPO}\label{sec:ps-ppo}
 \subsection{Algorithm}\label{subsec:the-algorithm}
 The algorithm is inspired by the work of Gupta et al.~\cite{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
@@ -474,6 +498,14 @@ GAE is defined in the following way:
 where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
 
 TODO: overall loss include value and entropy (value (C56) and entropy coefficients (C))
+
+\subsubsection{Action Masking and action skipping}\label{subsubsec:action_masking_ppo}
+Some studies~\cite{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \url{https://cdn.openai.com/dota-2.pdf}.
+As mentioned in~\ref{subsec:rewards2} a very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them.
+During this period it is possible that the agent converges to a wrong policy.
+Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the logits corresponding to the invalid actions.
+This is usually accomplished by replacing the logits of the actions to be masked by a large negative number like $-1 \cdot 10^8$.
+This operation actually change the gradient calculation for the actor network's parameters, in particular gradients of the masked logits become zero, but still maintains differentiability as the masking leaves unchanged values (identity function) or introduces constants.
 
 \subsection{Testing}\label{subsec:testing}
 
