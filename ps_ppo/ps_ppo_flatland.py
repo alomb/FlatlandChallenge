@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from flatland.core.grid.rail_env_grid import RailEnvTransitions
 from flatland.envs.agent_utils import RailAgentStatus
 from torch.distributions import Categorical
 from collections import OrderedDict
@@ -153,11 +154,11 @@ class ActorCritic(nn.Module):
         state = torch.from_numpy(state).float().to(device)
         action_logits = self.actor_network(state)
 
-        action_mask = torch.tensor(action_mask, dtype=torch.bool)
+        action_mask = torch.tensor(action_mask, dtype=torch.bool).to(device)
 
         # Action masking, default values are True, False are present only if masking is enabled.
         # If No op is not allowed it is masked even if masking is not active
-        action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8))
+        action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(device))
 
         action_probs = self.softmax(action_logits)
 
@@ -190,7 +191,7 @@ class ActorCritic(nn.Module):
 
         # Action masking, default values are True, False are present only if masking is enabled.
         # If No op is not allowed it is masked even if masking is not active
-        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8))
+        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8).to(device))
 
         action_probs = self.softmax(action_logits)
 
@@ -355,7 +356,7 @@ class PsPPO:
             discounted_reward = reward + (self.discount_factor * discounted_reward)
             rewards.append(discounted_reward)
         rewards = rewards[::-1]
-        
+
         # Normalizing the rewards:
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
@@ -937,6 +938,13 @@ def train_multiple_agents(env_params, train_params):
     timestep = 0
     path = "model.pt"
 
+    skip_cells = [int("1000000000100000", 2),
+                  RailEnvTransitions().rotate_transition(int("1000000000100000", 2), 90),
+                  int("0001001000000000", 2),
+                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 90),
+                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 180),
+                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 270)]
+
     for episode in range(n_episodes + 1):
 
         # Timers
@@ -974,7 +982,8 @@ def train_multiple_agents(env_params, train_params):
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
                             for action in range(action_size)] for _ in not_arrived_agents]
 
-            # Collect and preprocess observations
+            action_dict = dict()
+            # Collect and preprocess observations and fill action dictionary
             for agent in env.get_agent_handles():
                 # Agents always enter here at least once so there is no further controls
                 # When obs is absent the agent has arrived and the observation remains the same
@@ -991,10 +1000,15 @@ def train_multiple_agents(env_params, train_params):
                         pos_a_x = env.agents[agent].position[0] / env.width
                         pos_a_y = env.agents[agent].position[1] / env.height
                         a_direction = env.agents[agent].direction / 4
+                        """
+                        rail_cell = env.rail.get_full_transitions(env.agents[agent].position[0],
+                                                                  env.agents[agent].position[1])
+                        print(rail_cell in skip_cells)
+                        """
 
                     agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
-                    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0]/env.width,
-                                                                    env.agents[agent].target[1]/env.height])
+                    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
+                                                                    env.agents[agent].target[1] / env.height])
                     if deadlocks[agent]:
                         agent_obs[agent] = np.append(agent_obs[agent], [1])
                     else:
@@ -1004,17 +1018,30 @@ def train_multiple_agents(env_params, train_params):
                     if train_params.action_masking:
                         for action in range(action_size):
                             if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
-                                _, cell_valid, _, _, transition_valid = env._check_action_on_agent(RailEnvActions(action),
-                                                                                                   env.agents[agent])
+                                _, cell_valid, _, _, transition_valid = env._check_action_on_agent(
+                                    RailEnvActions(action),
+                                    env.agents[agent])
                                 if not all([cell_valid, transition_valid]):
                                     action_mask[agent][action] = 0
 
                     preproc_timer.end()
 
-            action_dict = {a: ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action_mask[a])
-            if info["action_required"][a] and info["status"][a] not in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
-            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action_mask[a], action=torch.tensor([0]))
-                           for a in not_arrived_agents}
+                # Fill action dict
+                # If an agent can skip the movement
+                if train_params.action_skipping \
+                        and env.agents[agent].position is not None and env.rail.get_full_transitions(
+                    env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
+                                           action=torch.tensor(2).to(device))
+                elif info["action_required"][agent] and info["status"][agent] not in [RailAgentStatus.DONE,
+                                                                                      RailAgentStatus.DONE_REMOVED]:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent])
+                else:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
+                                           action=torch.tensor(0).to(device))
 
             for a in list(action_dict.values()):
                 action_count[a] += 1
@@ -1025,9 +1052,10 @@ def train_multiple_agents(env_params, train_params):
             obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
             """
-
+            step_timer.start()
             obs, rewards, done, info, rewards_shaped, new_deadlocks, new_shortest_path = \
                 step_shaping(env, action_dict, deadlocks, shortest_path, action_mask)
+            step_timer.end()
 
             # TODO update not_arrived
             # [not_arrived_agents.remove(a) if d and a != "__all__" else None for a, d in done.items()]
@@ -1190,12 +1218,12 @@ training_parameters = {
     # If shared is True then the considered sizes are taken from the critic
     "shared": True,
     # Policy network
-    "critic_mlp_width": 512,
-    "critic_mlp_depth": 16,
+    "critic_mlp_width": 256,
+    "critic_mlp_depth": 4,
     "last_critic_layer_scaling": 0.01,
     # Actor network
-    "actor_mlp_width": 256,
-    "actor_mlp_depth": 16,
+    "actor_mlp_width": 128,
+    "actor_mlp_depth": 4,
     "last_actor_layer_scaling": 0.01,
     # Adam learning rate
     "learning_rate": 0.001,
@@ -1204,7 +1232,7 @@ training_parameters = {
     # Activation
     "activation": "Tanh",
     "lmbda": 0.95,
-    "entropy_coefficient": 0.1,
+    "entropy_coefficient": 0.4,
     # Called also baseline cost in shared setting (0.5)
     # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
     "value_loss_coefficient": 0.001,
@@ -1240,16 +1268,16 @@ training_parameters = {
     # Optimization and rendering
     # ==========================
     "checkpoint_interval": 100,
-    "use_gpu": False,
+    "use_gpu": True,
     "num_threads": 1,
-    "render": True,
+    "render": False,
 
     # ==========================
     # Action Masking / Skipping
     # ==========================
-    "action_masking": False,
+    "action_masking": True,
     "allow_no_op": False,
-    "action_skipping": False
+    "action_skipping": True
 }
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
