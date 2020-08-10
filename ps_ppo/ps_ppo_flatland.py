@@ -4,6 +4,8 @@ import torch.nn as nn
 from torch.distributions import Categorical
 from collections import OrderedDict
 
+from torch.utils.tensorboard import SummaryWriter
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
@@ -652,7 +654,6 @@ if SUPPRESS_OUTPUT:
 
 
 def check_feasible_transitions(pos_a1, transitions, env):
-
     if transitions[0] == 1:
         position_check = (pos_a1[0] - 1, pos_a1[1])
         if not (env.cell_free(position_check)):
@@ -662,21 +663,21 @@ def check_feasible_transitions(pos_a1, transitions, env):
 
     if transitions[1] == 1:
         position_check = (pos_a1[0], pos_a1[1] + 1)
-        if not(env.cell_free(position_check)):
+        if not (env.cell_free(position_check)):
             for a2 in range(env.get_num_agents()):
                 if env.agents[a2].position == position_check:
                     return a2
 
     if transitions[2] == 1:
         position_check = (pos_a1[0] + 1, pos_a1[1])
-        if not(env.cell_free(position_check)):
+        if not (env.cell_free(position_check)):
             for a2 in range(env.get_num_agents()):
                 if env.agents[a2].position == position_check:
                     return a2
 
     if transitions[3] == 1:
         position_check = (pos_a1[0], pos_a1[1] - 1)
-        if not(env.cell_free(position_check)):
+        if not (env.cell_free(position_check)):
             for a2 in range(env.get_num_agents()):
                 if env.agents[a2].position == position_check:
                     return a2
@@ -696,7 +697,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 0:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0] - 1, pos_a1[1])
-            if not(env.cell_free(position_check)):
+            if not (env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -707,7 +708,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 1:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0], pos_a1[1] + 1)
-            if not(env.cell_free(position_check)):
+            if not (env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -718,7 +719,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 2:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0] + 1, pos_a1[1])
-            if not(env.cell_free(position_check)):
+            if not (env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -729,7 +730,7 @@ def check_next_pos(a1, env):
     if dir_a1 == 3:
         if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
             position_check = (pos_a1[0], pos_a1[1] - 1)
-            if not(env.cell_free(position_check)):
+            if not (env.cell_free(position_check)):
                 for a2 in range(env.get_num_agents()):
                     if env.agents[a2].position == position_check:
                         return a2
@@ -755,7 +756,6 @@ def check_deadlocks(a1, deadlocks, env):
 
 
 def check_invalid_transitions(env, action_dict):
-
     invalid_rewards_shaped = {a: 0 for a in range(env.get_num_agents())}
     moving = [env.agents[a].moving for a in range(env.get_num_agents())]
     agent_speed_data = [env.agents[a].speed_data['transition_action_on_cellexit'] for a in range(env.get_num_agents())]
@@ -772,9 +772,9 @@ def check_invalid_transitions(env, action_dict):
             if action_dict_app[a] == 4 and moving[a] == True:
                 moving[a] = False
                 invalid_rewards_shaped[a] -= 1
-            if not moving[a] and not(action_dict_app[a] == 0 and action_dict_app[a] == 4):
+            if not moving[a] and not (action_dict_app[a] == 0 and action_dict_app[a] == 4):
                 moving[a] = False
-                invalid_rewards_shaped[a] -= 1                          # Start penalty
+                invalid_rewards_shaped[a] -= 1  # Start penalty
             if moving[a]:
                 action_stored = False
                 _, new_cell_valid, new_direction, new_position, transition_valid = \
@@ -784,14 +784,13 @@ def check_invalid_transitions(env, action_dict):
                     action_stored = True
                 if not action_stored:
                     # If the agent cannot move due to an invalid transition, we set its state to not moving
-                    invalid_rewards_shaped[a] -= 2                      # Invalid action penalty
-                    invalid_rewards_shaped[a] -= 1                      # Stop penalty
+                    invalid_rewards_shaped[a] -= 2  # Invalid action penalty
+                    invalid_rewards_shaped[a] -= 1  # Stop penalty
 
     return invalid_rewards_shaped
 
 
 def step_shaping(env, action_dict, deadlocks, shortest_path):
-
     invalid_rewards_shaped = check_invalid_transitions(env, action_dict)
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
@@ -809,13 +808,15 @@ def step_shaping(env, action_dict, deadlocks, shortest_path):
 
     invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped_shortest_path = {a: 2.0 * invalid_rewards_shaped[a] if shortest_path[a] < new_shortest_path[a]
-                                    else invalid_rewards_shaped[a] for a in range(env.get_num_agents())}
+    rewards_shaped_shortest_path = {a: 1.5 * invalid_rewards_shaped[a] if shortest_path[a] < new_shortest_path[a]
+    else invalid_rewards_shaped[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped_deadlocks = {a: -5.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
+    rewards_shaped_deadlocks = {a: -3.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
                                 for a in range(env.get_num_agents())}
 
-    return obs, rewards, done, info, rewards_shaped_deadlocks, deadlocks, new_shortest_path
+    rewards_shaped = {a: 1.0 if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
+
+    return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
 
 def train_multiple_agents(env_params, train_params):
@@ -886,14 +887,6 @@ def train_multiple_agents(env_params, train_params):
 
     env.reset(regenerate_schedule=True, regenerate_rail=True)
 
-    # Setup renderer
-
-    if train_params.render:
-        env_renderer = RenderTool(env, gl="PGL")
-    else:
-        env_renderer = None
-
-
     # Calculate the state size given the depth of the tree observation and the number of features
     n_features_per_node = env.obs_builder.observation_dim
     n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
@@ -915,7 +908,7 @@ def train_multiple_agents(env_params, train_params):
 
     ppo = PsPPO(n_agents,
                 # + 1 because also agent id is passed
-                state_size + 1,
+                state_size + 7,
                 action_size,
                 train_params.shared,
                 train_params.critic_mlp_width,
@@ -937,8 +930,8 @@ def train_multiple_agents(env_params, train_params):
                 train_params.entropy_coefficient,
                 train_params.value_loss_coefficient)
 
-    """
     # TensorBoard writer
+    """
     writer = SummaryWriter()
     writer.add_hparams(vars(train_params), {})
     writer.add_hparams(vars(env_params), {})
@@ -967,12 +960,20 @@ def train_multiple_agents(env_params, train_params):
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
         reset_timer.end()
 
+        # Setup renderer
+
+        if train_params.render:
+            env_renderer = RenderTool(env, gl="PGL")
+        else:
+            env_renderer = None
+
         if train_params.render:
             env_renderer.set_new_rail()
 
+
         score = 0
 
-        deadlocks = [False for agent in range(env.get_num_agents())]
+        deadlocks = [False for _ in range(env.get_num_agents())]
         shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
         # Run episode
@@ -987,6 +988,24 @@ def train_multiple_agents(env_params, train_params):
                     preproc_timer.start()
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
+
+                    if env.agents[agent].position is None:
+                        pos_a_x = env.agents[agent].initial_position[0] / env.width
+                        pos_a_y = env.agents[agent].initial_position[1] / env.height
+                        a_direction = env.agents[agent].initial_direction / 4
+                    else:
+                        pos_a_x = env.agents[agent].position[0] / env.width
+                        pos_a_y = env.agents[agent].position[1] / env.height
+                        a_direction = env.agents[agent].direction / 4
+
+                    agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
+                    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0]/env.width,
+                                                                    env.agents[agent].target[1]/env.height])
+                    if deadlocks[agent]:
+                        agent_obs[agent] = np.append(agent_obs[agent], [1])
+                    else:
+                        agent_obs[agent] = np.append(agent_obs[agent], [0])
+
                     preproc_timer.end()
 
             # TODO try excluding completely arrived networks from changing policy
@@ -1035,14 +1054,13 @@ def train_multiple_agents(env_params, train_params):
                 memory.clear_memory_except_last()
                 timestep = 1
 
-            if train_params.render and episode % checkpoint_interval == 0:
+            if train_params.render:
                 env_renderer.render_env(
                     show=True,
                     frames=False,
                     show_observations=False,
                     show_predictions=False
                 )
-
 
         # Collection information about training
         tasks_finished = sum(info["status"][idx] == 2 or info["status"][idx] == 3 for idx in env.get_agent_handles())
@@ -1061,8 +1079,8 @@ def train_multiple_agents(env_params, train_params):
             # TODO: Save network params as checkpoints
             print("..saving model..")
             # torch.save(ppo.policy.state_dict(), PATH)
-            if train_params.render:
-                env_renderer.close_window()
+        if train_params.render:
+            env_renderer.close_window()
 
         print(
             '\rEpisode {}'
@@ -1081,48 +1099,48 @@ def train_multiple_agents(env_params, train_params):
 
         # TODO: Consider possible eval
         """
-        if episode_idx % train_params.checkpoint_interval == 0:
+        if episode % train_params.checkpoint_interval == 0:
             scores, completions, nb_steps_eval = eval_policy(env, policy, n_eval_episodes, max_steps)
-            writer.add_scalar("evaluation/scores_min", np.min(scores), episode_idx)
-            writer.add_scalar("evaluation/scores_max", np.max(scores), episode_idx)
-            writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode_idx)
-            writer.add_scalar("evaluation/scores_std", np.std(scores), episode_idx)
-            writer.add_histogram("evaluation/scores", np.array(scores), episode_idx)
-            writer.add_scalar("evaluation/completions_min", np.min(completions), episode_idx)
-            writer.add_scalar("evaluation/completions_max", np.max(completions), episode_idx)
-            writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode_idx)
-            writer.add_scalar("evaluation/completions_std", np.std(completions), episode_idx)
-            writer.add_histogram("evaluation/completions", np.array(completions), episode_idx)
-            writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode_idx)
-            writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode_idx)
-            writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode_idx)
-            writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode_idx)
-            writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode_idx)
+            writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
+            writer.add_scalar("evaluation/scores_max", np.max(scores),episode)
+            writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
+            writer.add_scalar("evaluation/scores_std", np.std(scores), episode)
+            writer.add_histogram("evaluation/scores", np.array(scores), episode)
+            writer.add_scalar("evaluation/completions_min", np.min(completions), episode)
+            writer.add_scalar("evaluation/completions_max", np.max(completions), episode)
+            writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode)
+            writer.add_scalar("evaluation/completions_std", np.std(completions), episode)
+            writer.add_histogram("evaluation/completions", np.array(completions), episode)
+            writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
+            writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
+            writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
+            writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
+            writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
             smoothing = 0.9
             smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * (1.0 - smoothing)
             smoothed_eval_completion = smoothed_eval_completion * smoothing + np.mean(completions) * (1.0 - smoothing)
-            writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode_idx)
-            writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode_idx)
+            writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode)
+            writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode)
         # Save logs to tensorboard
-        writer.add_scalar("training/score", normalized_score, episode_idx)
-        writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode_idx)
-        writer.add_scalar("training/completion", np.mean(completion), episode_idx)
-        writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode_idx)
-        writer.add_scalar("training/nb_steps", nb_steps, episode_idx)
-        writer.add_histogram("actions/distribution", np.array(actions_taken), episode_idx)
-        writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode_idx)
-        writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode_idx)
-        writer.add_scalar("actions/forward", action_probs[RailEnvActions.MOVE_FORWARD], episode_idx)
-        writer.add_scalar("actions/right", action_probs[RailEnvActions.MOVE_RIGHT], episode_idx)
-        writer.add_scalar("actions/stop", action_probs[RailEnvActions.STOP_MOVING], episode_idx)
-        writer.add_scalar("training/epsilon", eps_start, episode_idx)
-        writer.add_scalar("training/buffer_size", len(policy.memory), episode_idx)
-        writer.add_scalar("training/loss", policy.loss, episode_idx)
-        writer.add_scalar("timer/reset", reset_timer.get(), episode_idx)
-        writer.add_scalar("timer/step", step_timer.get(), episode_idx)
-        writer.add_scalar("timer/learn", learn_timer.get(), episode_idx)
-        writer.add_scalar("timer/preproc", preproc_timer.get(), episode_idx)
-        writer.add_scalar("timer/total", training_timer.get_current(), episode_idx)
+        writer.add_scalar("training/score", normalized_score, episode)
+        writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode)
+        writer.add_scalar("training/completion", np.mean(completion), episode)
+        writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode)
+        writer.add_scalar("training/nb_steps", nb_steps, episode)
+        writer.add_histogram("actions/distribution", np.array(actions_taken),episode)
+        writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
+        writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)
+        writer.add_scalar("actions/forward", action_probs[RailEnvActions.MOVE_FORWARD], episode)
+        writer.add_scalar("actions/right", action_probs[RailEnvActions.MOVE_RIGHT], episode)
+        writer.add_scalar("actions/stop", action_probs[RailEnvActions.STOP_MOVING], episode)
+        writer.add_scalar("training/epsilon", eps_start, episode)
+        writer.add_scalar("training/buffer_size", len(policy.memory), episode)
+        writer.add_scalar("training/loss", policy.loss, episode)
+        writer.add_scalar("timer/reset", reset_timer.get(), episode)
+        writer.add_scalar("timer/step", step_timer.get(), episode)
+        writer.add_scalar("timer/learn", learn_timer.get(), episode)
+        writer.add_scalar("timer/preproc", preproc_timer.get(), episode)
+        writer.add_scalar("timer/total", training_timer.get_current(), episode)
         """
 
 
@@ -1141,7 +1159,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 3,
+    "n_agents": 2,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1161,15 +1179,15 @@ training_parameters = {
     # ====================
     # Shared actor-critic layer
     # If shared is True then the considered sizes are taken from the critic
-    "shared": False,
+    "shared": True,
     # Policy network
     "critic_mlp_width": 512,
     "critic_mlp_depth": 16,
-    "last_critic_layer_scaling": 1.0,
+    "last_critic_layer_scaling": 0.01,
     # Actor network
     "actor_mlp_width": 256,
     "actor_mlp_depth": 16,
-    "last_actor_layer_scaling": 1.0,
+    "last_actor_layer_scaling": 0.01,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -1177,7 +1195,7 @@ training_parameters = {
     # Activation
     "activation": "Tanh",
     "lmbda": 0.95,
-    "entropy_coefficient": 0.01,
+    "entropy_coefficient": 0.1,
     # Called also baseline cost in shared setting (0.5)
     # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
     "value_loss_coefficient": 0.001,
@@ -1186,7 +1204,7 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 4096,
+    "horizon": 8192,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
@@ -1215,7 +1233,7 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": True,
+    "render": False,
 }
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
