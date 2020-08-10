@@ -45,8 +45,7 @@ class ActorCritic(nn.Module):
                  actor_mlp_width,
                  actor_mlp_depth,
                  last_actor_layer_scaling,
-                 activation,
-                 action_masking):
+                 activation):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
@@ -58,14 +57,12 @@ class ActorCritic(nn.Module):
         :param actor_mlp_depth: The number of hidden layers + the input one of the actor's network
         :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
         :param activation: the activation function (ReLU, Tanh)
-        :param action_masking: True to apply action masking on the actor
         """
 
         super(ActorCritic, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
         self.activation = activation
-        self.action_masking = action_masking
         self.softmax = nn.Softmax(dim=-1)
 
         # Network creation
@@ -158,8 +155,9 @@ class ActorCritic(nn.Module):
 
         action_mask = torch.tensor(action_mask, dtype=torch.bool)
 
-        if self.action_masking:
-            action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8))
+        # Action masking, default values are True, False are present only if masking is enabled.
+        # If No op is not allowed it is masked even if masking is not active
+        action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8))
 
         action_probs = self.softmax(action_logits)
 
@@ -169,7 +167,7 @@ class ActorCritic(nn.Module):
         """
         action_distribution = Categorical(action_probs)
 
-        if not action:
+        if action is None:
             action = action_distribution.sample()
 
         # Memory is updated
@@ -190,8 +188,9 @@ class ActorCritic(nn.Module):
 
         action_logits = self.actor_network(state[:-1])
 
-        if self.action_masking:
-            action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8))
+        # Action masking, default values are True, False are present only if masking is enabled.
+        # If No op is not allowed it is masked even if masking is not active
+        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8))
 
         action_probs = self.softmax(action_logits)
 
@@ -222,9 +221,7 @@ class PsPPO:
                  advantage_estimator,
                  value_function_loss,
                  entropy_coefficient=None,
-                 value_loss_coefficient=None,
-                 action_masking=False,
-                 ):
+                 value_loss_coefficient=None):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
@@ -275,8 +272,7 @@ class PsPPO:
                                   actor_mlp_width,
                                   actor_mlp_depth,
                                   last_actor_layer_scaling,
-                                  activation,
-                                  action_masking).to(device)
+                                  activation).to(device)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, eps=adam_eps)
 
@@ -291,8 +287,7 @@ class PsPPO:
                                       actor_mlp_width,
                                       actor_mlp_depth,
                                       last_actor_layer_scaling,
-                                      activation,
-                                      action_masking).to(device)
+                                      activation).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
         if value_function_loss == "mse":
@@ -924,8 +919,7 @@ def train_multiple_agents(env_params, train_params):
                 train_params.advantage_estimator,
                 train_params.value_loss_function,
                 train_params.entropy_coefficient,
-                train_params.value_loss_coefficient,
-                train_params.action_masking)
+                train_params.value_loss_coefficient)
 
     # TensorBoard writer
     """
@@ -977,7 +971,8 @@ def train_multiple_agents(env_params, train_params):
         for step in range(max_steps):
             timestep += 1
 
-            action_mask = [[1 for _ in range(action_size)] for _ in not_arrived_agents]
+            action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
+                            for action in range(action_size)] for _ in not_arrived_agents]
 
             # Collect and preprocess observations
             for agent in env.get_agent_handles():
@@ -1005,13 +1000,14 @@ def train_multiple_agents(env_params, train_params):
                     else:
                         agent_obs[agent] = np.append(agent_obs[agent], [0])
 
-                    # Action mask modification
-                    for action in range(action_size):
-                        if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
-                            _, cell_valid, _, _, transition_valid = env._check_action_on_agent(RailEnvActions(action),
-                                                                                               env.agents[agent])
-                            if not all([cell_valid, transition_valid]):
-                                action_mask[agent][action] = 0
+                    # Action mask modification only if action masking is True
+                    if train_params.action_masking:
+                        for action in range(action_size):
+                            if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                                _, cell_valid, _, _, transition_valid = env._check_action_on_agent(RailEnvActions(action),
+                                                                                                   env.agents[agent])
+                                if not all([cell_valid, transition_valid]):
+                                    action_mask[agent][action] = 0
 
                     preproc_timer.end()
 
@@ -1032,6 +1028,9 @@ def train_multiple_agents(env_params, train_params):
 
             obs, rewards, done, info, rewards_shaped, new_deadlocks, new_shortest_path = \
                 step_shaping(env, action_dict, deadlocks, shortest_path, action_mask)
+
+            # TODO update not_arrived
+            # [not_arrived_agents.remove(a) if d and a != "__all__" else None for a, d in done.items()]
 
             deadlocks = new_deadlocks
             shortest_path = new_shortest_path
@@ -1243,12 +1242,14 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": False,
+    "render": True,
 
     # ==========================
     # Action Masking / Skipping
     # ==========================
-    "action_masking": True,
+    "action_masking": False,
+    "allow_no_op": False,
+    "action_skipping": False
 }
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
