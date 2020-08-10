@@ -6,7 +6,7 @@
 \documentclass[11pt, a4paper, hidelinks]{report}
 
 \usepackage{anyfontsize}
-\usepackage{siunitx} % Provides the \SI{}{} and \si{} command for typesetting SI units
+%\usepackage{siunitx} % Provides the \SI{}{} and \si{} command for typesetting SI units
 \usepackage{graphicx} % Required for the inclusion of images
 \usepackage{subcaption}
 %\usepackage{natbib} % Required to change bibliography style to APA
@@ -34,7 +34,7 @@
 \begin{titlepage}
 
 \begin{center}
-{{\Large{\textsc{Alma Mater Studiorum $\cdot$ Universit\`a di Bologna}}}}
+{{\Large{\textsc{Alma Mater Studiorum $\cdot$ University of Bologna}}}}
 \rule[0.1cm]{15.8cm}{0.25mm}
 \\\vspace{3mm}
 %
@@ -90,14 +90,17 @@ Academic Year {2019/2020}
 \newpage
 \setcounter{page}{1}
 
-\chapter{Flatland}\label{ch:flatland}
+\chapter*{Introduction}
+
+\chapter{Flatland environment}\label{ch:flatland-environment}
 \addcontentsline{toc}{chapter}{Flatland}
 
-The analyzed version is the 2.1.10
+In order to conceive a solution for this challenge we need to fully understand the environment, how does it work and how do some subtle details influence behind the scenes what we can only perceive through observations and rewards.
+The following results have been evaluated on the Python package flatland-rl version 2.1.10.
 
 \section*{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
 
-RailAgentStatus extends Python IntEnum and assumes the following values:
+\textbf{RailAgentStatus} extends Python IntEnum and assumes the following values:
 \begin{itemize}
 	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None), the prediction is to stay at the starting position.
 If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
@@ -106,27 +109,27 @@ If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
 	\item DONE\_REMOVED (3) the agent has reached the target and it's removed from the grid.
 \end{itemize}
 
-Grid4TransitionsEnum extends Python IntEnum and assumes the following values: NORTH (0), EAST (1), SOUTH (2), WEST (3).
-Grid4TransitionsEnum is used to indicate absolute directions, related to the environment, like a compass.
+\textbf{Grid4TransitionsEnum} extends Python standard IntEnum and assumes the following values: NORTH (0), EAST (1), SOUTH (2), WEST (3).
+\textbf{Grid4TransitionsEnum} is used to indicate absolute directions, related to the environment, like a compass.
 Possible usages are storing where the agent is facing or computing legal actions, for example including as observation a one hot encoding of the directions where the agent can move.
 \\
-EnvAgent class models the agent and encapsulates in its internal state the following attributes:
+\textbf{EnvAgent} class models the agent and encapsulates in its internal state the following attributes:
 \begin{itemize}
 	\item initial\_position: Tuple[int, int], initial coordinate.
 	\item initial\_direction: Grid4TransitionsEnum, the initial agent facing direction.
 	\item direction: Grid4TransitionsEnum, the current facing direction.
 	\item target: Tuple[int, int], the final coordinate.
 	\item moving: bool, True if the agent is in a moving state.
-	\item speed\_data: dictionary, TODO
-	\item malfunction\_data: dictionary, TODO
+	\item speed\_data: dictionary, containing information about the agent's speed.
+	\item malfunction\_data: dictionary, containing information about malfunctions.
 	\item status: RailAgentStatus, the current agent status.
 \end{itemize}
 
-The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an movement from a cell to another, 'speed' the value between 0 and 1 used to increment the 'position\_fraction' and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell (if it completes the one in the current step).
+The speed of an agent contains the keys 'position\_fraction' used as a counter of the percentage of completion of an movement from a cell to another, 'speed' the value between 0 and 1 used to increment the 'position\_fraction' and 'transition\_action\_on\_cellexit' which contains the action to perform on the next cell, if it completes the one in the current step, otherwise in following steps may change multiple times.
 
 The malfunction of an agent contains the keys 'malfunction' which contains how many steps are necessary to fix the agent, 'malfunction\_rate', the mean rate (average number of events in an interval) of the Poisson distribution, 'next\_malfunction' the number of steps the next malfunction will occur and 'nr\_malfunctions' the number of previous malfunctions.
 
-\section*{The class RailEnv}\label{sec:the-class-railenv}
+\section{The class RailEnv}\label{sec:the-class-railenv}
 
 From the documentation
 \begin{quotation}
@@ -137,11 +140,11 @@ From the documentation
 \end{quotation}
 
 In the \textit{step} function the number of steps is updated and if the overall task is still uncompleted, for each agent the associated reward is initially put to zero, a malfunction is tried to be induced and the specific step is performed.
-The info of the agent are prepared and finally the end malfunctions are repaired.
+The info of the agent are prepared and finally the malfunctions are ``repaired''.
 Agents are handled in the order in which are passed.
 
 \subsection{Environment Actions}\label{subsec:environment-actions}
-The avaiable actions are:
+The available actions are:
 \begin{itemize}
 	\item DO\_NOTHING (0) Default action if None has been provided or the value is not within this list.
 If agent.moving is True then the agent will MOVE\_FORWARD\@.
@@ -190,21 +193,22 @@ Stop the agent in the current occupied cell.
 \\
 Some useful questions:
 \begin{itemize}
-	\item An agent can stop during an action between two cells?
+	\item Can agents stop during the performance of an action between two cells?
 Absolutely no, it's like any other action.
-	\item Requested actions during a malfunction are ignored?
+	\item Are requested actions during a malfunction ignored?
 Yes.
-	\item Requested actions during a not completed movement are saved for after execution?
+	\item Are requested actions during a not completed movement saved for after execution?
 No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data.
 Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell.
 This action is then executed when a step to the next cell is valid.
 	\item How is possible to understand if an agent is ready to perform an action?
 The entry info\_dict["action\_required"] returned by the function \textit{step} of \textbf{RailEnv} contains True for the given agent.
 This doesn't mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info\_dict["action\_required"] will remain True.
-	\item When an agent reaches DONE is removed automatically the following step?
-TODO Yes.
+	\item Does an agent which has been reached DONE be removed automatically the following step?
+Although in rendering its representation may remain, the agent is removed.
+It is possible to change this setting modifying the attribute remove\_agents\_at\_target of the class \textbf{RailEnv}.
 	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning?
-TODO No. A MOVE\_* is necessary.
+No. A MOVE\_* is necessary.
 	\item Do collisions occur?
 No, agents check if the cell is free before moving.
 Deadlocks are possible when two agents are one in front the other without any chance to change path.
@@ -212,19 +216,18 @@ Deadlocks are possible when two agents are one in front the other without any ch
 
 \subsection{Malfunctions}\label{subsec:malfunctions}
 The strategy depends on the passed \textit{malfunction\_generator\_and\_process\_data}.
-TODO
+A strategy can be defined using the class \textbf{MalfunctionParameters} that can be initialized with the parameters to shape the stochasticity of the environment as the malfunction rate, expressed as a probability (Poisson distribution), and minimum and maximum malfunction duration.
 
 \begin{itemize}
 	\item A malfunction can occur during the resolution of another?
-TODO
+No.
 	\item An agent could have a malfunction during the completion of an action between two cells?
-TODO Yes.
+Yes, malfunctions are induced before the step and so before also action completion.
 \end{itemize}
 
 \subsection{Speed}\label{subsec:speed}
-The different speed profiles (speed is between 0 and 1) can be generated using the schedule\_generator.
+The different speed profiles (speed is between 0 and 1) can be generated setting the parameter schedule\_generator.
 Speed configurations can be build using \textbf{ScheduleGenerator}s.
-TODO
 
 \subsection{Rewards}\label{subsec:rewards}
 The rewards are based on the following values:
@@ -362,14 +365,14 @@ The former has become a standard as simulators are usually involved in MARL trai
 Usually decentralized settings may allow some sort of communication to address the non-convergence issue typical of the independent learning, this strategy is also referred as \textbf{decentralized setting with networked agents}.
 
 \subsubsection{Multi-agent credit assignment}~\newline
-TODO
+% TODO
 
 \chapter{Algorithms}\label{ch:algorithms}
 \addcontentsline{toc}{chapter}{Algorithms}
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 
-\section*{PS-PPO}\label{sec:ps-ppo}
+\section{PS-PPO}\label{sec:ps-ppo}
 \subsection{Algorithm}\label{subsec:the-algorithm}
 The algorithm is inspired by the work of Gupta et al.~\cite{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
 In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
@@ -407,8 +410,8 @@ This can be achieved by initializing the policy MLP with smaller weights in the 
 From the quote is possible to observe the importance of network weights initialization especially in the last layer of the policy network.
 In their case the action distribution is centered on 0 because action space is normalized between -1 and 1.
 
-TODO: initialization (C56), adam epsilon (C28) and learning rate (C24) and its decaying (C31) and Adam beta/momentum (C26)
-TODO: standard deviation of actions (C59-C62)
+% TODO: initialization (C56), adam epsilon (C28) and learning rate (C24) and its decaying (C31) and Adam beta/momentum (C26)
+% TODO: standard deviation of actions (C59-C62)
 
 \subsubsection{Training setup}
 
@@ -426,15 +429,15 @@ Always use observation normalization and check if value function normalization i
 Gradient clipping might slightly help but is of secondary importance.
 \end{quoting}
 
-TODO: (C67)
+% TODO: (C67)
 We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss.
 
-TODO: value function normalization (C66)
+% TODO: value function normalization (C66)
 
 Obviously as it represents a core part of the PPO algorithm the surrogate objective function is clipped using the hyperparameter epsilon.
 The references mention also the usage of a clipping function for the value function loss (as present in the original PPO implementation) with poor results.
 
-TODO: global gradient clipping (C68)
+% TODO: global gradient clipping (C68)
 
 \subsubsection{Advantage estimation and loss}
 
@@ -473,9 +476,35 @@ GAE is defined in the following way:
 
 where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
 
-TODO: overall loss include value and entropy (value (C56) and entropy coefficients (C))
+% TODO: overall loss include value and entropy (value (C56) and entropy coefficients (C))
 
 \subsection{Testing}\label{subsec:testing}
+
+\section{Curriculum Learning}\label{sec:meta-reinforcement-learning}
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\cite{bengio_curiculum}}]
+The basic idea is to start small, learn easier aspects of the task or easier subtasks, and then gradually increase the difficulty level.\\
+\dots\\
+Deep learning methods attempt to learn feature hierarchies.
+Features at higher levels are formed by the composition of lower level features.
+Automatically learning multiple levels of abstraction may allow a system to induce complex functions mapping the input to the output directly from data, without depending heavily on human-crafted features.
+\end{quoting}
+
+Curriculum learning represents an effective bio-inspired strategy to improve learning.
+Training with a curriculum accelerate the speed of convergence and may improve the final model performance.
+Designing an efficient and effective curriculum is not always easy, incorrect choices may also affect negatively the algorithm.
+To overcome this issue many techniques have been proposed.
+Curriculum Learning applied to Reinforcement Learning must consider three different practical aspects: how to generate tasks, how to order tasks based on difficulty and how to perform \textbf{Transfer Learning} from task to task~\cite{narvekar2020curriculum}.
+There are multiple paradigms and approaches to implement the aforementioned aspects, tasks can be structured into graphs or sequences, can be automatically or manually generated, based on the agent behaviour or not (adaptivity), while the task to learn can be one or more.
+Transfer learning has been studied to speed up the learning by providing some initial knowledge rather than starting always from zero, it can be based on policies, models, value functions and more more.
+
+\subsection{Implementation}\label{subsec:implementation}
+
+A final important question when designing curricula is determining the stopping criteria.
+Typically training is stopped when performance on the task or set of samples has converged, but another option is to train on each task for a level number of episodes or epochs.
+Since more than one level can be associated with the same samples/tasks, this experience can be revisited later on in the curriculum.
+
+\subsection{Testing}\label{subsec:testing2}
 
 \newpage
 ~\nocite{*}
