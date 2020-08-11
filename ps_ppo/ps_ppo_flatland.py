@@ -791,7 +791,7 @@ def check_invalid_transitions(env, action_dict):
 
 
 def step_shaping(env, action_dict, deadlocks, shortest_path):
-    invalid_rewards_shaped = check_invalid_transitions(env, action_dict)
+    # invalid_rewards_shaped = check_invalid_transitions(env, action_dict)
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
 
@@ -806,15 +806,15 @@ def step_shaping(env, action_dict, deadlocks, shortest_path):
 
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
-    invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
+    # invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped_shortest_path = {a: 1.5 * invalid_rewards_shaped[a] if shortest_path[a] < new_shortest_path[a]
-    else invalid_rewards_shaped[a] for a in range(env.get_num_agents())}
+    rewards_shaped_shortest_path = {a: 1.5 * rewards[a] if shortest_path[a] < new_shortest_path[a]
+    else rewards[a] for a in range(env.get_num_agents())}
 
     rewards_shaped_deadlocks = {a: -3.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
                                 for a in range(env.get_num_agents())}
 
-    rewards_shaped = {a: 1.0 if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
+    rewards_shaped = {a: 0.0 if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
 
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
