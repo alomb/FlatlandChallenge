@@ -18,21 +18,19 @@ class Memory:
         self.states = [[] for _ in range(num_agents)]
         self.logs_of_action_prob = [[] for _ in range(num_agents)]
         self.masks = [[] for _ in range(num_agents)]
-
-        self.rewards = []
-        self.dones = []
+        self.rewards = [[] for _ in range(num_agents)]
+        self.dones = [[] for _ in range(num_agents)]
 
     def clear_memory(self):
         self.__init__(self.num_agents)
 
-    def clear_memory_except_last(self):
-        self.actions = list(map(lambda l: l[-1:], self.actions))
-        self.states = list(map(lambda l: l[-1:], self.states))
-        self.logs_of_action_prob = list(map(lambda l: l[-1:], self.logs_of_action_prob))
-        self.masks = list(map(lambda l: l[-1:], self.masks))
-
-        self.rewards = self.rewards[-1:]
-        self.dones = self.dones[-1:]
+    def clear_memory_except_last(self, agent):
+        self.actions[agent] = self.actions[agent][-1:]
+        self.states[agent] = self.states[agent][-1:]
+        self.logs_of_action_prob[agent] = self.logs_of_action_prob[agent][-1:]
+        self.masks[agent] = self.masks[agent][-1:]
+        self.rewards[agent] = self.rewards[agent][-1:]
+        self.dones[agent] = self.dones[agent][-1:]
 
 
 class ActorCritic(nn.Module):
@@ -144,7 +142,8 @@ class ActorCritic(nn.Module):
         the memory.
         :param state: the observed state
         :param memory: the memory to update
-        :param action:
+        :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
+        :param action: an action to perform decided by some external logic
         :return: the action to perform
         """
 
@@ -184,6 +183,7 @@ class ActorCritic(nn.Module):
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
         :param state: the observed state
         :param action: the performed action
+        :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
         :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
         """
 
@@ -341,11 +341,7 @@ class PsPPO:
 
             return returns - state_estimated_value[:-1]
 
-    def update(self, memory, not_arrived_agents):
-        """
-        :param memory:
-        :return:
-        """
+    def update(self, memory, a):
 
         """
         rewards = []
@@ -380,103 +376,100 @@ class PsPPO:
         value_loss_function = self.value_loss_function
         optimizer = self.optimizer
 
-        _ = memory.rewards.pop()
-        _ = memory.dones.pop()
+        _ = memory.rewards[a].pop()
+        _ = memory.dones[a].pop()
 
-        # For each agent train the policy and the value network on personal observations
-        for a in not_arrived_agents:
-            last_state = memory.states[a].pop()
-            last_action = memory.actions[a].pop()
-            last_mask = memory.masks[a].pop()
-            _ = memory.logs_of_action_prob[a].pop()
+        last_state = memory.states[a].pop()
+        last_action = memory.actions[a].pop()
+        last_mask = memory.masks[a].pop()
+        _ = memory.logs_of_action_prob[a].pop()
 
-            # Convert lists to tensors
-            old_states = torch.stack(memory.states[a]).to(device).detach()
-            old_actions = torch.stack(memory.actions[a]).to(device)
-            old_masks = torch.stack(memory.masks[a]).to(device)
-            old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(device).detach()
+        # Convert lists to tensors
+        old_states = torch.stack(memory.states[a]).to(device).detach()
+        old_actions = torch.stack(memory.actions[a]).to(device)
+        old_masks = torch.stack(memory.masks[a]).to(device)
+        old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(device).detach()
 
-            # Optimize policy
-            for _ in range(epochs):
-                for batch_start in range(0, len(old_states), batch_size):
-                    batch_end = batch_start + batch_size
-                    if batch_end >= len(old_states):
-                        # Evaluating old actions and values
-                        # print("Old_states: ", old_states[batch_start:batch_end].shape)
-                        # print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
-                        # print("Action: ", old_actions[batch_start:batch_end].shape)
-                        # print("Last action", torch.unsqueeze(last_action, 0).shape)
-                        log_of_action_prob, state_estimated_value, dist_entropy = \
-                            policy_evaluate(
-                                torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
-                                torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))),
-                                torch.cat((old_masks[batch_start:batch_end], torch.unsqueeze(last_mask, 0))))
-                        # torch.cat((old_actions[batch_start:batch_end], torch.tensor(last_action).reshape(1, 1))))
-                    else:
-                        # Evaluating old actions and values
-                        # print("Old_states: ",old_states[batch_start:batch_end + 1].shape)
-                        # print("Action: ", old_actions[batch_start:batch_end + 1].shape)
-                        log_of_action_prob, state_estimated_value, dist_entropy = \
-                            policy_evaluate(old_states[batch_start:batch_end + 1],
-                                            old_actions[batch_start:batch_end + 1],
-                                            old_masks[batch_start:batch_end + 1])
+        # Optimize policy
+        for _ in range(epochs):
+            for batch_start in range(0, len(old_states), batch_size):
+                batch_end = batch_start + batch_size
+                if batch_end >= len(old_states):
+                    # Evaluating old actions and values
+                    # print("Old_states: ", old_states[batch_start:batch_end].shape)
+                    # print("Last_state: ", torch.unsqueeze(last_state, 0).shape)
+                    # print("Action: ", old_actions[batch_start:batch_end].shape)
+                    # print("Last action", torch.unsqueeze(last_action, 0).shape)
+                    log_of_action_prob, state_estimated_value, dist_entropy = \
+                        policy_evaluate(
+                            torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
+                            torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))),
+                            torch.cat((old_masks[batch_start:batch_end], torch.unsqueeze(last_mask, 0))))
+                    # torch.cat((old_actions[batch_start:batch_end], torch.tensor(last_action).reshape(1, 1))))
+                else:
+                    # Evaluating old actions and values
+                    # print("Old_states: ",old_states[batch_start:batch_end + 1].shape)
+                    # print("Action: ", old_actions[batch_start:batch_end + 1].shape)
+                    log_of_action_prob, state_estimated_value, dist_entropy = \
+                        policy_evaluate(old_states[batch_start:batch_end + 1],
+                                        old_actions[batch_start:batch_end + 1],
+                                        old_masks[batch_start:batch_end + 1])
 
-                    # print(old_states[batch_start:batch_end])
-                    # print(old_actions[batch_start:batch_end])
-                    # print(old_logs_of_action_prob[batch_start:batch_end])
-                    # print(log_of_action_prob)
-                    # print(rewards[batch_start:batch_end])
+                # print(old_states[batch_start:batch_end])
+                # print(old_actions[batch_start:batch_end])
+                # print(old_logs_of_action_prob[batch_start:batch_end])
+                # print(log_of_action_prob)
+                # print(rewards[batch_start:batch_end])
 
-                    # Find the ratio (pi_theta / pi_theta__old)
-                    probs_ratio = torch_exp(
-                        log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
-                    # Find the "Surrogate Loss"
+                # Find the ratio (pi_theta / pi_theta__old)
+                probs_ratio = torch_exp(
+                    log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
+                # Find the "Surrogate Loss"
 
-                    advantage = get_advantages(
-                        gae,
-                        memory.rewards[batch_start:batch_end],
-                        memory.dones[batch_start:batch_end],
-                        discount_factor,
-                        state_estimated_value.detach(),
-                        lmbda)
+                advantage = get_advantages(
+                    gae,
+                    memory.rewards[a][batch_start:batch_end],
+                    memory.dones[a][batch_start:batch_end],
+                    discount_factor,
+                    state_estimated_value.detach(),
+                    lmbda)
 
-                    # advantage = rewards[batch_start:batch_end] - state_estimated_value.detach()
+                # advantage = rewards[a][batch_start:batch_end] - state_estimated_value.detach()
 
-                    """
-                    print("estimated value\t " + str(torch.mean(state_estimated_value).item()))
-                    print("reward\t " + str(
-                        torch.mean(torch.tensor(memory.rewards[batch_start:batch_end]).to(device)).item()))
-                    print("advantage\t " + str(torch.mean(advantage).item()))
-                    print("probsratio\t " + str(torch.mean(probs_ratio).item()))
-                    """
+                """
+                print("estimated value\t " + str(torch.mean(state_estimated_value).item()))
+                print("reward\t " + str(
+                    torch.mean(torch.tensor(memory.rewards[a][batch_start:batch_end]).to(device)).item()))
+                print("advantage\t " + str(torch.mean(advantage).item()))
+                print("probsratio\t " + str(torch.mean(probs_ratio).item()))
+                """
 
-                    # Advantage normalization
-                    advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
+                # Advantage normalization
+                advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
 
-                    unclipped_objective = probs_ratio * advantage
-                    clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
+                unclipped_objective = probs_ratio * advantage
+                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
 
-                    loss = -torch_min(unclipped_objective,
-                                      clipped_objective) + vlc * value_loss_function(
-                        state_estimated_value[:-1].squeeze(),
-                        torch.tensor(memory.rewards[batch_start:batch_end], dtype=torch.float32).to(device))
+                loss = -torch_min(unclipped_objective,
+                                  clipped_objective) + vlc * value_loss_function(
+                    state_estimated_value[:-1].squeeze(),
+                    torch.tensor(memory.rewards[a][batch_start:batch_end], dtype=torch.float32).to(device))
 
-                    if shared:
-                        loss -= ec * dist_entropy
+                loss -= ec * dist_entropy
 
-                    # Gradient descent
-                    optimizer.zero_grad()
-                    loss.mean().backward()
-                    optimizer.step()
+                # Gradient descent
+                optimizer.zero_grad()
+                loss.mean().backward()
+                optimizer.step()
 
-                    # To show graph
-                    """
-                    from datetime import datetime
-                    from torchviz import make_dot
-                    now = datetime.now()
-                    make_dot(loss.mean()).render("attached" + now.strftime("%H-%M-%S"), format="png")
-                    exit()
-                    """
+                # To show graph
+                """
+                from datetime import datetime
+                from torchviz import make_dot
+                now = datetime.now()
+                make_dot(loss.mean()).render("attached" + now.strftime("%H-%M-%S"), format="png")
+                exit()
+                """
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -781,7 +774,7 @@ def check_deadlocks(a1, deadlocks, env):
 
 
 def check_invalid_transitions(action_dict, action_mask):
-    return {a: -1 if mask[action_dict[a]] == 0 else 0 for a, mask in enumerate(action_mask)}
+    return {a: -1 if a in action_dict and mask[action_dict[a]] == 0 else 0 for a, mask in enumerate(action_mask)}
 
 
 def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask):
@@ -900,7 +893,7 @@ def train_multiple_agents(env_params, train_params):
 
     memory = Memory(n_agents)
 
-    ppo = PsPPO(state_size + 7,
+    ppo = PsPPO(state_size + 1,
                 action_size,
                 train_params.shared,
                 train_params.critic_mlp_width,
@@ -935,7 +928,6 @@ def train_multiple_agents(env_params, train_params):
     print("\nTraining {} trains on {}x{} grid for {} episodes. Update every {} timesteps.\n"
           .format(env.get_num_agents(), x_dim, y_dim, n_episodes, horizon))
 
-    timestep = 0
     path = "model.pt"
 
     skip_cells = [int("1000000000100000", 2),
@@ -977,12 +969,13 @@ def train_multiple_agents(env_params, train_params):
 
         # Run episode
         for step in range(max_steps):
-            timestep += 1
 
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
                             for action in range(action_size)] for _ in not_arrived_agents]
 
             action_dict = dict()
+            agents_in_action = set()
+
             # Collect and preprocess observations and fill action dictionary
             for agent in env.get_agent_handles():
                 # Agents always enter here at least once so there is no further controls
@@ -991,28 +984,6 @@ def train_multiple_agents(env_params, train_params):
                     preproc_timer.start()
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
-
-                    if env.agents[agent].position is None:
-                        pos_a_x = env.agents[agent].initial_position[0] / env.width
-                        pos_a_y = env.agents[agent].initial_position[1] / env.height
-                        a_direction = env.agents[agent].initial_direction / 4
-                    else:
-                        pos_a_x = env.agents[agent].position[0] / env.width
-                        pos_a_y = env.agents[agent].position[1] / env.height
-                        a_direction = env.agents[agent].direction / 4
-                        """
-                        rail_cell = env.rail.get_full_transitions(env.agents[agent].position[0],
-                                                                  env.agents[agent].position[1])
-                        print(rail_cell in skip_cells)
-                        """
-
-                    agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
-                    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
-                                                                    env.agents[agent].target[1] / env.height])
-                    if deadlocks[agent]:
-                        agent_obs[agent] = np.append(agent_obs[agent], [1])
-                    else:
-                        agent_obs[agent] = np.append(agent_obs[agent], [0])
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -1031,17 +1002,25 @@ def train_multiple_agents(env_params, train_params):
                 if train_params.action_skipping \
                         and env.agents[agent].position is not None and env.rail.get_full_transitions(
                     env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
+                    # We always insert in memory the last time step
+                    if step == max_steps - 1:
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                        agents_in_action.add(agent)
+                    # Skip action
+                    else:
+                        action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                # Else
+                elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
                     action_dict[agent] = \
                         ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
-                                           action=torch.tensor(2).to(device))
-                elif info["action_required"][agent] and info["status"][agent] not in [RailAgentStatus.DONE,
-                                                                                      RailAgentStatus.DONE_REMOVED]:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent])
+                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                    agents_in_action.add(agent)
                 else:
                     action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
-                                           action=torch.tensor(0).to(device))
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent])
+                    agents_in_action.add(agent)
 
             for a in list(action_dict.values()):
                 action_count[a] += 1
@@ -1067,26 +1046,29 @@ def train_multiple_agents(env_params, train_params):
             score += total_timestep_reward
             total_timestep_reward_shaped = np.sum(list(rewards_shaped.values()))
 
-            memory.rewards.append(total_timestep_reward_shaped)
-            memory.dones.append(done['__all__'])
+            # Update dones and rewards for each agent that performed act()
+            for a in agents_in_action:
+                memory.rewards[a].append(total_timestep_reward_shaped)
+                memory.dones[a].append(done['__all__'])
 
-            # Set dones to True when the episode is finished because the maximum number of steps has been reached
-            if step == max_steps - 1:
-                memory.dones[-1] = True
+                # Set dones to True when the episode is finished because the maximum number of steps has been reached
+                if step == max_steps - 1:
+                    memory.dones[a][-1] = True
 
-            # Update
-            if timestep % (horizon + 1) == 0:
-                learn_timer.start()
-                ppo.update(memory, not_arrived_agents)
-                learn_timer.end()
+            # For each agent
+            for a in not_arrived_agents:
+                # Update
+                if len(memory.states[a]) % (horizon + 1) == 0:
+                    learn_timer.start()
+                    ppo.update(memory, a)
+                    learn_timer.end()
 
-                """
-                Set timestep to 1 because the batch includes an additional step which has not been considered in the 
-                current trajectory (it has been inserted to compute the advantage) but must be considered in the next
-                trajectory or is discarded.
-                """
-                memory.clear_memory_except_last()
-                timestep = 1
+                    """
+                    Leave last memory unit because the batch includes an additional step which has not been considered 
+                    in the current trajectory (it has been inserted to compute the advantage) but must be considered in 
+                    the next trajectory or will be lost.
+                    """
+                    memory.clear_memory_except_last(a)
 
             if train_params.render:
                 env_renderer.render_env(
@@ -1095,9 +1077,6 @@ def train_multiple_agents(env_params, train_params):
                     show_observations=False,
                     show_predictions=False
                 )
-
-            if done['__all__']:
-                break
 
         # Collection information about training
         tasks_finished = sum(info["status"][idx] == 2 or info["status"][idx] == 3 for idx in env.get_agent_handles())
@@ -1196,7 +1175,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 2,
+    "n_agents": 3,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1216,7 +1195,7 @@ training_parameters = {
     # ====================
     # Shared actor-critic layer
     # If shared is True then the considered sizes are taken from the critic
-    "shared": True,
+    "shared": False,
     # Policy network
     "critic_mlp_width": 256,
     "critic_mlp_depth": 4,
@@ -1224,7 +1203,7 @@ training_parameters = {
     # Actor network
     "actor_mlp_width": 128,
     "actor_mlp_depth": 4,
-    "last_actor_layer_scaling": 0.01,
+    "last_actor_layer_scaling": 0.001,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -1232,7 +1211,7 @@ training_parameters = {
     # Activation
     "activation": "Tanh",
     "lmbda": 0.95,
-    "entropy_coefficient": 0.4,
+    "entropy_coefficient": 0.5,
     # Called also baseline cost in shared setting (0.5)
     # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
     "value_loss_coefficient": 0.001,
@@ -1268,7 +1247,7 @@ training_parameters = {
     # Optimization and rendering
     # ==========================
     "checkpoint_interval": 100,
-    "use_gpu": True,
+    "use_gpu": False,
     "num_threads": 1,
     "render": False,
 
