@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from flatland.envs.agent_utils import RailAgentStatus
 from torch.distributions import Categorical
 from collections import OrderedDict
 
@@ -15,6 +16,7 @@ class Memory:
         self.actions = [[] for _ in range(num_agents)]
         self.states = [[] for _ in range(num_agents)]
         self.logs_of_action_prob = [[] for _ in range(num_agents)]
+        self.masks = [[] for _ in range(num_agents)]
 
         self.rewards = []
         self.dones = []
@@ -26,6 +28,7 @@ class Memory:
         self.actions = list(map(lambda l: l[-1:], self.actions))
         self.states = list(map(lambda l: l[-1:], self.states))
         self.logs_of_action_prob = list(map(lambda l: l[-1:], self.logs_of_action_prob))
+        self.masks = list(map(lambda l: l[-1:], self.masks))
 
         self.rewards = self.rewards[-1:]
         self.dones = self.dones[-1:]
@@ -60,6 +63,7 @@ class ActorCritic(nn.Module):
         self.state_size = state_size
         self.action_size = action_size
         self.activation = activation
+        self.softmax = nn.Softmax(dim=-1)
 
         # Network creation
         critic_layers = self._build_network(False, critic_mlp_depth, critic_mlp_width)
@@ -72,7 +76,6 @@ class ActorCritic(nn.Module):
             actor_layers = critic_layers.copy()
             actor_layers.popitem()
             actor_layers["actor_output_layer"] = nn.Linear(critic_mlp_width, action_size)
-            actor_layers["actor_softmax"] = nn.Softmax(dim=-1)
             self.actor_network = nn.Sequential(actor_layers)
 
         # Network initialization
@@ -87,10 +90,18 @@ class ActorCritic(nn.Module):
         # Last layer's weights rescaling
         with torch.no_grad():
             list(self.critic_network.children())[-1].weight.mul_(last_critic_layer_scaling)
-            # -2 because actor contains softmax as last layer
-            list(self.actor_network.children())[-2].weight.mul_(last_actor_layer_scaling)
+            list(self.actor_network.children())[-1].weight.mul_(last_actor_layer_scaling)
 
     def _build_network(self, is_actor, nn_depth, nn_width):
+        """
+        Creates the network.
+        Actor is not completed with the final softmax layer
+
+        :param is_actor:
+        :param nn_depth:
+        :param nn_width:
+        :return:
+        """
         if nn_depth <= 0:
             raise Exception("Networks' depths must be greater than 0")
 
@@ -116,10 +127,6 @@ class ActorCritic(nn.Module):
                 network[layer_name] = nn.Linear(nn_width, nn_width)
                 network[layer_name + ("_activation(%s)" % self.activation)] = self._get_activation()
 
-        # Actor needs softmax
-        if is_actor:
-            network["%s_softmax" % nn_type] = nn.Softmax(dim=-1)
-
         return network
 
     def _get_activation(self):
@@ -130,7 +137,7 @@ class ActorCritic(nn.Module):
         else:
             raise Exception("The specified activation function don't exists or is not available")
 
-    def act(self, state, memory, action=None):
+    def act(self, state, memory, action_mask, action=None):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
@@ -144,24 +151,34 @@ class ActorCritic(nn.Module):
         agent_id = int(state[-1])
         # Transform the state Numpy array to a Torch Tensor
         state = torch.from_numpy(state).float().to(device)
-        action_probs = self.actor_network(state)
+        action_logits = self.actor_network(state)
+
+        action_mask = torch.tensor(action_mask, dtype=torch.bool)
+
+        # Action masking, default values are True, False are present only if masking is enabled.
+        # If No op is not allowed it is masked even if masking is not active
+        action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8))
+
+        action_probs = self.softmax(action_logits)
+
         """
         From the paper: "The stochastic policy πθ can be represented by a categorical distribution when the actions of
         the agent are discrete and by a Gaussian distribution when the actions are continuous."
         """
         action_distribution = Categorical(action_probs)
 
-        if not action:
+        if action is None:
             action = action_distribution.sample()
 
         # Memory is updated
         memory.states[agent_id].append(state)
         memory.actions[agent_id].append(action)
         memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
+        memory.masks[agent_id].append(action_mask)
 
         return action.item()
 
-    def evaluate(self, state, action):
+    def evaluate(self, state, action, action_mask):
         """
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
         :param state: the observed state
@@ -169,14 +186,21 @@ class ActorCritic(nn.Module):
         :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
         """
 
-        action_distribution = Categorical(self.actor_network(state[:-1]))
+        action_logits = self.actor_network(state[:-1])
+
+        # Action masking, default values are True, False are present only if masking is enabled.
+        # If No op is not allowed it is masked even if masking is not active
+        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8))
+
+        action_probs = self.softmax(action_logits)
+
+        action_distribution = Categorical(action_probs)
 
         return action_distribution.log_prob(action[:-1]), self.critic_network(state), action_distribution.entropy()
 
 
 class PsPPO:
     def __init__(self,
-                 n_agents,
                  state_size,
                  action_size,
                  shared,
@@ -197,10 +221,8 @@ class PsPPO:
                  advantage_estimator,
                  value_function_loss,
                  entropy_coefficient=None,
-                 value_loss_coefficient=None
-                 ):
+                 value_loss_coefficient=None):
         """
-        :param n_agents: The number of agents
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
         :param shared: The actor and critic hidden and first layers are shared
@@ -223,7 +245,6 @@ class PsPPO:
         :param value_loss_coefficient: Coefficient multiplied by the value loss and used in the loss function
         """
 
-        self.n_agents = n_agents
         self.shared = shared
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -319,7 +340,7 @@ class PsPPO:
 
             return returns - state_estimated_value[:-1]
 
-    def update(self, memory):
+    def update(self, memory, not_arrived_agents):
         """
         :param memory:
         :return:
@@ -341,7 +362,6 @@ class PsPPO:
         """
         # Save functions as objects outside to optimize code
         epochs = self.epochs
-        n_agents = self.n_agents
         batch_size = self.batch_size
 
         lmbda = self.lmbda
@@ -363,14 +383,16 @@ class PsPPO:
         _ = memory.dones.pop()
 
         # For each agent train the policy and the value network on personal observations
-        for a in range(n_agents):
+        for a in not_arrived_agents:
             last_state = memory.states[a].pop()
             last_action = memory.actions[a].pop()
+            last_mask = memory.masks[a].pop()
             _ = memory.logs_of_action_prob[a].pop()
 
             # Convert lists to tensors
             old_states = torch.stack(memory.states[a]).to(device).detach()
             old_actions = torch.stack(memory.actions[a]).to(device)
+            old_masks = torch.stack(memory.masks[a]).to(device)
             old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(device).detach()
 
             # Optimize policy
@@ -386,7 +408,8 @@ class PsPPO:
                         log_of_action_prob, state_estimated_value, dist_entropy = \
                             policy_evaluate(
                                 torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
-                                torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))))
+                                torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))),
+                                torch.cat((old_masks[batch_start:batch_end], torch.unsqueeze(last_mask, 0))))
                         # torch.cat((old_actions[batch_start:batch_end], torch.tensor(last_action).reshape(1, 1))))
                     else:
                         # Evaluating old actions and values
@@ -394,7 +417,8 @@ class PsPPO:
                         # print("Action: ", old_actions[batch_start:batch_end + 1].shape)
                         log_of_action_prob, state_estimated_value, dist_entropy = \
                             policy_evaluate(old_states[batch_start:batch_end + 1],
-                                            old_actions[batch_start:batch_end + 1])
+                                            old_actions[batch_start:batch_end + 1],
+                                            old_masks[batch_start:batch_end + 1])
 
                     # print(old_states[batch_start:batch_end])
                     # print(old_actions[batch_start:batch_end])
@@ -755,43 +779,12 @@ def check_deadlocks(a1, deadlocks, env):
     return False
 
 
-def check_invalid_transitions(env, action_dict):
-    invalid_rewards_shaped = {a: 0 for a in range(env.get_num_agents())}
-    moving = [env.agents[a].moving for a in range(env.get_num_agents())]
-    agent_speed_data = [env.agents[a].speed_data['transition_action_on_cellexit'] for a in range(env.get_num_agents())]
-    action_dict_app = action_dict
-
-    for a in range(env.get_num_agents()):
-        if np.isclose(env.agents[a].speed_data['position_fraction'], 0.0, rtol=1e-03):
-            if action_dict_app[a] is None:
-                action_dict_app[a] = 0
-            if action_dict_app[a] < 0:
-                action_dict_app[a] = 0
-            if action_dict_app[a] == 0 and moving[a]:
-                action_dict_app[a] = 2
-            if action_dict_app[a] == 4 and moving[a] == True:
-                moving[a] = False
-                invalid_rewards_shaped[a] -= 1
-            if not moving[a] and not (action_dict_app[a] == 0 and action_dict_app[a] == 4):
-                moving[a] = False
-                invalid_rewards_shaped[a] -= 1  # Start penalty
-            if moving[a]:
-                action_stored = False
-                _, new_cell_valid, new_direction, new_position, transition_valid = \
-                    env._check_action_on_agent(RailEnvActions.MOVE_FORWARD, env.agents[a])
-                if all([new_cell_valid, transition_valid]):
-                    agent_speed_data[a] = action_dict[a]
-                    action_stored = True
-                if not action_stored:
-                    # If the agent cannot move due to an invalid transition, we set its state to not moving
-                    invalid_rewards_shaped[a] -= 2  # Invalid action penalty
-                    invalid_rewards_shaped[a] -= 1  # Stop penalty
-
-    return invalid_rewards_shaped
+def check_invalid_transitions(action_dict, action_mask):
+    return {a: -1 if mask[action_dict[a]] == 0 else 0 for a, mask in enumerate(action_mask)}
 
 
-def step_shaping(env, action_dict, deadlocks, shortest_path):
-    # invalid_rewards_shaped = check_invalid_transitions(env, action_dict)
+def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask):
+    invalid_rewards_shaped = check_invalid_transitions(action_dict, action_mask)
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
 
@@ -805,8 +798,6 @@ def step_shaping(env, action_dict, deadlocks, shortest_path):
                 del agents[-1]
 
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
-
-    # invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
 
     rewards_shaped_shortest_path = {a: 1.5 * rewards[a] if shortest_path[a] < new_shortest_path[a]
     else rewards[a] for a in range(env.get_num_agents())}
@@ -906,9 +897,7 @@ def train_multiple_agents(env_params, train_params):
 
     memory = Memory(n_agents)
 
-    ppo = PsPPO(n_agents,
-                # + 1 because also agent id is passed
-                state_size + 7,
+    ppo = PsPPO(state_size + 7,
                 action_size,
                 train_params.shared,
                 train_params.critic_mlp_width,
@@ -944,7 +933,7 @@ def train_multiple_agents(env_params, train_params):
           .format(env.get_num_agents(), x_dim, y_dim, n_episodes, horizon))
 
     timestep = 0
-    PATH = "model.pt"
+    path = "model.pt"
 
     for episode in range(n_episodes + 1):
 
@@ -955,13 +944,14 @@ def train_multiple_agents(env_params, train_params):
         preproc_timer = Timer()
 
         agent_obs = [None] * env.get_num_agents()
+        not_arrived_agents = set(range(n_agents))
+
         # Reset environment
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
         reset_timer.end()
 
         # Setup renderer
-
         if train_params.render:
             env_renderer = RenderTool(env, gl="PGL")
         else:
@@ -969,7 +959,6 @@ def train_multiple_agents(env_params, train_params):
 
         if train_params.render:
             env_renderer.set_new_rail()
-
 
         score = 0
 
@@ -979,6 +968,9 @@ def train_multiple_agents(env_params, train_params):
         # Run episode
         for step in range(max_steps):
             timestep += 1
+
+            action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
+                            for action in range(action_size)] for _ in not_arrived_agents]
 
             # Collect and preprocess observations
             for agent in env.get_agent_handles():
@@ -1006,12 +998,21 @@ def train_multiple_agents(env_params, train_params):
                     else:
                         agent_obs[agent] = np.append(agent_obs[agent], [0])
 
+                    # Action mask modification only if action masking is True
+                    if train_params.action_masking:
+                        for action in range(action_size):
+                            if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                                _, cell_valid, _, _, transition_valid = env._check_action_on_agent(RailEnvActions(action),
+                                                                                                   env.agents[agent])
+                                if not all([cell_valid, transition_valid]):
+                                    action_mask[agent][action] = 0
+
                     preproc_timer.end()
 
-            # TODO try excluding completely arrived networks from changing policy
-            action_dict = {a: ppo.policy_old.act(np.append(agent_obs[a], [a]), memory) if info['action_required'][a]
-            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action=torch.tensor([0]))
-                           for a in range(n_agents)}
+            action_dict = {a: ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action_mask[a])
+            if info["action_required"][a] and info["status"][a] not in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
+            else ppo.policy_old.act(np.append(agent_obs[a], [a]), memory, action_mask[a], action=torch.tensor(0))
+                           for a in not_arrived_agents}
 
             for a in list(action_dict.values()):
                 action_count[a] += 1
@@ -1024,7 +1025,10 @@ def train_multiple_agents(env_params, train_params):
             """
 
             obs, rewards, done, info, rewards_shaped, new_deadlocks, new_shortest_path = \
-                step_shaping(env, action_dict, deadlocks, shortest_path)
+                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask)
+
+            # TODO update not_arrived
+            # [not_arrived_agents.remove(a) if d and a != "__all__" else None for a, d in done.items()]
 
             deadlocks = new_deadlocks
             shortest_path = new_shortest_path
@@ -1043,7 +1047,7 @@ def train_multiple_agents(env_params, train_params):
             # Update
             if timestep % (horizon + 1) == 0:
                 learn_timer.start()
-                ppo.update(memory)
+                ppo.update(memory, not_arrived_agents)
                 learn_timer.end()
 
                 """
@@ -1062,6 +1066,9 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
+            if done['__all__']:
+                break
+
         # Collection information about training
         tasks_finished = sum(info["status"][idx] == 2 or info["status"][idx] == 3 for idx in env.get_agent_handles())
         completion = tasks_finished / max(1, n_agents)
@@ -1078,7 +1085,7 @@ def train_multiple_agents(env_params, train_params):
         if episode % checkpoint_interval == 0:
             # TODO: Save network params as checkpoints
             print("..saving model..")
-            # torch.save(ppo.policy.state_dict(), PATH)
+            # torch.save(ppo.policy.state_dict(), path)
         if train_params.render:
             env_renderer.close_window()
 
@@ -1159,7 +1166,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 2,
+    "n_agents": 7,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1204,12 +1211,12 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 8192,
+    "horizon": 31290839081,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    "batch_size": 1024,
+    "batch_size": 64,
 
     # ==========================
     # Normalization and clipping
@@ -1233,7 +1240,14 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": False,
+    "render": True,
+
+    # ==========================
+    # Action Masking / Skipping
+    # ==========================
+    "action_masking": True,
+    "allow_no_op": False,
+    "action_skipping": False
 }
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
