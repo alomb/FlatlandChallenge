@@ -785,12 +785,21 @@ def check_deadlocks(a1, deadlocks, env):
     return False
 
 
-def check_invalid_transitions(action_dict, action_mask):
-    return {a: -1 if a in action_dict and mask[action_dict[a]] == 0 else 0 for a, mask in enumerate(action_mask)}
+def check_invalid_transitions(action_dict, action_mask, invalid_action_penalty):
+    return {a: invalid_action_penalty if a in action_dict and mask[action_dict[a]] == 0 else 0 for a, mask in
+            enumerate(action_mask)}
 
 
-def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask):
-    invalid_rewards_shaped = check_invalid_transitions(action_dict, action_mask)
+def check_stop_transition(action_dict, rewards, stop_penalty):
+    return {a: stop_penalty if action_dict[a] == 4 else rewards[a] for a in range(len(action_dict))}
+
+
+def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invalid_action_penalty,
+                 stop_penalty, deadlock_penalty, shortest_path_penalty_coefficient, done_bonus):
+
+    invalid_rewards_shaped = check_invalid_transitions(action_dict, action_mask, invalid_action_penalty)
+    stop_rewards_shaped = check_stop_transition(action_dict, invalid_rewards_shaped, stop_penalty)
+
     # Environment step
     obs, rewards, done, info = env.step(action_dict)
 
@@ -805,15 +814,19 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask):
 
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
-    invalid_rewards_shaped = {a: invalid_rewards_shaped[a] + rewards[a] for a in range(env.get_num_agents())}
+    new_rewards_shaped = {
+        a: rewards[a] if stop_rewards_shaped[a] == 0 else rewards[a] + stop_rewards_shaped[a]
+        for a in range(env.get_num_agents())}
 
-    rewards_shaped_shortest_path = {a: 1.5 * invalid_rewards_shaped[a] if shortest_path[a] < new_shortest_path[a]
-    else invalid_rewards_shaped[a] for a in range(env.get_num_agents())}
+    rewards_shaped_shortest_path = {a: shortest_path_penalty_coefficient * new_rewards_shaped[a]
+    if shortest_path[a] < new_shortest_path[a] else new_rewards_shaped[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped_deadlocks = {a: -3.0 if deadlocks[a] else rewards_shaped_shortest_path[a]
-                                for a in range(env.get_num_agents())}
+    rewards_shaped_deadlocks = {a: deadlock_penalty if deadlocks[a] and deadlock_penalty != 0
+    else rewards_shaped_shortest_path[a] for a in range(env.get_num_agents())}
 
-    rewards_shaped = {a: 1.0 if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
+    rewards_shaped = {a: done_bonus if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
+
+    print(rewards_shaped)
 
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
@@ -832,6 +845,14 @@ def train_multiple_agents(env_params, train_params):
     observation_tree_depth = env_params.observation_tree_depth
     observation_radius = env_params.observation_radius
     observation_max_path_depth = env_params.observation_max_path_depth
+
+    # Custom observations&rewards
+    custom_observations = env_params.custom_observations
+    stop_penalty = env_params.stop_penalty
+    invalid_action_penalty = env_params.invalid_action_penalty
+    done_bonus = env_params.done_bonus
+    deadlock_penalty = env_params.deadlock_penalty
+    shortest_path_penalty_coefficient = env_params.shortest_path_penalty_coefficient
 
     # Training setup parameters
     n_episodes = train_params.n_episodes
@@ -889,7 +910,7 @@ def train_multiple_agents(env_params, train_params):
     # Calculate the state size given the depth of the tree observation and the number of features
     n_features_per_node = env.obs_builder.observation_dim
     n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
-    state_size = n_features_per_node * n_nodes
+    state_size = n_features_per_node * n_nodes + custom_observations * 6
 
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
@@ -998,6 +1019,29 @@ def train_multiple_agents(env_params, train_params):
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
 
+                    if custom_observations:
+                        if env.agents[agent].position is None:
+                            pos_a_x = env.agents[agent].initial_position[0] / env.width
+                            pos_a_y = env.agents[agent].initial_position[1] / env.height
+                            a_direction = env.agents[agent].initial_direction / 4
+                        else:
+                            pos_a_x = env.agents[agent].position[0] / env.width
+                            pos_a_y = env.agents[agent].position[1] / env.height
+                            a_direction = env.agents[agent].direction / 4
+                            """
+                            rail_cell = env.rail.get_full_transitions(env.agents[agent].position[0],
+                                                                      env.agents[agent].position[1])
+                            print(rail_cell in skip_cells)
+                            """
+
+                        agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
+                        agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
+                                                                        env.agents[agent].target[1] / env.height])
+                        if deadlocks[agent]:
+                            agent_obs[agent] = np.append(agent_obs[agent], [1])
+                        else:
+                            agent_obs[agent] = np.append(agent_obs[agent], [0])
+
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
                         for action in range(action_size):
@@ -1012,7 +1056,12 @@ def train_multiple_agents(env_params, train_params):
 
                 # Fill action dict
                 # If an agent can skip the movement
-                if train_params.action_skipping \
+                if deadlocks[agent] and custom_observations:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
+                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                    agents_in_action.add(agent)
+                elif train_params.action_skipping \
                         and env.agents[agent].position is not None and env.rail.get_full_transitions(
                     env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
                     # We always insert in memory the last time step
@@ -1046,7 +1095,8 @@ def train_multiple_agents(env_params, train_params):
             """
             step_timer.start()
             obs, rewards, done, info, rewards_shaped, new_deadlocks, new_shortest_path = \
-                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask)
+                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invalid_action_penalty,
+                             stop_penalty, deadlock_penalty, shortest_path_penalty_coefficient, done_bonus)
             step_timer.end()
 
             # TODO update not_arrived
@@ -1188,7 +1238,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 3,
+    "n_agents": 2,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1196,9 +1246,20 @@ environment_parameters = {
     "max_rails_in_city": 3,
 
     "seed": myseed,
-    "observation_tree_depth": 3,
-    "observation_radius": 25,
-    "observation_max_path_depth": 30
+    "observation_tree_depth": 5,
+    "observation_radius": 35,
+    "observation_max_path_depth": 30,
+    # ====================
+    # Custom observations&rewards
+    # ====================
+    "custom_observations": False,
+
+    "stop_penalty": 0,
+    "invalid_action_penalty": 0,
+    "deadlock_penalty": 0,
+    "shortest_path_penalty_coefficient": 1.0,
+    # 1.0 for skipping
+    "done_bonus": 0,
 }
 
 training_parameters = {
@@ -1208,15 +1269,15 @@ training_parameters = {
     # ====================
     # Shared actor-critic layer
     # If shared is True then the considered sizes are taken from the critic
-    "shared": False,
+    "shared": True,
     # Policy network
-    "critic_mlp_width": 256,
-    "critic_mlp_depth": 4,
-    "last_critic_layer_scaling": 0.01,
+    "critic_mlp_width": 1024,
+    "critic_mlp_depth": 16,
+    "last_critic_layer_scaling": 0.1,
     # Actor network
-    "actor_mlp_width": 128,
-    "actor_mlp_depth": 4,
-    "last_actor_layer_scaling": 0.001,
+    "actor_mlp_width": 512,
+    "actor_mlp_depth": 16,
+    "last_actor_layer_scaling": 0.1,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -1224,7 +1285,7 @@ training_parameters = {
     # Activation
     "activation": "Tanh",
     "lmbda": 0.95,
-    "entropy_coefficient": 0.5,
+    "entropy_coefficient": 0.1,
     # Called also baseline cost in shared setting (0.5)
     # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
     "value_loss_coefficient": 0.001,
@@ -1233,12 +1294,12 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 512,
+    "horizon": 8192,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    "batch_size": 64,
+    "batch_size": 1024,
 
     # ==========================
     # Normalization and clipping
@@ -1263,7 +1324,7 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": False,
+    "render": True,
 
     # ==========================
     # Action Masking / Skipping
