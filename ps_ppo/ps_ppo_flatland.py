@@ -77,14 +77,14 @@ class ActorCritic(nn.Module):
             actor_layers["actor_output_layer"] = nn.Linear(critic_mlp_width, action_size)
             self.actor_network = nn.Sequential(actor_layers)
 
-        # Network initialization
-        # https://pytorch.org/docs/stable/nn.init.html#nn-init-doc
-        def weights_init(submodule):
-            # TODO
-            raise NotImplementedError()
+        # Network orthogonal initialization
+        def weights_init(m):
+            if isinstance(m, nn.Linear):
+                torch.nn.init.orthogonal_(m.weight, np.sqrt(2))
+                torch.nn.init.zeros_(m.bias)
 
-        # self.critic_network.apply(weights_init)
-        # self.actor_network.apply(weights_init)
+        self.critic_network.apply(weights_init)
+        self.actor_network.apply(weights_init)
 
         # Last layer's weights rescaling
         with torch.no_grad():
@@ -134,6 +134,7 @@ class ActorCritic(nn.Module):
         elif self.activation == "Tanh":
             return nn.Tanh()
         else:
+            print(self.activation)
             raise Exception("The specified activation function don't exists or is not available")
 
     def act(self, state, memory, action_mask, action=None):
@@ -218,6 +219,7 @@ class PsPPO:
                  epochs,
                  batch_size,
                  eps_clip,
+                 max_grad_norm,
                  lmbda,
                  advantage_estimator,
                  value_function_loss,
@@ -239,6 +241,7 @@ class PsPPO:
         :param epochs: The number of training epochs for each batch
         :param batch_size: The size of data batches used for each agent in the training loop
         :param eps_clip: The offset used in the minimum and maximum values of the clipping function
+        :param max_grad_norm: max norm of the gradients used to clip values of policy and value nets at each update
         :param lmbda: Controls gae bias–variance trade-off
         :param advantage_estimator: The advantage estimation technique n-steps or gae (Generalized Advantage estimation)
         :param value_function_loss: The function used to compute the value loss mse of huber (L1 loss)
@@ -252,6 +255,7 @@ class PsPPO:
         self.epochs = epochs
         self.batch_size = batch_size
         self.eps_clip = eps_clip
+        self.max_grad_norm = max_grad_norm
         self.lmbda = lmbda
         self.value_loss_coefficient = value_loss_coefficient
         self.entropy_coefficient = entropy_coefficient
@@ -447,19 +451,27 @@ class PsPPO:
                 # Advantage normalization
                 advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
 
+                # Surrogate losses
                 unclipped_objective = probs_ratio * advantage
                 clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
 
-                loss = -torch_min(unclipped_objective,
-                                  clipped_objective) + vlc * value_loss_function(
-                    state_estimated_value[:-1].squeeze(),
-                    torch.tensor(memory.rewards[a][batch_start:batch_end], dtype=torch.float32).to(device))
+                # Policy loss
+                policy_loss = -torch_min(unclipped_objective, clipped_objective).mean()
 
-                loss -= ec * dist_entropy
+                # Value loss
+                value_loss = value_loss_function(state_estimated_value[:-1].squeeze(),
+                                                 torch.tensor(memory.rewards[a][batch_start:batch_end],
+                                                              dtype=torch.float32).to(device))
+
+                loss = policy_loss + vlc * value_loss - ec * dist_entropy.mean()
 
                 # Gradient descent
                 optimizer.zero_grad()
-                loss.mean().backward()
+                loss.backward(retain_graph=True)
+
+                if self.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+
                 optimizer.step()
 
                 # To show graph
@@ -467,7 +479,7 @@ class PsPPO:
                 from datetime import datetime
                 from torchviz import make_dot
                 now = datetime.now()
-                make_dot(loss.mean()).render("attached" + now.strftime("%H-%M-%S"), format="png")
+                make_dot(loss)).render("attached" + now.strftime("%H-%M-%S"), format="png")
                 exit()
                 """
         # Copy new weights into old policy:
@@ -909,6 +921,7 @@ def train_multiple_agents(env_params, train_params):
                 train_params.epochs,
                 train_params.batch_size,
                 train_params.eps_clip,
+                train_params.max_grad_norm,
                 train_params.lmbda,
                 train_params.advantage_estimator,
                 train_params.value_loss_function,
@@ -1238,6 +1251,7 @@ training_parameters = {
     # ====================
     # PPO-style value clipping
     "eps_clip": 0.25,
+    "max_grad_norm": 0.5,
     # gae, n-steps
     "advantage_estimator": "gae",
     # huber or mse
