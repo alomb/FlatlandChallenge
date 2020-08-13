@@ -454,8 +454,7 @@ class PsPPO:
                                   clipped_objective) + vlc * value_loss_function(
                     state_estimated_value[:-1].squeeze(),
                     torch.tensor(memory.rewards[a][batch_start:batch_end], dtype=torch.float32).to(device))
-
-                loss -= ec * dist_entropy
+                loss -= ec * torch.mean(dist_entropy)
 
                 # Gradient descent
                 optimizer.zero_grad()
@@ -814,8 +813,6 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
 
     rewards_shaped = {a: done_bonus if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
 
-    print(rewards_shaped)
-
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
 
@@ -1005,7 +1002,6 @@ def train_multiple_agents(env_params, train_params):
                     preproc_timer.start()
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
-
                     if custom_observations:
                         if env.agents[agent].position is None:
                             pos_a_x = env.agents[agent].initial_position[0] / env.width
@@ -1225,7 +1221,7 @@ myseed = 19
 
 environment_parameters = {
     # small_v0 config
-    "n_agents": 2,
+    "n_agents": 5,
     "x_dim": 35,
     "y_dim": 35,
     "n_cities": 2,
@@ -1241,12 +1237,12 @@ environment_parameters = {
     # ====================
     "custom_observations": False,
 
-    "stop_penalty": 0,
-    "invalid_action_penalty": 0,
-    "deadlock_penalty": 0,
-    "shortest_path_penalty_coefficient": 1.0,
+    "stop_penalty": -2.0,
+    "invalid_action_penalty": -2.0,
+    "deadlock_penalty": -5.0,
+    "shortest_path_penalty_coefficient": 1.5,
     # 1.0 for skipping
-    "done_bonus": 0,
+    "done_bonus": 1.0,
 }
 
 training_parameters = {
@@ -1260,11 +1256,11 @@ training_parameters = {
     # Policy network
     "critic_mlp_width": 1024,
     "critic_mlp_depth": 16,
-    "last_critic_layer_scaling": 0.1,
+    "last_critic_layer_scaling": 0.01,
     # Actor network
     "actor_mlp_width": 512,
     "actor_mlp_depth": 16,
-    "last_actor_layer_scaling": 0.1,
+    "last_actor_layer_scaling": 0.01,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -1281,12 +1277,12 @@ training_parameters = {
     # ==============
     "n_episodes": 2500,
     # 512, 1024, 2048, 4096
-    "horizon": 8192,
+    "horizon": 1024,
     "epochs": 4,
     # Fixed trajectories, Shuffle trajectories, Shuffle transitions, Shuffle transitions (recompute advantages)
     # "batch_mode": None,
     # 64, 128, 256
-    "batch_size": 1024,
+    "batch_size": 64,
 
     # ==========================
     # Normalization and clipping
@@ -1310,7 +1306,7 @@ training_parameters = {
     "checkpoint_interval": 100,
     "use_gpu": False,
     "num_threads": 1,
-    "render": True,
+    "render": False,
 
     # ==========================
     # Action Masking / Skipping
