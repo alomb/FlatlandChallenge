@@ -200,7 +200,6 @@ class ActorCritic(nn.Module):
     def load(self, path):
         if os.path.exists(path):
             self.load_state_dict(torch.load(path))
-            print("OOOH")
         else:
             print("Loading file failed. File not found.")
 
@@ -567,7 +566,7 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-
+"""
 def check_feasible_transitions(pos_a1, transitions, directions, env):
 
     for direction, values in enumerate(directions):
@@ -600,17 +599,30 @@ def check_next_pos(a1, directions, env):
                                           env)
 
     return None
+"""
 
 
-def check_deadlocks(a1, deadlocks, directions, env):
-    a2 = check_next_pos(a1[-1], directions, env)
+def check_deadlocks(a1, deadlocks, directions, action_dict, env):
+    # a2 = check_next_pos(a1[-1], directions, env)
+
+    a2 = None
+
+    if env.agents[a1[-1]].position is not None:
+        cell_free, new_cell_valid, _, new_position, transition_valid = \
+            env._check_action_on_agent(action_dict[a1[-1]], env.agents[a1[-1]])
+
+        if not cell_free and new_cell_valid and transition_valid:
+            for a2_tmp in range(env.get_num_agents()):
+                if env.agents[a2_tmp].position == new_position:
+                    a2 = a2_tmp
+                    break
 
     if a2 is None:
         return False
     if deadlocks[a2] or a2 in a1:
         return True
     a1.append(a2)
-    deadlocks[a2] = check_deadlocks(a1, deadlocks, directions, env)
+    deadlocks[a2] = check_deadlocks(a1, deadlocks, directions, action_dict, env)
     if deadlocks[a2]:
         return True
     del a1[-1]
@@ -629,7 +641,6 @@ def check_stop_transition(action_dict, rewards, stop_penalty):
 
 def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invalid_action_penalty,
                  stop_penalty, deadlock_penalty, shortest_path_penalty_coefficient, done_bonus):
-
     invalid_rewards_shaped = check_invalid_transitions(action_dict, action_mask, invalid_action_penalty)
     stop_rewards_shaped = check_stop_transition(action_dict, invalid_rewards_shaped, stop_penalty)
 
@@ -651,7 +662,7 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
         if not done[a]:
             agents.append(a)
             if not deadlocks[a]:
-                deadlocks[a] = check_deadlocks(agents, deadlocks, directions, env)
+                deadlocks[a] = check_deadlocks(agents, deadlocks, directions, action_dict, env)
             if not (deadlocks[a]):
                 del agents[-1]
 
@@ -786,7 +797,7 @@ def train_multiple_agents(env_params, train_params):
     del board_env_params["malfunction_parameters"]
     writer.add_hparams(board_env_params, {})
 
-########################################################################################################################
+    ####################################################################################################################
     # Training starts
     training_timer = Timer()
     training_timer.start()
@@ -831,6 +842,9 @@ def train_multiple_agents(env_params, train_params):
         deadlocks = [False for _ in range(env.get_num_agents())]
         shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
+        # TODO: Remove
+        counter_breaker = 0
+
         # Run episode
         for step in range(max_steps):
             # Action counter used for statistics
@@ -849,8 +863,9 @@ def train_multiple_agents(env_params, train_params):
                 Agents always enter in the if at least once in the episode so there is no further controls.
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
+                preproc_timer.start()
                 if obs[agent]:
-                    preproc_timer.start()
+
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
 
@@ -867,7 +882,7 @@ def train_multiple_agents(env_params, train_params):
                                 if not all([cell_valid, transition_valid]):
                                     action_mask[agent][action] = 0
 
-                    preproc_timer.end()
+                preproc_timer.end()
 
                 # Fill action dict
                 # If an agent is in deadlock leave him learn
@@ -913,6 +928,15 @@ def train_multiple_agents(env_params, train_params):
 
             # Update deadlocks
             deadlocks = new_deadlocks
+
+            # TODO: Remove
+            """
+            if any(deadlocks):
+                # print(action_dict)
+                print(deadlocks)
+                # print(env.agents)
+            """
+
             # Update old shortest path with the new one
             shortest_path = new_shortest_path
             # Update score and compute total rewards equal to each agent
@@ -950,6 +974,14 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
+            # TODO: Remove
+            """
+            if all(deadlocks):
+                counter_breaker += 1
+                if counter_breaker == 20:
+                    break
+            """
+
         # Collection information about training
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
@@ -966,9 +998,8 @@ def train_multiple_agents(env_params, train_params):
         smoothed_deadlocks = smoothed_deadlocks * smoothing + deadlocks_percentage * (1.0 - smoothing)
 
         # Save checkpoints
-        if episode % checkpoint_interval == 0:
+        if episode % train_params.checkpoint_interval == 0:
             if train_params.load_model_path is not None:
-                print("..saving model..")
                 ppo.policy.save(train_params.load_model_path)
         # Rendering
         if train_params.render:
@@ -997,7 +1028,7 @@ def train_multiple_agents(env_params, train_params):
         if episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
                 scores, completions = eval_policy(env, action_size, ppo, train_params, env_params, skip_cells,
-                                                                 1, max_steps)
+                                                  1, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -1085,17 +1116,15 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
                     if env_params.custom_observations:
                         agent_obs[agent] = custom_observations(env, agent, agent_obs, deadlocks)
 
-                # Action mask modification only if action masking is True
-                if train_params.action_masking:
-                    for action in range(action_size):
-                        if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
-                            _, cell_valid, _, _, transition_valid = env._check_action_on_agent(
-                                RailEnvActions(action),
-                                env.agents[agent])
-                            if not all([cell_valid, transition_valid]):
-                                action_mask[agent][action] = RailEnvActions.DO_NOTHING
-                if action_mask == [0, 0, 1, 0, 0]:
-                    raise Exception("controllami")
+                    # Action mask modification only if action masking is True
+                    if train_params.action_masking:
+                        for action in range(action_size):
+                            if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                                _, cell_valid, _, _, transition_valid = env._check_action_on_agent(
+                                    RailEnvActions(action),
+                                    env.agents[agent])
+                                if not all([cell_valid, transition_valid]):
+                                    action_mask[agent][action] = RailEnvActions.DO_NOTHING
 
                 # Fill action dict
                 # If an agent is in deadlock leave him learn
@@ -1170,13 +1199,13 @@ def format_action_prob(action_probs):
     return buffer
 
 
-myseed = 19
+myseed = 14
 
 environment_parameters = {
-    "n_agents": 2,
-    "x_dim": 35,
-    "y_dim": 35,
-    "n_cities": 2,
+    "n_agents": 3,
+    "x_dim": 16 * 3,
+    "y_dim": 9 * 3,
+    "n_cities": 3,
     "max_rails_between_cities": 2,
     "max_rails_in_city": 3,
     "seed": myseed,
@@ -1185,7 +1214,7 @@ environment_parameters = {
     "observation_max_path_depth": 30,
     # Malfunctions
     "malfunction_parameters": MalfunctionParameters(
-        malfunction_rate=0.0,
+        malfunction_rate=0,
         min_duration=15,
         max_duration=50),
     # Speeds
@@ -1194,7 +1223,7 @@ environment_parameters = {
         1. / 2.: 0.0,
         1. / 3.: 0.0,
         1. / 4.: 0.0},
-    
+
     # ============================
     # Custom observations&rewards
     # ============================
@@ -1218,11 +1247,11 @@ training_parameters = {
     # Policy network
     "critic_mlp_width": 256,
     "critic_mlp_depth": 4,
-    "last_critic_layer_scaling": 0.01,
+    "last_critic_layer_scaling": 0.1,
     # Actor network
     "actor_mlp_width": 128,
     "actor_mlp_depth": 4,
-    "last_actor_layer_scaling": 0.1,
+    "last_actor_layer_scaling": 0.01,
     # Adam learning rate
     "learning_rate": 0.001,
     # Adam epsilon
@@ -1266,7 +1295,7 @@ training_parameters = {
     # Optimization and rendering
     # ============================
     # Save and evaluate interval
-    "checkpoint_interval": 10,
+    "checkpoint_interval": 100,
     "use_gpu": False,
     "render": False,
     "save_model_path": "checkpoint.pt",
