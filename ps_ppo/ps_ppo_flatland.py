@@ -728,7 +728,6 @@ def train_multiple_agents(env_params, train_params):
 
     # Training setup parameters
     n_episodes = train_params.n_episodes
-    checkpoint_interval = train_params.checkpoint_interval
     horizon = train_params.horizon
 
     # Set the seeds
@@ -789,7 +788,7 @@ def train_multiple_agents(env_params, train_params):
                   RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 270)]
 
     # TensorBoard writer
-    writer = SummaryWriter("./tensorflow/logdir")
+    writer = SummaryWriter(train_params.tensorboard_path)
     writer.add_hparams(vars(train_params), {})
     # Remove attributes not printable by Tensorboard
     board_env_params = vars(env_params)
@@ -999,8 +998,8 @@ def train_multiple_agents(env_params, train_params):
 
         # Save checkpoints
         if episode % train_params.checkpoint_interval == 0:
-            if train_params.load_model_path is not None:
-                ppo.policy.save(train_params.load_model_path)
+            if train_params.save_model_path is not None:
+                ppo.policy.save(train_params.save_model_path)
         # Rendering
         if train_params.render:
             env_renderer.close_window()
@@ -1199,7 +1198,11 @@ def format_action_prob(action_probs):
     return buffer
 
 
+from datetime import datetime
 myseed = 14
+
+datehour = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+print(datehour)
 
 environment_parameters = {
     "n_agents": 3,
@@ -1301,6 +1304,12 @@ training_parameters = {
     "save_model_path": "checkpoint.pt",
     "load_model_path": "checkpoint.pt",
     "tensorboard_path": "/log/",
+    """
+    # Save on Google Drive on Colab
+    "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + datehour + ".pt",
+    "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
+    "tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs" + datehour + "/",
+    """
 
     # ============================
     # Action Masking / Skipping
@@ -1309,5 +1318,16 @@ training_parameters = {
     "allow_no_op": False,
     "action_skipping": True
 }
+
+"""
+# Mount Drive on Colab
+from google.colab import drive
+drive.mount("/content/drive", force_remount=True)
+
+# Show Tensorboard on Colab
+import tensorflow
+%load_ext tensorboard
+% tensorboard --logdir "/content/drive/My Drive/Colab Notebooks/logs_todo"
+"""
 
 train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
