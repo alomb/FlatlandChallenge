@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -37,44 +39,31 @@ class ActorCritic(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
-                 shared,
-                 critic_mlp_width,
-                 critic_mlp_depth,
-                 last_critic_layer_scaling,
-                 actor_mlp_width,
-                 actor_mlp_depth,
-                 last_actor_layer_scaling,
-                 activation):
+                 train_params):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
-        :param shared: The actor and critic hidden and first layers are shared
-        :param critic_mlp_width: The number of nodes in the critic's hidden network
-        :param critic_mlp_depth: The number of hidden layers + the input one of the critic's network
-        :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
-        :param actor_mlp_width: The number of nodes in the actor's hidden network
-        :param actor_mlp_depth: The number of hidden layers + the input one of the actor's network
-        :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
-        :param activation: the activation function (ReLU, Tanh)
+        :param train_params: Parameters to influence training
         """
 
         super(ActorCritic, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
-        self.activation = activation
+        self.activation = train_params.activation
         self.softmax = nn.Softmax(dim=-1)
 
         # Network creation
-        critic_layers = self._build_network(False, critic_mlp_depth, critic_mlp_width)
+        critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
         self.critic_network = nn.Sequential(critic_layers)
-        if not shared:
-            self.actor_network = nn.Sequential(self._build_network(True, actor_mlp_depth, actor_mlp_width))
+        if not train_params.shared:
+            self.actor_network = nn.Sequential(self._build_network(True, train_params.actor_mlp_depth,
+                                                                   train_params.actor_mlp_width))
         else:
-            if critic_mlp_depth <= 1:
+            if train_params.critic_mlp_depth <= 1:
                 raise Exception("Shared networks must have depth greater than 1")
             actor_layers = critic_layers.copy()
             actor_layers.popitem()
-            actor_layers["actor_output_layer"] = nn.Linear(critic_mlp_width, action_size)
+            actor_layers["actor_output_layer"] = nn.Linear(train_params.critic_mlp_width, action_size)
             self.actor_network = nn.Sequential(actor_layers)
 
         # Network orthogonal initialization
@@ -83,13 +72,17 @@ class ActorCritic(nn.Module):
                 torch.nn.init.orthogonal_(m.weight, np.sqrt(2))
                 torch.nn.init.zeros_(m.bias)
 
-        self.critic_network.apply(weights_init)
-        self.actor_network.apply(weights_init)
-
-        # Last layer's weights rescaling
         with torch.no_grad():
-            list(self.critic_network.children())[-1].weight.mul_(last_critic_layer_scaling)
-            list(self.actor_network.children())[-1].weight.mul_(last_actor_layer_scaling)
+            self.critic_network.apply(weights_init)
+            self.actor_network.apply(weights_init)
+
+            # Last layer's weights rescaling
+            list(self.critic_network.children())[-1].weight.mul_(train_params.last_critic_layer_scaling)
+            list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
+
+        # Load from file if available
+        if train_params.load_model_path is not None:
+            self.load(train_params.load_model_path)
 
     def _build_network(self, is_actor, nn_depth, nn_width):
         """
@@ -172,10 +165,11 @@ class ActorCritic(nn.Module):
             action = action_distribution.sample()
 
         # Memory is updated
-        memory.states[agent_id].append(state)
-        memory.actions[agent_id].append(action)
-        memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
-        memory.masks[agent_id].append(action_mask)
+        if memory is not None:
+            memory.states[agent_id].append(state)
+            memory.actions[agent_id].append(action)
+            memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
+            memory.masks[agent_id].append(action_mask)
 
         return action.item()
 
@@ -200,70 +194,43 @@ class ActorCritic(nn.Module):
 
         return action_distribution.log_prob(action[:-1]), self.critic_network(state), action_distribution.entropy()
 
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path):
+        if os.path.exists(path):
+            self.load_state_dict(torch.load(path))
+            print("OOOH")
+        else:
+            print("Loading file failed. File not found.")
+
 
 class PsPPO:
     def __init__(self,
                  state_size,
                  action_size,
-                 shared,
-                 critic_mlp_width,
-                 critic_mlp_depth,
-                 last_critic_layer_scaling,
-                 actor_mlp_width,
-                 actor_mlp_depth,
-                 last_actor_layer_scaling,
-                 learning_rate,
-                 adam_eps,
-                 activation,
-                 discount_factor,
-                 epochs,
-                 batch_size,
-                 eps_clip,
-                 max_grad_norm,
-                 lmbda,
-                 advantage_estimator,
-                 value_function_loss,
-                 entropy_coefficient=None,
-                 value_loss_coefficient=None):
+                 train_params):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
-        :param shared: The actor and critic hidden and first layers are shared
-        :param critic_mlp_width: The number of nodes in the critic's hidden network
-        :param critic_mlp_depth: The number of layers in the critic's network
-        :param last_critic_layer_scaling: The scale applied at initialization on the last critic network's layer
-        :param actor_mlp_width: The number of nodes in the actor's hidden network
-        :param actor_mlp_depth: The number of layers in the actor's network
-        :param last_actor_layer_scaling: The scale applied at initialization on the last actor network's layer
-        :param learning_rate: The learning rate
-        :param adam_eps: Adam optimizer epsilon value
-        :param discount_factor: The discount factor
-        :param epochs: The number of training epochs for each batch
-        :param batch_size: The size of data batches used for each agent in the training loop
-        :param eps_clip: The offset used in the minimum and maximum values of the clipping function
-        :param max_grad_norm: max norm of the gradients used to clip values of policy and value nets at each update
-        :param lmbda: Controls gae bias–variance trade-off
-        :param advantage_estimator: The advantage estimation technique n-steps or gae (Generalized Advantage estimation)
-        :param value_function_loss: The function used to compute the value loss mse of huber (L1 loss)
-        :param entropy_coefficient: Coefficient multiplied by the entropy and used in the shared setting loss function
-        :param value_loss_coefficient: Coefficient multiplied by the value loss and used in the loss function
+        :param train_params: Parameters to influence training
         """
 
-        self.shared = shared
-        self.learning_rate = learning_rate
-        self.discount_factor = discount_factor
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.eps_clip = eps_clip
-        self.max_grad_norm = max_grad_norm
-        self.lmbda = lmbda
-        self.value_loss_coefficient = value_loss_coefficient
-        self.entropy_coefficient = entropy_coefficient
+        self.shared = train_params.shared
+        self.learning_rate = train_params.learning_rate
+        self.discount_factor = train_params.discount_factor
+        self.epochs = train_params.epochs
+        self.batch_size = train_params.batch_size
+        self.eps_clip = train_params.eps_clip
+        self.max_grad_norm = train_params.max_grad_norm
+        self.lmbda = train_params.lmbda
+        self.value_loss_coefficient = train_params.value_loss_coefficient
+        self.entropy_coefficient = train_params.entropy_coefficient
         self.loss = 0
 
-        if advantage_estimator == "gae":
+        if train_params.advantage_estimator == "gae":
             self.gae = True
-        elif advantage_estimator == "n-steps":
+        elif train_params.advantage_estimator == "n-steps":
             self.gae = False
         else:
             raise Exception("Advantage estimator not available")
@@ -271,34 +238,21 @@ class PsPPO:
         # The policy updated at each learning epoch
         self.policy = ActorCritic(state_size,
                                   action_size,
-                                  shared,
-                                  critic_mlp_width,
-                                  critic_mlp_depth,
-                                  last_critic_layer_scaling,
-                                  actor_mlp_width,
-                                  actor_mlp_depth,
-                                  last_actor_layer_scaling,
-                                  activation).to(device)
+                                  train_params).to(device)
 
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=learning_rate, eps=adam_eps)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=train_params.learning_rate,
+                                          eps=train_params.adam_eps)
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
         self.policy_old = ActorCritic(state_size,
                                       action_size,
-                                      shared,
-                                      critic_mlp_width,
-                                      critic_mlp_depth,
-                                      last_critic_layer_scaling,
-                                      actor_mlp_width,
-                                      actor_mlp_depth,
-                                      last_actor_layer_scaling,
-                                      activation).to(device)
+                                      train_params).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-        if value_function_loss == "mse":
+        if train_params.value_loss_function == "mse":
             self.value_loss_function = nn.MSELoss()
-        elif value_function_loss == "huber":
+        elif train_params.value_loss_function == "huber":
             self.value_loss_function = nn.SmoothL1Loss()
         else:
             raise Exception("The provided value loss function is not available!")
@@ -342,7 +296,6 @@ class PsPPO:
         torch_min = torch.min
         obj_eps = self.eps_clip
         torch_exp = torch.exp
-        shared = self.shared
         ec = self.entropy_coefficient
         vlc = self.value_loss_coefficient
         value_loss_function = self.value_loss_function
@@ -421,12 +374,13 @@ class PsPPO:
                 optimizer.step()
 
                 # To show graph
-
+                """
                 from datetime import datetime
                 from torchviz import make_dot
                 now = datetime.now()
                 make_dot(self.loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
                 exit()
+                """
 
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -561,9 +515,9 @@ def normalize_observation(observation: TreeObsForRailEnv.Node, tree_depth: int, 
     """
     data, distance, agent_data = split_tree_into_feature_groups(observation, tree_depth)
 
-    data = norm_obs_clip(data, fixed_radius=observation_radius)
-    distance = norm_obs_clip(distance, normalize_to_range=True)
-    agent_data = np.clip(agent_data, -1, 1)
+    data = norm_obs_clip(data, clip_min=0, fixed_radius=observation_radius)
+    distance = norm_obs_clip(distance, clip_min=0, normalize_to_range=True)
+    agent_data = np.clip(agent_data, 0, 1)
     normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
     return normalized_obs
 
@@ -719,14 +673,33 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
 
+def custom_observations(env, agent, agent_obs, deadlocks):
+    # Agent position normalized
+    if env.agents[agent].position is None:
+        pos_a_x = env.agents[agent].initial_position[0] / env.width
+        pos_a_y = env.agents[agent].initial_position[1] / env.height
+        a_direction = env.agents[agent].initial_direction / 4
+    else:
+        pos_a_x = env.agents[agent].position[0] / env.width
+        pos_a_y = env.agents[agent].position[1] / env.height
+        a_direction = env.agents[agent].direction / 4
+
+    # Add current position and target to observations
+    agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
+    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
+                                                    env.agents[agent].target[1] / env.height])
+    if deadlocks[agent]:
+        agent_obs[agent] = np.append(agent_obs[agent], [1])
+    else:
+        agent_obs[agent] = np.append(agent_obs[agent], [0])
+    return agent_obs[agent]
+
+
 def train_multiple_agents(env_params, train_params):
     # Environment parameters
-    n_agents = env_params.n_agents
     x_dim = env_params.x_dim
     y_dim = env_params.y_dim
     n_cities = env_params.n_cities
-    max_rails_between_cities = env_params.max_rails_between_cities
-    max_rails_in_city = env_params.max_rails_in_city
     seed = env_params.seed
 
     # Observation parameters
@@ -763,12 +736,12 @@ def train_multiple_agents(env_params, train_params):
         rail_generator=sparse_rail_generator(
             max_num_cities=n_cities,
             grid_mode=False,
-            max_rails_between_cities=max_rails_between_cities,
-            max_rails_in_city=max_rails_in_city,
+            max_rails_between_cities=env_params.max_rails_between_cities,
+            max_rails_in_city=env_params.max_rails_in_city,
             seed=seed
         ),
         schedule_generator=sparse_schedule_generator(env_params.speed_profiles),
-        number_of_agents=n_agents,
+        number_of_agents=env_params.n_agents,
         malfunction_generator_and_process_data=malfunction_from_params(env_params.malfunction_parameters),
         obs_builder_object=tree_observation,
         random_seed=seed
@@ -789,32 +762,13 @@ def train_multiple_agents(env_params, train_params):
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
-    max_steps = int(4 * 2 * (env.height + env.width + (n_agents / n_cities)))
+    max_steps = int(4 * 2 * (env.height + env.width + (env.get_num_agents() / n_cities)))
 
-    memory = Memory(n_agents)
+    memory = Memory(env.get_num_agents())
 
     ppo = PsPPO(state_size,
                 action_size,
-                train_params.shared,
-                train_params.critic_mlp_width,
-                train_params.critic_mlp_depth,
-                train_params.last_critic_layer_scaling,
-                train_params.actor_mlp_width,
-                train_params.actor_mlp_depth,
-                train_params.last_actor_layer_scaling,
-                train_params.learning_rate,
-                train_params.adam_eps,
-                train_params.activation,
-                train_params.discount_factor,
-                train_params.epochs,
-                train_params.batch_size,
-                train_params.eps_clip,
-                train_params.max_grad_norm,
-                train_params.lmbda,
-                train_params.advantage_estimator,
-                train_params.value_loss_function,
-                train_params.entropy_coefficient,
-                train_params.value_loss_coefficient)
+                train_params)
 
     skip_cells = [int("1000000000100000", 2),
                   RailEnvTransitions().rotate_transition(int("1000000000100000", 2), 90),
@@ -845,6 +799,9 @@ def train_multiple_agents(env_params, train_params):
     smoothed_normalized_score = -1.0
     smoothed_completion = 0.0
     smoothed_deadlocks = 1.0
+    # Evaluation statics
+    smoothed_eval_normalized_score = -1.0
+    smoothed_eval_completion = 0.0
 
     for episode in range(1, n_episodes + 1):
         # Timers
@@ -884,7 +841,7 @@ def train_multiple_agents(env_params, train_params):
 
             # Mask initialization
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
-                            for action in range(action_size)] for _ in range(n_agents)]
+                            for action in range(action_size)] for _ in range(env.get_num_agents())]
 
             # Collect and preprocess observations and fill action dictionary
             for agent in env.get_agent_handles():
@@ -898,24 +855,7 @@ def train_multiple_agents(env_params, train_params):
                                                              observation_radius=observation_radius)
 
                     if custom_observations:
-                        # Agent position normalized
-                        if env.agents[agent].position is None:
-                            pos_a_x = env.agents[agent].initial_position[0] / env.width
-                            pos_a_y = env.agents[agent].initial_position[1] / env.height
-                            a_direction = env.agents[agent].initial_direction / 4
-                        else:
-                            pos_a_x = env.agents[agent].position[0] / env.width
-                            pos_a_y = env.agents[agent].position[1] / env.height
-                            a_direction = env.agents[agent].direction / 4
-
-                        # Add current position and target to observations
-                        agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
-                        agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
-                                                                        env.agents[agent].target[1] / env.height])
-                        if deadlocks[agent]:
-                            agent_obs[agent] = np.append(agent_obs[agent], [1])
-                        else:
-                            agent_obs[agent] = np.append(agent_obs[agent], [0])
+                        agent_obs[agent] = custom_observations(env, agent, agent_obs, deadlocks)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -988,7 +928,7 @@ def train_multiple_agents(env_params, train_params):
                 if step == max_steps - 1:
                     memory.dones[a][-1] = True
 
-            for a in range(n_agents):
+            for a in range(env.get_num_agents()):
                 # Update if agent's horizon has been reached
                 if len(memory.states[a]) % (horizon + 1) == 0:
                     learn_timer.start()
@@ -1013,9 +953,9 @@ def train_multiple_agents(env_params, train_params):
         # Collection information about training
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
-        completion = tasks_finished / max(1, n_agents)
-        deadlocks_percentage = sum(deadlocks) / n_agents
-        normalized_score = score / (max_steps * n_agents)
+        completion = tasks_finished / max(1, env.get_num_agents())
+        deadlocks_percentage = sum(deadlocks) / env.get_num_agents()
+        normalized_score = score / (max_steps * env.get_num_agents())
         action_probs = action_count / np.sum(action_count)
         action_count = [1] * action_size
 
@@ -1027,9 +967,9 @@ def train_multiple_agents(env_params, train_params):
 
         # Save checkpoints
         if episode % checkpoint_interval == 0:
-            if train_params.checkpoint_path is not None:
+            if train_params.load_model_path is not None:
                 print("..saving model..")
-                torch.save(ppo.policy.state_dict(), train_params.checkpoint_path)
+                ppo.policy.save(train_params.load_model_path)
         # Rendering
         if train_params.render:
             env_renderer.close_window()
@@ -1053,12 +993,13 @@ def train_multiple_agents(env_params, train_params):
                 format_action_prob(action_probs)
             ), end=" ")
 
-        # TODO: Consider possible eval
-        """
+        # Evaluation
         if episode % train_params.checkpoint_interval == 0:
-            scores, completions, nb_steps_eval = eval_policy(env, policy, n_eval_episodes, max_steps)
+            with torch.no_grad():
+                scores, completions = eval_policy(env, action_size, ppo, train_params, env_params, skip_cells,
+                                                                 1, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
-            writer.add_scalar("evaluation/scores_max", np.max(scores),episode)
+            writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
             writer.add_scalar("evaluation/scores_std", np.std(scores), episode)
             writer.add_histogram("evaluation/scores", np.array(scores), episode)
@@ -1067,23 +1008,23 @@ def train_multiple_agents(env_params, train_params):
             writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode)
             writer.add_scalar("evaluation/completions_std", np.std(completions), episode)
             writer.add_histogram("evaluation/completions", np.array(completions), episode)
-            writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
-            writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
+            # writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
+            # writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
+            # writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
+            # writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
+            # writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
             smoothing = 0.9
-            smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * (1.0 - smoothing)
+            smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * \
+                                             (1.0 - smoothing)
             smoothed_eval_completion = smoothed_eval_completion * smoothing + np.mean(completions) * (1.0 - smoothing)
             writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode)
             writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode)
-        """
-        # Save logs to tensorboard
+        # Save logs to Tensorboard
         writer.add_scalar("training/score", normalized_score, episode)
         writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode)
         writer.add_scalar("training/completion", np.mean(completion), episode)
         writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode)
-        writer.add_scalar("training/nb_steps", step, episode)
+        # writer.add_scalar("training/nb_steps", step, episode)
         writer.add_histogram("actions/distribution", np.array(action_probs), episode)
         writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
         writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)
@@ -1098,6 +1039,124 @@ def train_multiple_agents(env_params, train_params):
         writer.add_scalar("timer/total", training_timer.get_current(), episode)
 
     training_timer.end()
+
+
+def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_eval_episodes, max_steps):
+    action_count = [1] * action_size
+    scores = []
+    completions = []
+    deads = []
+
+    for episode in range(1, n_eval_episodes + 1):
+
+        # Reset environment
+        obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
+
+        # Score of the episode as a sum of scores of each step for statistics
+        score = 0.0
+
+        # Observation related information
+        agent_obs = [None] * env.get_num_agents()
+        deadlocks = [False for _ in range(env.get_num_agents())]
+        shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
+
+        # Run episode
+        for step in range(max_steps):
+            # Action counter used for statistics
+            action_dict = dict()
+
+            # Set used to track agents that didn't skipped the action
+            agents_in_action = set()
+
+            # Mask initialization
+            action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
+                            for action in range(action_size)] for _ in range(env.get_num_agents())]
+
+            # Collect and preprocess observations and fill action dictionary
+            for agent in env.get_agent_handles():
+                """
+                Agents always enter in the if at least once in the episode so there is no further controls.
+                When obs is absent because the agent has reached its final goal the observation remains the same.
+                """
+                if obs[agent]:
+                    agent_obs[agent] = normalize_observation(obs[agent], env_params.observation_tree_depth,
+                                                             observation_radius=env_params.observation_radius)
+
+                    if env_params.custom_observations:
+                        agent_obs[agent] = custom_observations(env, agent, agent_obs, deadlocks)
+
+                # Action mask modification only if action masking is True
+                if train_params.action_masking:
+                    for action in range(action_size):
+                        if env.agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                            _, cell_valid, _, _, transition_valid = env._check_action_on_agent(
+                                RailEnvActions(action),
+                                env.agents[agent])
+                            if not all([cell_valid, transition_valid]):
+                                action_mask[agent][action] = RailEnvActions.DO_NOTHING
+                if action_mask == [0, 0, 1, 0, 0]:
+                    raise Exception("controllami")
+
+                # Fill action dict
+                # If an agent is in deadlock leave him learn
+                if deadlocks[agent]:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
+                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                    agents_in_action.add(agent)
+                # If can skip
+                elif train_params.action_skipping \
+                        and env.agents[agent].position is not None and env.rail.get_full_transitions(
+                    env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
+                    # We always insert in memory the last time step
+                    if step == max_steps - 1:
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                        agents_in_action.add(agent)
+                    # Otherwise skip
+                    else:
+                        action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                # Else
+                elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
+                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                    agents_in_action.add(agent)
+                else:
+                    action_dict[agent] = \
+                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent])
+                    agents_in_action.add(agent)
+
+            # Update statistics
+            for a in list(action_dict.values()):
+                action_count[a] += 1
+
+            # Environment step
+            obs, rewards, done, info, _, new_deadlocks, _ = \
+                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, env_params.invalid_action_penalty,
+                             env_params.stop_penalty, env_params.deadlock_penalty,
+                             env_params.shortest_path_penalty_coefficient,
+                             env_params.done_bonus)
+
+            # Update deadlocks
+            deadlocks = new_deadlocks
+            # Update score and compute total rewards equal to each agent
+            score += np.sum(list(rewards.values()))
+
+        normalized_score = score / (max_steps * env.get_num_agents())
+        scores.append(normalized_score)
+
+        tasks_finished = sum(done[idx] for idx in env.get_agent_handles())
+        completion = tasks_finished / max(1, env.get_num_agents())
+        completions.append(completion)
+
+        deads.append(sum(deadlocks) / max(1, env.get_num_agents()))
+
+    print("\t Eval: score {:.3f} done {:.1f} dead {:.1f}%".format(np.mean(scores), np.mean(completions) * 100.0,
+                                                                  np.mean(deads) * 100.0))
+
+    return scores, completions
 
 
 def format_action_prob(action_probs):
@@ -1141,16 +1200,15 @@ environment_parameters = {
     # ============================
     "custom_observations": False,
 
-    "stop_penalty": 0,
-    "invalid_action_penalty": 0,
-    "deadlock_penalty": 0,
+    "stop_penalty": 0.0,
+    "invalid_action_penalty": 0.0,
+    "deadlock_penalty": 0.0,
     "shortest_path_penalty_coefficient": 1.0,
     # 1.0 for skipping
-    "done_bonus": 0,
+    "done_bonus": 0.0,
 }
 
 training_parameters = {
-    "random_seed": myseed,
     # ============================
     # Network architecture
     # ============================
@@ -1208,10 +1266,11 @@ training_parameters = {
     # Optimization and rendering
     # ============================
     # Save and evaluate interval
-    "checkpoint_interval": 100,
+    "checkpoint_interval": 10,
     "use_gpu": False,
     "render": False,
-    "checkpoint_path": "checkpoint.pt",
+    "save_model_path": "checkpoint.pt",
+    "load_model_path": "checkpoint.pt",
     "tensorboard_path": "/log/",
 
     # ============================
