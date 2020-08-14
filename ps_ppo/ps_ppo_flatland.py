@@ -35,7 +35,7 @@ class Memory:
         self.dones[agent] = self.dones[agent][-1:]
 
 
-class ActorCritic(nn.Module):
+class PsPPOPolicy(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
@@ -46,7 +46,7 @@ class ActorCritic(nn.Module):
         :param train_params: Parameters to influence training
         """
 
-        super(ActorCritic, self).__init__()
+        super(PsPPOPolicy, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
         self.activation = train_params.activation
@@ -235,7 +235,7 @@ class PsPPO:
             raise Exception("Advantage estimator not available")
 
         # The policy updated at each learning epoch
-        self.policy = ActorCritic(state_size,
+        self.policy = PsPPOPolicy(state_size,
                                   action_size,
                                   train_params).to(device)
 
@@ -244,7 +244,7 @@ class PsPPO:
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
-        self.policy_old = ActorCritic(state_size,
+        self.policy_old = PsPPOPolicy(state_size,
                                       action_size,
                                       train_params).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -566,45 +566,8 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-"""
-def check_feasible_transitions(pos_a1, transitions, directions, env):
-
-    for direction, values in enumerate(directions):
-        if transitions[direction] == 1:
-            position_check = (pos_a1[0] + values[0], pos_a1[1] + values[1])
-            if not (env.cell_free(position_check)):
-                for a2 in range(env.get_num_agents()):
-                    if env.agents[a2].position == position_check:
-                        return a2
-
-    return None
-
-
-def check_next_pos(a1, directions, env):
-    if env.agents[a1].position is not None:
-        pos_a1 = env.agents[a1].position
-        dir_a1 = env.agents[a1].direction
-    else:
-        pos_a1 = env.agents[a1].initial_position
-        dir_a1 = env.agents[a1].initial_direction
-
-    if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
-        position_check = (pos_a1[0] + directions[dir_a1][0], pos_a1[1] + directions[dir_a1][1])
-        if not (env.cell_free(position_check)):
-            for a2 in range(env.get_num_agents()):
-                if env.agents[a2].position == position_check:
-                    return a2
-    else:
-        return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), directions,
-                                          env)
-
-    return None
-"""
-
 
 def check_deadlocks(a1, deadlocks, directions, action_dict, env):
-    # a2 = check_next_pos(a1[-1], directions, env)
-
     a2 = None
 
     if env.agents[a1[-1]].position is not None:
@@ -841,9 +804,6 @@ def train_multiple_agents(env_params, train_params):
         deadlocks = [False for _ in range(env.get_num_agents())]
         shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
-        # TODO: Remove
-        counter_breaker = 0
-
         # Run episode
         for step in range(max_steps):
             # Action counter used for statistics
@@ -928,14 +888,6 @@ def train_multiple_agents(env_params, train_params):
             # Update deadlocks
             deadlocks = new_deadlocks
 
-            # TODO: Remove
-            """
-            if any(deadlocks):
-                # print(action_dict)
-                print(deadlocks)
-                # print(env.agents)
-            """
-
             # Update old shortest path with the new one
             shortest_path = new_shortest_path
             # Update score and compute total rewards equal to each agent
@@ -973,14 +925,6 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
-            # TODO: Remove
-            """
-            if all(deadlocks):
-                counter_breaker += 1
-                if counter_breaker == 20:
-                    break
-            """
-
         # Collection information about training
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
@@ -997,7 +941,7 @@ def train_multiple_agents(env_params, train_params):
         smoothed_deadlocks = smoothed_deadlocks * smoothing + deadlocks_percentage * (1.0 - smoothing)
 
         # Save checkpoints
-        if episode % train_params.checkpoint_interval == 0:
+        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             if train_params.save_model_path is not None:
                 ppo.policy.save(train_params.save_model_path)
         # Rendering
@@ -1024,10 +968,10 @@ def train_multiple_agents(env_params, train_params):
             ), end=" ")
 
         # Evaluation
-        if episode % train_params.checkpoint_interval == 0:
+        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
                 scores, completions = eval_policy(env, action_size, ppo, train_params, env_params, skip_cells,
-                                                  1, max_steps)
+                                                  train_params.eval_episodes, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -1175,7 +1119,8 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
         normalized_score = score / (max_steps * env.get_num_agents())
         scores.append(normalized_score)
 
-        tasks_finished = sum(done[idx] for idx in env.get_agent_handles())
+        tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
+                             for a in env.get_agent_handles())
         completion = tasks_finished / max(1, env.get_num_agents())
         completions.append(completion)
 
@@ -1298,18 +1243,13 @@ training_parameters = {
     # Optimization and rendering
     # ============================
     # Save and evaluate interval
-    "checkpoint_interval": 100,
+    "checkpoint_interval": None,
+    "eval_episodes": None,
     "use_gpu": False,
     "render": False,
     "save_model_path": "checkpoint.pt",
     "load_model_path": "checkpoint.pt",
-    "tensorboard_path": "/log/",
-    """
-    # Save on Google Drive on Colab
-    "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + datehour + ".pt",
-    "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
-    "tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs" + datehour + "/",
-    """
+    "tensorboard_path": "log/",
 
     # ============================
     # Action Masking / Skipping
@@ -1318,6 +1258,13 @@ training_parameters = {
     "allow_no_op": False,
     "action_skipping": True
 }
+
+"""
+# Save on Google Drive on Colab
+"save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + datehour + ".pt",
+"load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
+"tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs" + datehour + "/",
+"""
 
 """
 # Mount Drive on Colab
