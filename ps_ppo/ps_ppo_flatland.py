@@ -3,7 +3,6 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from flatland.core.grid.rail_env_grid import RailEnvTransitions
 from flatland.envs.agent_utils import RailAgentStatus
 from torch.distributions import Categorical
 from collections import OrderedDict
@@ -306,11 +305,8 @@ class PsPPO:
         epochs = self.epochs
         batch_size = self.batch_size
 
-        lmbda = self.lmbda
-        discount_factor = self.discount_factor
         policy_evaluate = self.policy.evaluate
         get_advantages = self._get_advs
-        gae = self.gae
         torch_clamp = torch.clamp
         torch_min = torch.min
         obj_eps = self.eps_clip
@@ -807,12 +803,13 @@ def train_multiple_agents(env_params, train_params):
 
     # Variables to compute statistics
     action_count = [0] * action_size
-    smoothed_normalized_score = -1.0
-    smoothed_completion = 0.0
-    smoothed_deadlocks = 1.0
+    accumulated_normalized_score = []
+    accumulated_completion = []
+    accumulated_deadlocks = []
     # Evaluation statics
-    smoothed_eval_normalized_score = -1.0
-    smoothed_eval_completion = 0.0
+    accumulated_eval_normalized_score = []
+    accumulated_eval_completion = []
+    accumulated_eval_deads = []
 
     for episode in range(1, n_episodes + 1):
         # Timers
@@ -964,23 +961,24 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
+            """
             if done["__all__"]:
                 break
+            """
 
         # Collection information about training
+        normalized_score = score / (max_steps * env.get_num_agents())
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
+        completion_percentage = tasks_finished / max(1, env.get_num_agents())
         deadlocks_percentage = sum(deadlocks) / env.get_num_agents()
-        normalized_score = score / (max_steps * env.get_num_agents())
         action_probs = action_count / np.sum(action_count)
         action_count = [1] * action_size
 
         # Smoothed values for terminal display and for more stable hyper-parameter tuning
-        smoothing = 0.99
-        smoothed_normalized_score = smoothed_normalized_score * smoothing + normalized_score * (1.0 - smoothing)
-        smoothed_completion = smoothed_completion * smoothing + completion * (1.0 - smoothing)
-        smoothed_deadlocks = smoothed_deadlocks * smoothing + deadlocks_percentage * (1.0 - smoothing)
+        accumulated_normalized_score.append(normalized_score)
+        accumulated_completion.append(completion_percentage)
+        accumulated_deadlocks.append(deadlocks_percentage)
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
@@ -1001,19 +999,19 @@ def train_multiple_agents(env_params, train_params):
             "\tAction Probs: {}".format(
                 episode,
                 normalized_score,
-                smoothed_normalized_score,
-                100 * completion,
-                100 * smoothed_completion,
+                np.mean(accumulated_normalized_score),
+                100 * completion_percentage,
+                100 * np.mean(accumulated_completion),
                 100 * deadlocks_percentage,
-                100 * smoothed_deadlocks,
+                100 * np.mean(accumulated_deadlocks),
                 format_action_prob(action_probs)
             ), end=" ")
 
         # Evaluation
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
-                scores, completions = eval_policy(env, action_size, ppo, train_params, env_params,
-                                                  train_params.eval_episodes, max_steps)
+                scores, completions, deads = eval_policy(env, action_size, ppo, train_params, env_params,
+                                                         train_params.eval_episodes, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -1024,23 +1022,24 @@ def train_multiple_agents(env_params, train_params):
             writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode)
             writer.add_scalar("evaluation/completions_std", np.std(completions), episode)
             writer.add_histogram("evaluation/completions", np.array(completions), episode)
-            # writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
-            # writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
-            smoothing = 0.9
-            smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * \
-                                             (1.0 - smoothing)
-            smoothed_eval_completion = smoothed_eval_completion * smoothing + np.mean(completions) * (1.0 - smoothing)
-            writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode)
-            writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode)
+            writer.add_scalar("evaluation/deadlocks_min", np.min(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_max", np.max(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_mean", np.mean(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_std", np.std(deads), episode)
+            writer.add_histogram("evaluation/deadlocks", np.array(deads), episode)
+            accumulated_eval_normalized_score.append(np.mean(scores))
+            accumulated_eval_completion.append(np.mean(completions))
+            accumulated_eval_deads.append(np.mean(deads))
+            writer.add_scalar("evaluation/accumulated_score", np.mean(accumulated_eval_normalized_score), episode)
+            writer.add_scalar("evaluation/accumulated_completion", np.mean(accumulated_eval_completion), episode)
+            writer.add_scalar("evaluation/accumulated_deadlocks", np.mean(accumulated_eval_deads), episode)
         # Save logs to Tensorboard
         writer.add_scalar("training/score", normalized_score, episode)
-        writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode)
-        writer.add_scalar("training/completion", np.mean(completion), episode)
-        writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode)
-        # writer.add_scalar("training/nb_steps", step, episode)
+        writer.add_scalar("training/accumulated_score", np.mean(accumulated_normalized_score), episode)
+        writer.add_scalar("training/completion", completion_percentage, episode)
+        writer.add_scalar("training/accumulated_completion", np.mean(accumulated_completion), episode)
+        writer.add_scalar("training/deadlocks", deadlocks_percentage, episode)
+        writer.add_scalar("training/accumulated_deadlocks", np.mean(accumulated_deadlocks), episode)
         writer.add_histogram("actions/distribution", np.array(action_probs), episode)
         writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
         writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)
@@ -1159,20 +1158,16 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
             # Update score and compute total rewards equal to each agent
             score += np.sum(list(rewards.values()))
 
-        normalized_score = score / (max_steps * env.get_num_agents())
-        scores.append(normalized_score)
-
+        scores.append(score / (max_steps * env.get_num_agents()))
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
-        completions.append(completion)
-
+        completions.append(tasks_finished / max(1, env.get_num_agents()))
         deads.append(sum(deadlocks) / max(1, env.get_num_agents()))
 
     print("\t Eval: score {:.3f} done {:.1f} dead {:.1f}%".format(np.mean(scores), np.mean(completions) * 100.0,
                                                                   np.mean(deads) * 100.0))
 
-    return scores, completions
+    return scores, completions, deads
 
 
 def format_action_prob(action_probs):
@@ -1287,7 +1282,7 @@ training_parameters = {
     "checkpoint_interval": None,
     "eval_episodes": None,
     "use_gpu": False,
-    "render": True,
+    "render": False,
     "save_model_path": "checkpoint.pt",
     "load_model_path": "checkpoint.pt",
     "tensorboard_path": "log/",
