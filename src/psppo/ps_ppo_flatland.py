@@ -21,6 +21,7 @@ from flatland.core.grid.grid4_utils import get_new_position
 
 from src.common.env_wrapper import EnvWrapper
 from src.common.observation import NormalizeObservations
+from src.common.stats import Stats
 from src.common.timer import Timer
 from src.psppo.algorithm import PsPPO
 from src.psppo.memory import Memory
@@ -130,13 +131,6 @@ def train_multiple_agents(env_params, train_params):
 
     # Variables to compute statistics
     action_count = [0] * action_size
-    accumulated_normalized_score = []
-    accumulated_completion = []
-    accumulated_deadlocks = []
-    # Evaluation statics
-    accumulated_eval_normalized_score = []
-    accumulated_eval_completion = []
-    accumulated_eval_deads = []
 
     env_wrapper = EnvWrapper(env,
                              invalid_action_penalty,
@@ -144,6 +138,7 @@ def train_multiple_agents(env_params, train_params):
                              deadlock_penalty,
                              shortest_path_penalty_coefficient,
                              done_bonus)
+    stats = Stats()
 
     for episode in range(1, n_episodes + 1):
         # Timers
@@ -291,18 +286,8 @@ def train_multiple_agents(env_params, train_params):
             """
 
         # Collection information about training
-        normalized_score = score / (max_steps * env.get_num_agents())
-        tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
-                             for a in env.get_agent_handles())
-        completion_percentage = tasks_finished / max(1, env.get_num_agents())
-        deadlocks_percentage = sum(env_wrapper.deadlocks) / env.get_num_agents()
-        action_probs = action_count / np.sum(action_count)
-        action_count = [1] * action_size
-
-        # Mean values for terminal display and for more stable hyper-parameter tuning
-        accumulated_normalized_score.append(normalized_score)
-        accumulated_completion.append(completion_percentage)
-        accumulated_deadlocks.append(deadlocks_percentage)
+        normalized_score, tasks_finished, completion_percentage, deadlocks_percentage, action_probs = \
+            stats.step(score, max_steps, env.get_num_agents(), info, env_wrapper.deadlocks, action_count)
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
@@ -323,11 +308,11 @@ def train_multiple_agents(env_params, train_params):
             "\tAction Probs: {}".format(
                 episode,
                 normalized_score,
-                np.mean(accumulated_normalized_score),
+                np.mean(stats.accumulated_normalized_score),
                 100 * completion_percentage,
-                100 * np.mean(accumulated_completion),
+                100 * np.mean(stats.accumulated_completion),
                 100 * deadlocks_percentage,
-                100 * np.mean(accumulated_deadlocks),
+                100 * np.mean(stats.accumulated_deadlocks),
                 format_action_prob(action_probs)
             ), end=" ")
 
@@ -351,19 +336,19 @@ def train_multiple_agents(env_params, train_params):
             writer.add_scalar("evaluation/deadlocks_mean", np.mean(deads), episode)
             writer.add_scalar("evaluation/deadlocks_std", np.std(deads), episode)
             writer.add_histogram("evaluation/deadlocks", np.array(deads), episode)
-            accumulated_eval_normalized_score.append(np.mean(scores))
-            accumulated_eval_completion.append(np.mean(completions))
-            accumulated_eval_deads.append(np.mean(deads))
-            writer.add_scalar("evaluation/accumulated_score", np.mean(accumulated_eval_normalized_score), episode)
-            writer.add_scalar("evaluation/accumulated_completion", np.mean(accumulated_eval_completion), episode)
-            writer.add_scalar("evaluation/accumulated_deadlocks", np.mean(accumulated_eval_deads), episode)
+            stats.accumulated_eval_normalized_score.append(np.mean(scores))
+            stats.accumulated_eval_completion.append(np.mean(completions))
+            stats.accumulated_eval_deads.append(np.mean(deads))
+            writer.add_scalar("evaluation/accumulated_score", np.mean(stats.accumulated_eval_normalized_score), episode)
+            writer.add_scalar("evaluation/accumulated_completion", np.mean(stats.accumulated_eval_completion), episode)
+            writer.add_scalar("evaluation/accumulated_deadlocks", np.mean(stats.accumulated_eval_deads), episode)
         # Save logs to Tensorboard
         writer.add_scalar("training/score", normalized_score, episode)
-        writer.add_scalar("training/accumulated_score", np.mean(accumulated_normalized_score), episode)
+        writer.add_scalar("training/accumulated_score", np.mean(stats.accumulated_normalized_score), episode)
         writer.add_scalar("training/completion", completion_percentage, episode)
-        writer.add_scalar("training/accumulated_completion", np.mean(accumulated_completion), episode)
+        writer.add_scalar("training/accumulated_completion", np.mean(stats.accumulated_completion), episode)
         writer.add_scalar("training/deadlocks", deadlocks_percentage, episode)
-        writer.add_scalar("training/accumulated_deadlocks", np.mean(accumulated_deadlocks), episode)
+        writer.add_scalar("training/accumulated_deadlocks", np.mean(stats.accumulated_deadlocks), episode)
         writer.add_histogram("actions/distribution", np.array(action_probs), episode)
         writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
         writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)

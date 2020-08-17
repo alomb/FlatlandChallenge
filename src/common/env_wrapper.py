@@ -23,6 +23,7 @@ class EnvWrapper:
                  deadlock_penalty,
                  shortest_path_penalty_coefficient,
                  done_bonus):
+
         self.env = env
         self.deadlocks = []
         self.shortest_path = []
