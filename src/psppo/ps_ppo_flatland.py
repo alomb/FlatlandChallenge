@@ -19,181 +19,13 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from flatland.core.grid.grid4_utils import get_new_position
 
-from src.common.observation import normalize_observation
+from src.common.env_wrapper import EnvWrapper
+from src.common.observation import NormalizeObservations
 from src.common.timer import Timer
 from src.psppo.algorithm import PsPPO
 from src.psppo.memory import Memory
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-def find_decision_cells(env):
-    switches = []
-    switches_neighbors = []
-    directions = list(range(4))
-    for h in range(env.height):
-        for w in range(env.width):
-            pos = (h, w)
-            is_switch = False
-            # Check for switch counting the outgoing transition
-            for orientation in directions:
-                possible_transitions = env.rail.get_transitions(*pos, orientation)
-                num_transitions = np.count_nonzero(possible_transitions)
-                if num_transitions > 1:
-                    switches.append(pos)
-                    is_switch = True
-                    break
-            if is_switch:
-                # Add all neighbouring rails, if pos is a switch
-                for orientation in directions:
-                    possible_transitions = env.rail.get_transitions(*pos, orientation)
-                    for movement in directions:
-                        if possible_transitions[movement]:
-                            switches_neighbors.append(get_new_position(pos, movement))
-
-    return set(switches).union(set(switches_neighbors))
-
-
-def check_deadlocks(a1, deadlocks, directions, action_dict, env):
-    a2 = None
-
-    if env.agents[a1[-1]].position is not None:
-        cell_free, new_cell_valid, _, new_position, transition_valid = \
-            env._check_action_on_agent(action_dict[a1[-1]], env.agents[a1[-1]])
-
-        if not cell_free and new_cell_valid and transition_valid:
-            for a2_tmp in range(env.get_num_agents()):
-                if env.agents[a2_tmp].position == new_position:
-                    a2 = a2_tmp
-                    break
-
-    if a2 is None:
-        return False
-    if deadlocks[a2] or a2 in a1:
-        return True
-    a1.append(a2)
-    deadlocks[a2] = check_deadlocks(a1, deadlocks, directions, action_dict, env)
-    if deadlocks[a2]:
-        return True
-    del a1[-1]
-    return False
-
-
-def check_invalid_transitions(action_dict, action_mask, invalid_action_penalty):
-    return {a: invalid_action_penalty if a in action_dict and mask[action_dict[a]] == 0 else 0 for a, mask in
-            enumerate(action_mask)}
-
-
-def check_stop_transition(action_dict, rewards, stop_penalty):
-    return {a: stop_penalty if action_dict[a] == RailEnvActions.STOP_MOVING else rewards[a]
-            for a in range(len(action_dict))}
-
-
-def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invalid_action_penalty,
-                 stop_penalty, deadlock_penalty, shortest_path_penalty_coefficient, done_bonus):
-    invalid_rewards_shaped = check_invalid_transitions(action_dict, action_mask, invalid_action_penalty)
-    stop_rewards_shaped = check_stop_transition(action_dict, invalid_rewards_shaped, stop_penalty)
-
-    # Environment step
-    obs, rewards, done, info = env.step(action_dict)
-
-    directions = [
-        # North
-        (-1, 0),
-        # East
-        (0, 1),
-        # South
-        (1, 0),
-        # West
-        (0, -1)]
-
-    agents = []
-    for a in range(env.get_num_agents()):
-        if not done[a]:
-            agents.append(a)
-            if not deadlocks[a]:
-                deadlocks[a] = check_deadlocks(agents, deadlocks, directions, action_dict, env)
-            if not (deadlocks[a]):
-                del agents[-1]
-
-    new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
-
-    new_rewards_shaped = {
-        a: rewards[a] if stop_rewards_shaped[a] == 0 else rewards[a] + stop_rewards_shaped[a]
-        for a in range(env.get_num_agents())}
-
-    rewards_shaped_shortest_path = {a: shortest_path_penalty_coefficient * new_rewards_shaped[a]
-    if shortest_path[a] < new_shortest_path[a] else new_rewards_shaped[a] for a in range(env.get_num_agents())}
-
-    rewards_shaped_deadlocks = {a: deadlock_penalty if deadlocks[a] and deadlock_penalty != 0
-    else rewards_shaped_shortest_path[a] for a in range(env.get_num_agents())}
-
-    # If done it always get the done_bonus
-    rewards_shaped = {a: done_bonus if done[a] else rewards_shaped_deadlocks[a] for a in range(env.get_num_agents())}
-
-    return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
-
-
-def get_custom_observations(env, handle, agent_obs, deadlocks, rail_obs):
-    agent = env.agents[handle]
-    if agent.status == RailAgentStatus.READY_TO_DEPART:
-        agent_virtual_position = agent.initial_position
-    elif agent.status == RailAgentStatus.ACTIVE:
-        agent_virtual_position = agent.position
-    elif agent.status == RailAgentStatus.DONE:
-        agent_virtual_position = agent.target
-    else:
-        return None
-
-    obs_targets = np.zeros((env.height, env.width, 2))
-    obs_agents_state = np.zeros((env.height, env.width, 5)) - 1
-
-    obs_agents_state[:, :, 4] = 0
-
-    obs_agents_state[agent_virtual_position][0] = agent.direction
-    obs_targets[agent.target][0] = 1
-
-    for i in range(len(env.agents)):
-        other_agent = env.agents[i]
-
-        # ignore other agents not in the grid any more
-        if other_agent.status == RailAgentStatus.DONE_REMOVED:
-            continue
-
-        obs_targets[other_agent.target][1] = 1
-
-        # second to fourth channel only if in the grid
-        if other_agent.position is not None:
-            # second channel only for other agents
-            if i != handle:
-                obs_agents_state[other_agent.position][1] = other_agent.direction
-            obs_agents_state[other_agent.position][2] = other_agent.malfunction_data['malfunction']
-            obs_agents_state[other_agent.position][3] = other_agent.speed_data['speed']
-        # fifth channel: all ready to depart on this position
-        if other_agent.status == RailAgentStatus.READY_TO_DEPART:
-            obs_agents_state[other_agent.initial_position][4] += 1
-
-    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_targets, 0, 1))
-    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_agents_state, 0, 1))
-    agent_obs[handle] = np.append(agent_obs[handle], rail_obs)
-
-    if deadlocks[handle]:
-        agent_obs[handle] = np.append(agent_obs[handle], [1])
-    else:
-        agent_obs[handle] = np.append(agent_obs[handle], [0])
-
-    return agent_obs[handle]
-
-
-def reset_rail_obs(env):
-    rail_obs = np.zeros((env.height, env.width, 16))
-    for i in range(rail_obs.shape[0]):
-        for j in range(rail_obs.shape[1]):
-            bitlist = [int(digit) for digit in bin(env.rail.get_full_transitions(i, j))[2:]]
-            bitlist = [0] * (16 - len(bitlist)) + bitlist
-            rail_obs[i, j] = np.array(bitlist)
-
-    return rail_obs
 
 
 def train_multiple_agents(env_params, train_params):
@@ -260,6 +92,13 @@ def train_multiple_agents(env_params, train_params):
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
 
+    normalize_observations = NormalizeObservations(n_features_per_node,
+                                                   n_nodes,
+                                                   custom_observations,
+                                                   state_size,
+                                                   observation_tree_depth,
+                                                   observation_radius)
+
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
@@ -299,6 +138,13 @@ def train_multiple_agents(env_params, train_params):
     accumulated_eval_completion = []
     accumulated_eval_deads = []
 
+    env_wrapper = EnvWrapper(env,
+                             invalid_action_penalty,
+                             stop_penalty,
+                             deadlock_penalty,
+                             shortest_path_penalty_coefficient,
+                             done_bonus)
+
     for episode in range(1, n_episodes + 1):
         # Timers
         step_timer = Timer()
@@ -306,13 +152,13 @@ def train_multiple_agents(env_params, train_params):
         learn_timer = Timer()
         preproc_timer = Timer()
 
-        if custom_observations:
-            rail_obs = reset_rail_obs(env)
-
         # Reset environment
         reset_timer.start()
-        obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
-        decision_cells = find_decision_cells(env)
+        obs, info = env_wrapper.reset()
+
+        rail_obs = normalize_observations.reset_rail_obs(env)
+
+        decision_cells = env_wrapper.find_decision_cells()
         reset_timer.end()
 
         # Setup renderer
@@ -328,8 +174,6 @@ def train_multiple_agents(env_params, train_params):
 
         # Observation related information
         agent_obs = [None] * env.get_num_agents()
-        deadlocks = [False for _ in range(env.get_num_agents())]
-        shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
         # Run episode
         for step in range(max_steps):
@@ -351,11 +195,8 @@ def train_multiple_agents(env_params, train_params):
                 """
                 preproc_timer.start()
                 if obs[agent]:
-
-                    agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
-                                                             observation_radius=observation_radius)
-                    if custom_observations:
-                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
+                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent,
+                                                                                    env_wrapper.deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -371,7 +212,7 @@ def train_multiple_agents(env_params, train_params):
 
                 # Fill action dict
                 # If an agent is in deadlock leave him learn
-                if deadlocks[agent]:
+                if env_wrapper.deadlocks[agent]:
                     action_dict[agent] = \
                         ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
                                            action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
@@ -406,16 +247,9 @@ def train_multiple_agents(env_params, train_params):
 
             # Environment step
             step_timer.start()
-            obs, rewards, done, info, rewards_shaped, new_deadlocks, new_shortest_path = \
-                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invalid_action_penalty,
-                             stop_penalty, deadlock_penalty, shortest_path_penalty_coefficient, done_bonus)
+            obs, rewards, done, info, rewards_shaped = env_wrapper.step(action_dict, action_mask)
             step_timer.end()
 
-            # Update deadlocks
-            deadlocks = new_deadlocks
-
-            # Update old shortest path with the new one
-            shortest_path = new_shortest_path
             # Update score and compute total rewards equal to each agent
             score += np.sum(list(rewards.values()))
             total_timestep_reward_shaped = np.sum(list(rewards_shaped.values()))
@@ -461,7 +295,7 @@ def train_multiple_agents(env_params, train_params):
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
         completion_percentage = tasks_finished / max(1, env.get_num_agents())
-        deadlocks_percentage = sum(deadlocks) / env.get_num_agents()
+        deadlocks_percentage = sum(env_wrapper.deadlocks) / env.get_num_agents()
         action_probs = action_count / np.sum(action_count)
         action_count = [1] * action_size
 
@@ -501,7 +335,7 @@ def train_multiple_agents(env_params, train_params):
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
                 scores, completions, deads = eval_policy(env, action_size, ppo, train_params, env_params,
-                                                         train_params.eval_episodes, max_steps)
+                                                         train_params.eval_episodes, max_steps, normalize_observations)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -546,25 +380,32 @@ def train_multiple_agents(env_params, train_params):
     training_timer.end()
 
 
-def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes, max_steps):
+def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes, max_steps, normalize_observations):
     action_count = [1] * action_size
     scores = []
     completions = []
     deads = []
 
+    env_wrapper = EnvWrapper(env,
+                             env_params.invalid_action_penalty,
+                             env_params.stop_penalty,
+                             env_params.deadlock_penalty,
+                             env_params.shortest_path_penalty_coefficient,
+                             env_params.done_bonus)
+
     for episode in range(1, n_eval_episodes + 1):
 
         # Reset environment
-        obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
-        decision_cells = find_decision_cells(env)
+        obs, info = env_wrapper.reset()
+        decision_cells = env_wrapper.find_decision_cells()
+
+        rail_obs = normalize_observations.reset_rail_obs(env)
 
         # Score of the episode as a sum of scores of each step for statistics
         score = 0.0
 
         # Observation related information
         agent_obs = [None] * env.get_num_agents()
-        deadlocks = [False for _ in range(env.get_num_agents())]
-        shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
         # Run episode
         for step in range(max_steps):
@@ -573,9 +414,6 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
 
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
-
-            if env_params.custom_observations:
-                rail_obs = reset_rail_obs(env)
 
             # Mask initialization
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
@@ -588,11 +426,8 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
                 if obs[agent]:
-                    agent_obs[agent] = normalize_observation(obs[agent], env_params.observation_tree_depth,
-                                                             observation_radius=env_params.observation_radius)
-
-                    if env_params.custom_observations:
-                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
+                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent, env_wrapper.deadlocks,
+                                                                                    rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -606,7 +441,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
 
                 # Fill action dict
                 # If an agent is in deadlock leave him learn
-                if deadlocks[agent]:
+                if env_wrapper.deadlocks[agent]:
                     action_dict[agent] = \
                         ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
                                            action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
@@ -640,14 +475,9 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
                 action_count[a] += 1
 
             # Environment step
-            obs, rewards, done, info, _, new_deadlocks, _ = \
-                step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, env_params.invalid_action_penalty,
-                             env_params.stop_penalty, env_params.deadlock_penalty,
-                             env_params.shortest_path_penalty_coefficient,
-                             env_params.done_bonus)
+            obs, rewards, done, info, rewards_shaped = env_wrapper.step(action_dict, action_mask)
 
             # Update deadlocks
-            deadlocks = new_deadlocks
             # Update score and compute total rewards equal to each agent
             score += np.sum(list(rewards.values()))
 
@@ -655,7 +485,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
         completions.append(tasks_finished / max(1, env.get_num_agents()))
-        deads.append(sum(deadlocks) / max(1, env.get_num_agents()))
+        deads.append(sum(env_wrapper.deadlocks) / max(1, env.get_num_agents()))
 
     print("\t Eval: score {:.3f} done {:.1f} dead {:.1f}%".format(np.mean(scores), np.mean(completions) * 100.0,
                                                                   np.mean(deads) * 100.0))
@@ -708,7 +538,7 @@ if __name__ == "__main__":
         # ============================
         # Custom observations&rewards
         # ============================
-        "custom_observations": False,
+        "custom_observations": True,
 
         "stop_penalty": 0.0,
         "invalid_action_penalty": 0.0,
@@ -774,8 +604,8 @@ if __name__ == "__main__":
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": None,
-        "eval_episodes": None,
+        "checkpoint_interval": 1,
+        "eval_episodes": 1,
         "use_gpu": False,
         "render": False,
         "save_model_path": "checkpoint.pt",

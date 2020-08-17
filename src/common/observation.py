@@ -1,60 +1,58 @@
 import numpy as np
+from flatland.envs.agent_utils import RailAgentStatus
 
 from flatland.envs.observations import TreeObsForRailEnv
 
 
-def max_lt(seq, val):
-    """
-    Return greatest item in seq for which item < val applies.
-    None is returned if seq was empty or all items in seq were >= val.
-    """
-    max_item = 0
-    idx = len(seq) - 1
-    while idx >= 0:
-        if val > seq[idx] >= 0 and seq[idx] > max_item:
-            max_item = seq[idx]
-        idx -= 1
-    return max_item
-
-
-def min_gt(seq, val):
-    """
-    Return smallest item in seq for which item > val applies.
-    None is returned if seq was empty or all items in seq were >= val.
-    """
-    min_item = np.inf
-    idx = len(seq) - 1
-    while idx >= 0:
-        if val <= seq[idx] < min_item:
-            min_item = seq[idx]
-        idx -= 1
-    return min_item
-
-
-def norm_obs_clip(obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_range=False):
-    """
-    This function returns the difference between min and max value of an observation
-    :param obs: Observation that should be normalized
-    :param clip_min: min value where observation will be clipped
-    :param clip_max: max value where observation will be clipped
-    :param fixed_radius:
-    :param normalize_to_range:
-    :return: returns normalized and clipped observation
-    """
-    if fixed_radius > 0:
-        max_obs = fixed_radius
+def _get_custom_observations(env, handle, agent_obs, deadlocks, rail_obs):
+    agent = env.agents[handle]
+    if agent.status == RailAgentStatus.READY_TO_DEPART:
+        agent_virtual_position = agent.initial_position
+    elif agent.status == RailAgentStatus.ACTIVE:
+        agent_virtual_position = agent.position
+    elif agent.status == RailAgentStatus.DONE:
+        agent_virtual_position = agent.target
     else:
-        max_obs = max(1, max_lt(obs, 1000)) + 1
+        return None
 
-    min_obs = 0  # min(max_obs, min_gt(obs, 0))
-    if normalize_to_range:
-        min_obs = min_gt(obs, 0)
-    if min_obs > max_obs:
-        min_obs = max_obs
-    if max_obs == min_obs:
-        return np.clip(np.array(obs) / max_obs, clip_min, clip_max)
-    norm = np.abs(max_obs - min_obs)
-    return np.clip((np.array(obs) - min_obs) / norm, clip_min, clip_max)
+    obs_targets = np.zeros((env.height, env.width, 2))
+    obs_agents_state = np.zeros((env.height, env.width, 5)) - 1
+
+    obs_agents_state[:, :, 4] = 0
+
+    obs_agents_state[agent_virtual_position][0] = agent.direction
+    obs_targets[agent.target][0] = 1
+
+    for i in range(len(env.agents)):
+        other_agent = env.agents[i]
+
+        # ignore other agents not in the grid any more
+        if other_agent.status == RailAgentStatus.DONE_REMOVED:
+            continue
+
+        obs_targets[other_agent.target][1] = 1
+
+        # second to fourth channel only if in the grid
+        if other_agent.position is not None:
+            # second channel only for other agents
+            if i != handle:
+                obs_agents_state[other_agent.position][1] = other_agent.direction
+            obs_agents_state[other_agent.position][2] = other_agent.malfunction_data['malfunction']
+            obs_agents_state[other_agent.position][3] = other_agent.speed_data['speed']
+        # fifth channel: all ready to depart on this position
+        if other_agent.status == RailAgentStatus.READY_TO_DEPART:
+            obs_agents_state[other_agent.initial_position][4] += 1
+
+    agent_obs = np.append(agent_obs, np.clip(obs_targets, 0, 1))
+    agent_obs = np.append(agent_obs, np.clip(obs_agents_state, 0, 1))
+    agent_obs = np.append(agent_obs, rail_obs)
+
+    if deadlocks[handle]:
+        agent_obs = np.append(agent_obs, [1])
+    else:
+        agent_obs = np.append(agent_obs, [0])
+
+    return agent_obs
 
 
 def _split_node_into_feature_groups(node: TreeObsForRailEnv.Node) -> (np.ndarray, np.ndarray, np.ndarray):
@@ -79,54 +77,140 @@ def _split_node_into_feature_groups(node: TreeObsForRailEnv.Node) -> (np.ndarray
     return data, distance, agent_data
 
 
-def _split_subtree_into_feature_groups(node: TreeObsForRailEnv.Node, current_tree_depth: int, max_tree_depth: int) -> (
-        np.ndarray, np.ndarray, np.ndarray):
-    if node == -np.inf:
-        remaining_depth = max_tree_depth - current_tree_depth
-        # reference: https://stackoverflow.com/questions/515214/total-number-of-nodes-in-a-tree-data-structure
-        num_remaining_nodes = int((4 ** (remaining_depth + 1) - 1) / (4 - 1))
-        return [-np.inf] * num_remaining_nodes * 6, [-np.inf] * num_remaining_nodes, [-np.inf] * num_remaining_nodes * 4
+def _min_gt(seq, val):
+    """
+    Return smallest item in seq for which item > val applies.
+    None is returned if seq was empty or all items in seq were >= val.
+    """
+    min_item = np.inf
+    idx = len(seq) - 1
+    while idx >= 0:
+        if val <= seq[idx] < min_item:
+            min_item = seq[idx]
+        idx -= 1
+    return min_item
 
-    data, distance, agent_data = _split_node_into_feature_groups(node)
 
-    if not node.childs:
+def _max_lt(seq, val):
+    """
+    Return greatest item in seq for which item < val applies.
+    None is returned if seq was empty or all items in seq were >= val.
+    """
+    max_item = 0
+    idx = len(seq) - 1
+    while idx >= 0:
+        if val > seq[idx] >= 0 and seq[idx] > max_item:
+            max_item = seq[idx]
+        idx -= 1
+    return max_item
+
+
+class NormalizeObservations:
+    def __init__(self,
+                 n_features_per_node,
+                 n_nodes,
+                 custom_observations,
+                 state_size,
+                 observation_tree_depth,
+                 observation_radius):
+
+        self.n_features_per_node = n_features_per_node
+        self.n_nodes = n_nodes
+        self.custom_observations = custom_observations
+        self.state_size = state_size
+        self.observation_tree_depth = observation_tree_depth
+        self.observation_radius = observation_radius
+
+    def _norm_obs_clip(self, obs, clip_min=-1, clip_max=1, fixed_radius=0, normalize_to_range=False):
+        """
+        This function returns the difference between min and max value of an observation
+        :param obs: Observation that should be normalized
+        :param clip_min: min value where observation will be clipped
+        :param clip_max: max value where observation will be clipped
+        :param fixed_radius:
+        :param normalize_to_range:
+        :return: returns normalized and clipped observation
+        """
+        if fixed_radius > 0:
+            max_obs = fixed_radius
+        else:
+            max_obs = max(1, _max_lt(obs, 1000)) + 1
+
+        min_obs = 0  # min(max_obs, min_gt(obs, 0))
+        if normalize_to_range:
+            min_obs = _min_gt(obs, 0)
+        if min_obs > max_obs:
+            min_obs = max_obs
+        if max_obs == min_obs:
+            return np.clip(np.array(obs) / max_obs, clip_min, clip_max)
+        norm = np.abs(max_obs - min_obs)
+        return np.clip((np.array(obs) - min_obs) / norm, clip_min, clip_max)
+
+    def _split_subtree_into_feature_groups(self, node: TreeObsForRailEnv.Node, current_tree_depth: int,
+                                           max_tree_depth: int) -> (
+            np.ndarray, np.ndarray, np.ndarray):
+        if node == -np.inf:
+            remaining_depth = max_tree_depth - current_tree_depth
+            # reference: https://stackoverflow.com/questions/515214/total-number-of-nodes-in-a-tree-data-structure
+            num_remaining_nodes = int((4 ** (remaining_depth + 1) - 1) / (4 - 1))
+            return [-np.inf] * num_remaining_nodes * 6, [-np.inf] * num_remaining_nodes, [
+                -np.inf] * num_remaining_nodes * 4
+
+        data, distance, agent_data = _split_node_into_feature_groups(node)
+
+        if not node.childs:
+            return data, distance, agent_data
+
+        for direction in TreeObsForRailEnv.tree_explored_actions_char:
+            sub_data, sub_distance, sub_agent_data = self._split_subtree_into_feature_groups(
+                node.childs[direction], current_tree_depth + 1, max_tree_depth)
+            data = np.concatenate((data, sub_data))
+            distance = np.concatenate((distance, sub_distance))
+            agent_data = np.concatenate((agent_data, sub_agent_data))
+
         return data, distance, agent_data
 
-    for direction in TreeObsForRailEnv.tree_explored_actions_char:
-        sub_data, sub_distance, sub_agent_data = _split_subtree_into_feature_groups(
-            node.childs[direction], current_tree_depth + 1, max_tree_depth)
-        data = np.concatenate((data, sub_data))
-        distance = np.concatenate((distance, sub_distance))
-        agent_data = np.concatenate((agent_data, sub_agent_data))
+    def _split_tree_into_feature_groups(self, tree: TreeObsForRailEnv.Node, max_tree_depth: int) -> (
+            np.ndarray, np.ndarray, np.ndarray):
+        """
+        This function splits the tree into three difference arrays of values
+        """
+        data, distance, agent_data = _split_node_into_feature_groups(tree)
 
-    return data, distance, agent_data
+        for direction in TreeObsForRailEnv.tree_explored_actions_char:
+            sub_data, sub_distance, sub_agent_data = self._split_subtree_into_feature_groups(tree.childs[direction], 1,
+                                                                                        max_tree_depth)
+            data = np.concatenate((data, sub_data))
+            distance = np.concatenate((distance, sub_distance))
+            agent_data = np.concatenate((agent_data, sub_agent_data))
 
+        return data, distance, agent_data
 
-def split_tree_into_feature_groups(tree: TreeObsForRailEnv.Node, max_tree_depth: int) -> (
-        np.ndarray, np.ndarray, np.ndarray):
-    """
-    This function splits the tree into three difference arrays of values
-    """
-    data, distance, agent_data = _split_node_into_feature_groups(tree)
+    def reset_rail_obs(self, env):
+        if self.custom_observations:
+            rail_obs = np.zeros((env.height, env.width, 16))
+            for i in range(rail_obs.shape[0]):
+                for j in range(rail_obs.shape[1]):
+                    bitlist = [int(digit) for digit in bin(env.rail.get_full_transitions(i, j))[2:]]
+                    bitlist = [0] * (16 - len(bitlist)) + bitlist
+                    rail_obs[i, j] = np.array(bitlist)
 
-    for direction in TreeObsForRailEnv.tree_explored_actions_char:
-        sub_data, sub_distance, sub_agent_data = _split_subtree_into_feature_groups(tree.childs[direction], 1,
-                                                                                    max_tree_depth)
-        data = np.concatenate((data, sub_data))
-        distance = np.concatenate((distance, sub_distance))
-        agent_data = np.concatenate((agent_data, sub_agent_data))
+            return rail_obs
+        else:
+            return None
 
-    return data, distance, agent_data
+    def normalize_observation(self, obs, env, agent, deadlocks, rail_obs):
+        """
+        This function normalizes the observation used by the RL algorithm
+        """
+        data, distance, agent_data = self._split_tree_into_feature_groups(obs, self.observation_tree_depth)
 
+        data = self._norm_obs_clip(data, clip_min=0, fixed_radius=self.observation_radius)
+        distance = self._norm_obs_clip(distance, clip_min=0, normalize_to_range=True)
+        agent_data = np.clip(agent_data, 0, 1)
+        normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
 
-def normalize_observation(observation: TreeObsForRailEnv.Node, tree_depth: int, observation_radius=0):
-    """
-    This function normalizes the observation used by the RL algorithm
-    """
-    data, distance, agent_data = split_tree_into_feature_groups(observation, tree_depth)
-
-    data = norm_obs_clip(data, clip_min=0, fixed_radius=observation_radius)
-    distance = norm_obs_clip(distance, clip_min=0, normalize_to_range=True)
-    agent_data = np.clip(agent_data, 0, 1)
-    normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
-    return normalized_obs
+        if self.custom_observations:
+            return _get_custom_observations(env, agent, normalized_obs, deadlocks, rail_obs)
+        else:
+            return normalized_obs
