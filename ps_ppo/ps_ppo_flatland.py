@@ -35,7 +35,7 @@ class Memory:
         self.dones[agent] = self.dones[agent][-1:]
 
 
-class ActorCritic(nn.Module):
+class PsPPOPolicy(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
@@ -46,7 +46,7 @@ class ActorCritic(nn.Module):
         :param train_params: Parameters to influence training
         """
 
-        super(ActorCritic, self).__init__()
+        super(PsPPOPolicy, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
         self.activation = train_params.activation
@@ -235,7 +235,7 @@ class PsPPO:
             raise Exception("Advantage estimator not available")
 
         # The policy updated at each learning epoch
-        self.policy = ActorCritic(state_size,
+        self.policy = PsPPOPolicy(state_size,
                                   action_size,
                                   train_params).to(device)
 
@@ -244,7 +244,7 @@ class PsPPO:
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
-        self.policy_old = ActorCritic(state_size,
+        self.policy_old = PsPPOPolicy(state_size,
                                       action_size,
                                       train_params).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
@@ -389,7 +389,7 @@ class PsPPO:
 ########################################################################################################################
 
 
-from flatland.envs.observations import TreeObsForRailEnv
+from flatland.envs.observations import TreeObsForRailEnv, GlobalObsForRailEnv
 
 
 def max_lt(seq, val):
@@ -566,45 +566,8 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-"""
-def check_feasible_transitions(pos_a1, transitions, directions, env):
-
-    for direction, values in enumerate(directions):
-        if transitions[direction] == 1:
-            position_check = (pos_a1[0] + values[0], pos_a1[1] + values[1])
-            if not (env.cell_free(position_check)):
-                for a2 in range(env.get_num_agents()):
-                    if env.agents[a2].position == position_check:
-                        return a2
-
-    return None
-
-
-def check_next_pos(a1, directions, env):
-    if env.agents[a1].position is not None:
-        pos_a1 = env.agents[a1].position
-        dir_a1 = env.agents[a1].direction
-    else:
-        pos_a1 = env.agents[a1].initial_position
-        dir_a1 = env.agents[a1].initial_direction
-
-    if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
-        position_check = (pos_a1[0] + directions[dir_a1][0], pos_a1[1] + directions[dir_a1][1])
-        if not (env.cell_free(position_check)):
-            for a2 in range(env.get_num_agents()):
-                if env.agents[a2].position == position_check:
-                    return a2
-    else:
-        return check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), directions,
-                                          env)
-
-    return None
-"""
-
 
 def check_deadlocks(a1, deadlocks, directions, action_dict, env):
-    # a2 = check_next_pos(a1[-1], directions, env)
-
     a2 = None
 
     if env.agents[a1[-1]].position is not None:
@@ -666,8 +629,6 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
             if not (deadlocks[a]):
                 del agents[-1]
 
-    print(deadlocks)
-
     new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
 
     new_rewards_shaped = {
@@ -685,27 +646,67 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
 
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
+def custom_observation(env, handle, agent_obs, deadlocks, rail_obs):
 
-def custom_observation(env, agent, agent_obs, deadlocks):
-    # Agent position normalized
-    if env.agents[agent].position is None:
-        pos_a_x = env.agents[agent].initial_position[0] / env.width
-        pos_a_y = env.agents[agent].initial_position[1] / env.height
-        a_direction = env.agents[agent].initial_direction / 4
+    agent = env.agents[handle]
+    if agent.status == RailAgentStatus.READY_TO_DEPART:
+        agent_virtual_position = agent.initial_position
+    elif agent.status == RailAgentStatus.ACTIVE:
+        agent_virtual_position = agent.position
+    elif agent.status == RailAgentStatus.DONE:
+        agent_virtual_position = agent.target
     else:
-        pos_a_x = env.agents[agent].position[0] / env.width
-        pos_a_y = env.agents[agent].position[1] / env.height
-        a_direction = env.agents[agent].direction / 4
+        return None
 
-    # Add current position and target to observations
-    agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
-    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
-                                                    env.agents[agent].target[1] / env.height])
-    if deadlocks[agent]:
-        agent_obs[agent] = np.append(agent_obs[agent], [1])
+    obs_targets = np.zeros((env.height, env.width, 2))
+    obs_agents_state = np.zeros((env.height, env.width, 5)) - 1
+
+    obs_agents_state[:, :, 4] = 0
+
+    obs_agents_state[agent_virtual_position][0] = agent.direction
+    obs_targets[agent.target][0] = 1
+
+    for i in range(len(env.agents)):
+        other_agent = env.agents[i]
+
+        # ignore other agents not in the grid any more
+        if other_agent.status == RailAgentStatus.DONE_REMOVED:
+            continue
+
+        obs_targets[other_agent.target][1] = 1
+
+        # second to fourth channel only if in the grid
+        if other_agent.position is not None:
+            # second channel only for other agents
+            if i != handle:
+                obs_agents_state[other_agent.position][1] = other_agent.direction
+            obs_agents_state[other_agent.position][2] = other_agent.malfunction_data['malfunction']
+            obs_agents_state[other_agent.position][3] = other_agent.speed_data['speed']
+        # fifth channel: all ready to depart on this position
+        if other_agent.status == RailAgentStatus.READY_TO_DEPART:
+            obs_agents_state[other_agent.initial_position][4] += 1
+
+    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_targets, 0, 1))
+    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_agents_state, 0, 1))
+    agent_obs[handle] = np.append(agent_obs[handle], rail_obs)
+
+    if deadlocks[handle]:
+        agent_obs[handle] = np.append(agent_obs[handle], [1])
     else:
-        agent_obs[agent] = np.append(agent_obs[agent], [0])
-    return agent_obs[agent]
+        agent_obs[handle] = np.append(agent_obs[handle], [0])
+
+    return agent_obs[handle]
+
+
+def reset_rail_obs(env):
+    rail_obs = np.zeros((env.height, env.width, 16))
+    for i in range(rail_obs.shape[0]):
+        for j in range(rail_obs.shape[1]):
+            bitlist = [int(digit) for digit in bin(env.rail.get_full_transitions(i, j))[2:]]
+            bitlist = [0] * (16 - len(bitlist)) + bitlist
+            rail_obs[i, j] = np.array(bitlist)
+
+    return rail_obs
 
 
 def train_multiple_agents(env_params, train_params):
@@ -766,7 +767,8 @@ def train_multiple_agents(env_params, train_params):
     n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
 
     # State size depends on features per nodes in observations, custom observations and + 1 (agent id of PS-PPO)
-    state_size = n_features_per_node * n_nodes + custom_observations * 6 + 1
+    #state_size = n_features_per_node * n_nodes + (custom_observations * (env.width * env.height * 16 + 8)) + 1
+    state_size = n_features_per_node * n_nodes + (custom_observations * (env.width * env.height * 23 + 1)) + 1
 
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
@@ -822,6 +824,9 @@ def train_multiple_agents(env_params, train_params):
         learn_timer = Timer()
         preproc_timer = Timer()
 
+        if custom_observations:
+            rail_obs = reset_rail_obs(env)
+
         # Reset environment
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
@@ -842,9 +847,6 @@ def train_multiple_agents(env_params, train_params):
         agent_obs = [None] * env.get_num_agents()
         deadlocks = [False for _ in range(env.get_num_agents())]
         shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(env.get_num_agents())]
-
-        # TODO: Remove
-        counter_breaker = 0
 
         # Run episode
         for step in range(max_steps):
@@ -869,10 +871,8 @@ def train_multiple_agents(env_params, train_params):
 
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
-                    print(obs[agent])
-                    
                     if custom_observations:
-                        agent_obs[agent] = custom_observation(env, agent, agent_obs, deadlocks)
+                        agent_obs[agent] = custom_observation(env, agent, agent_obs, deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -931,14 +931,6 @@ def train_multiple_agents(env_params, train_params):
             # Update deadlocks
             deadlocks = new_deadlocks
 
-            # TODO: Remove
-            """
-            if any(deadlocks):
-                # print(action_dict)
-                print(deadlocks)
-                # print(env.agents)
-            """
-
             # Update old shortest path with the new one
             shortest_path = new_shortest_path
             # Update score and compute total rewards equal to each agent
@@ -976,13 +968,8 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
-            # TODO: Remove
-            """
-            if all(deadlocks):
-                counter_breaker += 1
-                if counter_breaker == 20:
-                    break
-            """
+        if episode % 50 == 0:
+            print("checkpoint")
 
         # Collection information about training
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
@@ -1000,7 +987,7 @@ def train_multiple_agents(env_params, train_params):
         smoothed_deadlocks = smoothed_deadlocks * smoothing + deadlocks_percentage * (1.0 - smoothing)
 
         # Save checkpoints
-        if episode % train_params.checkpoint_interval == 0:
+        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             if train_params.save_model_path is not None:
                 ppo.policy.save(train_params.save_model_path)
         # Rendering
@@ -1027,10 +1014,10 @@ def train_multiple_agents(env_params, train_params):
             ), end=" ")
 
         # Evaluation
-        if episode % train_params.checkpoint_interval == 0:
+        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
                 scores, completions = eval_policy(env, action_size, ppo, train_params, env_params, skip_cells,
-                                                  1, max_steps)
+                                                  train_params.eval_episodes, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -1178,7 +1165,8 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
         normalized_score = score / (max_steps * env.get_num_agents())
         scores.append(normalized_score)
 
-        tasks_finished = sum(done[idx] for idx in env.get_agent_handles())
+        tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
+                             for a in env.get_agent_handles())
         completion = tasks_finished / max(1, env.get_num_agents())
         completions.append(completion)
 
@@ -1208,10 +1196,10 @@ datehour = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
 print(datehour)
 
 environment_parameters = {
-    "n_agents": 3,
+    "n_agents": 2,
     "x_dim": 35,
     "y_dim": 35,
-    "n_cities": 3,
+    "n_cities": 5,
     "max_rails_between_cities": 2,
     "max_rails_in_city": 3,
     "seed": myseed,
@@ -1302,23 +1290,23 @@ training_parameters = {
     # Optimization and rendering
     # ============================
     # Save and evaluate interval
-    "checkpoint_interval": 100,
+    "checkpoint_interval": None,
+    "eval_episodes": None,
     "use_gpu": False,
-    "render": True,
+    "render": False,
     "save_model_path": "checkpoint.pt",
     "load_model_path": "checkpoint.pt",
-    "tensorboard_path": "/log/",
+    "tensorboard_path": "log/",
 
     # ============================
     # Action Masking / Skipping
     # ============================
     "action_masking": True,
     "allow_no_op": False,
-    "action_skipping": True,
+    "action_skipping": False,
 }
 
 """
-#TODO: put in train_params
 # Save on Google Drive on Colab
 "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + datehour + ".pt",
 "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
