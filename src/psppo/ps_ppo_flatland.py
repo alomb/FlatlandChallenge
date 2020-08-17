@@ -134,26 +134,66 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
 
-def get_custom_observations(env, agent, agent_obs, deadlocks):
-    # Agent position normalized
-    if env.agents[agent].position is None:
-        pos_a_x = env.agents[agent].initial_position[0] / env.width
-        pos_a_y = env.agents[agent].initial_position[1] / env.height
-        a_direction = env.agents[agent].initial_direction / 4
+def get_custom_observations(env, handle, agent_obs, deadlocks, rail_obs):
+    agent = env.agents[handle]
+    if agent.status == RailAgentStatus.READY_TO_DEPART:
+        agent_virtual_position = agent.initial_position
+    elif agent.status == RailAgentStatus.ACTIVE:
+        agent_virtual_position = agent.position
+    elif agent.status == RailAgentStatus.DONE:
+        agent_virtual_position = agent.target
     else:
-        pos_a_x = env.agents[agent].position[0] / env.width
-        pos_a_y = env.agents[agent].position[1] / env.height
-        a_direction = env.agents[agent].direction / 4
+        return None
 
-    # Add current position and target to observations
-    agent_obs[agent] = np.append(agent_obs[agent], [pos_a_x, pos_a_y, a_direction])
-    agent_obs[agent] = np.append(agent_obs[agent], [env.agents[agent].target[0] / env.width,
-                                                    env.agents[agent].target[1] / env.height])
-    if deadlocks[agent]:
-        agent_obs[agent] = np.append(agent_obs[agent], [1])
+    obs_targets = np.zeros((env.height, env.width, 2))
+    obs_agents_state = np.zeros((env.height, env.width, 5)) - 1
+
+    obs_agents_state[:, :, 4] = 0
+
+    obs_agents_state[agent_virtual_position][0] = agent.direction
+    obs_targets[agent.target][0] = 1
+
+    for i in range(len(env.agents)):
+        other_agent = env.agents[i]
+
+        # ignore other agents not in the grid any more
+        if other_agent.status == RailAgentStatus.DONE_REMOVED:
+            continue
+
+        obs_targets[other_agent.target][1] = 1
+
+        # second to fourth channel only if in the grid
+        if other_agent.position is not None:
+            # second channel only for other agents
+            if i != handle:
+                obs_agents_state[other_agent.position][1] = other_agent.direction
+            obs_agents_state[other_agent.position][2] = other_agent.malfunction_data['malfunction']
+            obs_agents_state[other_agent.position][3] = other_agent.speed_data['speed']
+        # fifth channel: all ready to depart on this position
+        if other_agent.status == RailAgentStatus.READY_TO_DEPART:
+            obs_agents_state[other_agent.initial_position][4] += 1
+
+    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_targets, 0, 1))
+    agent_obs[handle] = np.append(agent_obs[handle], np.clip(obs_agents_state, 0, 1))
+    agent_obs[handle] = np.append(agent_obs[handle], rail_obs)
+
+    if deadlocks[handle]:
+        agent_obs[handle] = np.append(agent_obs[handle], [1])
     else:
-        agent_obs[agent] = np.append(agent_obs[agent], [0])
-    return agent_obs[agent]
+        agent_obs[handle] = np.append(agent_obs[handle], [0])
+
+    return agent_obs[handle]
+
+
+def reset_rail_obs(env):
+    rail_obs = np.zeros((env.height, env.width, 16))
+    for i in range(rail_obs.shape[0]):
+        for j in range(rail_obs.shape[1]):
+            bitlist = [int(digit) for digit in bin(env.rail.get_full_transitions(i, j))[2:]]
+            bitlist = [0] * (16 - len(bitlist)) + bitlist
+            rail_obs[i, j] = np.array(bitlist)
+
+    return rail_obs
 
 
 def train_multiple_agents(env_params, train_params):
@@ -214,7 +254,8 @@ def train_multiple_agents(env_params, train_params):
     n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
 
     # State size depends on features per nodes in observations, custom observations and + 1 (agent id of PS-PPO)
-    state_size = n_features_per_node * n_nodes + custom_observations * 6 + 1
+    # state_size = n_features_per_node * n_nodes + (custom_observations * (env.width * env.height * 16 + 8)) + 1
+    state_size = n_features_per_node * n_nodes + (custom_observations * (env.width * env.height * 23 + 1)) + 1
 
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
@@ -265,6 +306,9 @@ def train_multiple_agents(env_params, train_params):
         learn_timer = Timer()
         preproc_timer = Timer()
 
+        if custom_observations:
+            rail_obs = reset_rail_obs(env)
+
         # Reset environment
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
@@ -310,9 +354,8 @@ def train_multiple_agents(env_params, train_params):
 
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
-
                     if custom_observations:
-                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks)
+                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -531,6 +574,9 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
 
+            if env_params.custom_observations:
+                rail_obs = reset_rail_obs(env)
+
             # Mask initialization
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
                             for action in range(action_size)] for _ in range(env.get_num_agents())]
@@ -546,7 +592,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes
                                                              observation_radius=env_params.observation_radius)
 
                     if env_params.custom_observations:
-                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks)
+                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -755,7 +801,7 @@ if __name__ == "__main__":
     # Mount Drive on Colab
     from google.colab import drive
     drive.mount("/content/drive", force_remount=True)
-    
+
     # Show Tensorboard on Colab
     import tensorflow
     %load_ext tensorboard
