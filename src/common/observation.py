@@ -1,5 +1,6 @@
-from flatland.envs.observations import TreeObsForRailEnv
 import numpy as np
+
+from flatland.envs.observations import TreeObsForRailEnv
 
 
 def max_lt(seq, val):
@@ -124,8 +125,8 @@ def normalize_observation(observation: TreeObsForRailEnv.Node, tree_depth: int, 
     """
     data, distance, agent_data = split_tree_into_feature_groups(observation, tree_depth)
 
-    data = norm_obs_clip(data, fixed_radius=observation_radius)
-    distance = norm_obs_clip(distance, normalize_to_range=True)
-    agent_data = np.clip(agent_data, -1, 1)
+    data = norm_obs_clip(data, clip_min=0, fixed_radius=observation_radius)
+    distance = norm_obs_clip(distance, clip_min=0, normalize_to_range=True)
+    agent_data = np.clip(agent_data, 0, 1)
     normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
     return normalized_obs
