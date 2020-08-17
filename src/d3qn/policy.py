@@ -13,7 +13,9 @@ from src.d3qn.model import DuelingQNetwork
 
 
 class D3QNPolicy(Policy):
-    """Dueling Double DQN policy"""
+    """
+    Dueling Double DQN policy
+    """
 
     def __init__(self, state_size, action_size, parameters, evaluation_mode=False):
         self.evaluation_mode = evaluation_mode
@@ -40,8 +42,7 @@ class D3QNPolicy(Policy):
             self.device = torch.device("cpu")
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(state_size, action_size, hidsize1=self.hidsize, hidsize2=self.hidsize).to(
-            self.device)
+        self.qnetwork_local = DuelingQNetwork(state_size, action_size, parameters).to(self.device)
 
         if not evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
@@ -52,6 +53,12 @@ class D3QNPolicy(Policy):
             self.loss = 0.0
 
     def act(self, state, eps=0.):
+        """
+
+        :param state: the state to act on
+        :param eps: the epsilon-greedy factor to influence the exploration-exploitation tradeoff
+        :return:
+        """
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.qnetwork_local.eval()
         with torch.no_grad():
@@ -65,6 +72,10 @@ class D3QNPolicy(Policy):
             return random.choice(np.arange(self.action_size))
 
     def step(self, state, action, reward, next_state, done):
+        """
+        Perform a step if the evaluation mode is off, updating the memory and updating the networks if the agent has
+        already self.update_every steps
+        """
         assert not self.evaluation_mode, "Policy has been initialized for evaluation only."
 
         # Save experience in replay memory
@@ -85,11 +96,10 @@ class D3QNPolicy(Policy):
         q_expected = self.qnetwork_local(states).gather(1, actions)
 
         if self.double_dqn:
-            # Double DQN
+            # Access at [1] because max returns values and indices, here indices correspond to actions
             q_best_action = self.qnetwork_local(next_states).max(1)[1]
             q_targets_next = self.qnetwork_target(next_states).gather(1, q_best_action.unsqueeze(-1))
         else:
-            # DQN
             q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(-1)
 
         # Compute Q targets for current states
@@ -103,20 +113,33 @@ class D3QNPolicy(Policy):
         self.loss.backward()
         self.optimizer.step()
 
-        # Update target network
-        self._soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
+        # To show graph
+        """
+        from datetime import datetime
+        from torchviz import make_dot
+        now = datetime.now()
+        make_dot(self.loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
+        exit()
+        """
 
-    def _soft_update(self, local_model, target_model, tau):
         # Soft update model parameters.
         # θ_target = τ*θ_local + (1 - τ)*θ_target
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+        for target_param, local_param in zip(self.qnetwork_target.parameters(), self.qnetwork_local.parameters()):
+            target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
 
     def save(self, filename):
+        """
+        Save networks' params
+        :param filename: the path where the file is saved
+        """
         torch.save(self.qnetwork_local.state_dict(), "local_" + filename)
         torch.save(self.qnetwork_target.state_dict(), "target_" + filename)
 
     def load(self, filename):
+        """
+        Load networks' params
+        :param filename: the path where the params are saved
+        """
         if os.path.exists("local_" + filename):
             self.qnetwork_local.load_state_dict(torch.load("local_" + filename))
         if os.path.exists("target_" + filename):

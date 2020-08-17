@@ -33,7 +33,7 @@ class ReplayBuffer:
 
     def sample(self):
         """
-        Randomly sample a batch of experiences from memory.
+        :return: a random batch sample of experiences from memory.
         """
 
         experiences = random.sample(self.memory, k=self.batch_size)
@@ -52,10 +52,20 @@ class ReplayBuffer:
         return states, actions, rewards, next_states, dones
 
     def __len__(self):
-        """Return the current size of internal memory."""
+        """
+        :return: the current size of internal memory.
+        """
+
         return len(self.memory)
 
-    def __v_stack_impr(self, states):
-        sub_dim = len(states[0][0]) if isinstance(states[0], Iterable) else 1
-        np_states = np.reshape(np.array(states), (len(states), sub_dim))
-        return np_states
+    def __v_stack_impr(self, data):
+        """
+
+        :param data: The list to transform.
+        :return: The data in Numpy array, reshaped as (numebr of samples, size of single sample) considering possible
+        scalar data of length 1.
+        """
+
+        sub_dim = len(data[0][0]) if isinstance(data[0], Iterable) else 1
+        np_data = np.reshape(np.array(data), (len(data), sub_dim))
+        return np_data
