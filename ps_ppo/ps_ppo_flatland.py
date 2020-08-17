@@ -3,7 +3,6 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from flatland.core.grid.rail_env_grid import RailEnvTransitions
 from flatland.envs.agent_utils import RailAgentStatus
 from torch.distributions import Categorical
 from collections import OrderedDict
@@ -14,7 +13,16 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Memory:
+    """
+    The class responsible of managing the collected experience.
+    Experience is divided by type and each type is subdivided by the relative agent.
+    """
     def __init__(self, num_agents):
+        """
+        Initialize experience.
+
+        :param num_agents: Number of agents
+        """
         self.num_agents = num_agents
         self.actions = [[] for _ in range(num_agents)]
         self.states = [[] for _ in range(num_agents)]
@@ -24,9 +32,18 @@ class Memory:
         self.dones = [[] for _ in range(num_agents)]
 
     def clear_memory(self):
+        """
+        Reset experience in its initial state
+        :return:
+        """
         self.__init__(self.num_agents)
 
     def clear_memory_except_last(self, agent):
+        """
+        Remove the experience of a specific agent preserving only the last step.
+        :param agent: The agent
+        :return:
+        """
         self.actions[agent] = self.actions[agent][-1:]
         self.states[agent] = self.states[agent][-1:]
         self.logs_of_action_prob[agent] = self.logs_of_action_prob[agent][-1:]
@@ -36,6 +53,9 @@ class Memory:
 
 
 class PsPPOPolicy(nn.Module):
+    """
+    The policy of the PS-PPO algorithm.
+    """
     def __init__(self,
                  state_size,
                  action_size,
@@ -86,13 +106,13 @@ class PsPPOPolicy(nn.Module):
 
     def _build_network(self, is_actor, nn_depth, nn_width):
         """
-        Creates the network.
-        Actor is not completed with the final softmax layer
+        Creates the network, including activation layers.
+        The actor is not completed with the final softmax layer.
 
-        :param is_actor:
-        :param nn_depth:
-        :param nn_width:
-        :return:
+        :param is_actor: True if the resulting network will be used as the actor
+        :param nn_depth: The number of layers included the first and last
+        :param nn_width: The number of nodes in each hidden layer
+        :return: an OrderedDict used to build the neural network
         """
         if nn_depth <= 0:
             raise Exception("Networks' depths must be greater than 0")
@@ -134,6 +154,7 @@ class PsPPOPolicy(nn.Module):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
+
         :param state: the observed state
         :param memory: the memory to update
         :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
@@ -176,6 +197,7 @@ class PsPPOPolicy(nn.Module):
     def evaluate(self, state, action, action_mask):
         """
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
+
         :param state: the observed state
         :param action: the performed action
         :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
@@ -205,6 +227,9 @@ class PsPPOPolicy(nn.Module):
 
 
 class PsPPO:
+    """
+    The class responsible of some logics of the algorithm especially of the loss computation and updating of the policy.
+    """
     def __init__(self,
                  state_size,
                  action_size,
@@ -249,27 +274,21 @@ class PsPPO:
                                       train_params).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-        if train_params.value_loss_function == "mse":
-            self.value_loss_function = nn.MSELoss()
-        elif train_params.value_loss_function == "huber":
-            self.value_loss_function = nn.SmoothL1Loss()
-        else:
-            raise Exception("The provided value loss function is not available!")
-
-    def _get_advs(self, gae, rewards, dones, gamma, state_estimated_value, lmbda=None):
+    def _get_advs(self, rewards, dones, state_estimated_value):
         rewards = torch.tensor(rewards).to(device)
         # to multiply with not_dones to handle episode boundary (last state has no V(s'))
         not_dones = 1 - torch.tensor(dones, dtype=torch.int).to(device)
 
-        if gae:
+        if self.gae:
             assert len(rewards) + 1 == len(state_estimated_value)
 
             gaes = torch.zeros_like(rewards)
             future_gae = torch.tensor(0.0, dtype=rewards.dtype).to(device)
 
             for t in reversed(range(len(rewards))):
-                delta = rewards[t] + gamma * state_estimated_value[t + 1] * not_dones[t] - state_estimated_value[t]
-                gaes[t] = future_gae = delta + gamma * lmbda * not_dones[t] * future_gae
+                delta = rewards[t] + self.discount_factor * state_estimated_value[t + 1] * not_dones[t] - \
+                        state_estimated_value[t]
+                gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
 
             return gaes
         else:
@@ -277,7 +296,7 @@ class PsPPO:
             future_ret = state_estimated_value[-1]
 
             for t in reversed(range(len(rewards))):
-                returns[t] = future_ret = rewards[t] + gamma * future_ret * not_dones[t]
+                returns[t] = future_ret = rewards[t] + self.discount_factor * future_ret * not_dones[t]
 
             return returns - state_estimated_value[:-1]
 
@@ -286,18 +305,14 @@ class PsPPO:
         epochs = self.epochs
         batch_size = self.batch_size
 
-        lmbda = self.lmbda
-        discount_factor = self.discount_factor
         policy_evaluate = self.policy.evaluate
         get_advantages = self._get_advs
-        gae = self.gae
         torch_clamp = torch.clamp
         torch_min = torch.min
         obj_eps = self.eps_clip
         torch_exp = torch.exp
         ec = self.entropy_coefficient
         vlc = self.value_loss_coefficient
-        value_loss_function = self.value_loss_function
         optimizer = self.optimizer
 
         _ = memory.rewards[a].pop()
@@ -338,12 +353,9 @@ class PsPPO:
 
                 # Find the "Surrogate Loss"
                 advantage = get_advantages(
-                    gae,
                     memory.rewards[a][batch_start:batch_end],
                     memory.dones[a][batch_start:batch_end],
-                    discount_factor,
-                    state_estimated_value.detach(),
-                    lmbda)
+                    state_estimated_value.detach())
 
                 # Advantage normalization
                 advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
@@ -353,14 +365,14 @@ class PsPPO:
                 clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
 
                 # Policy loss
-                policy_loss = -torch_min(unclipped_objective, clipped_objective).mean()
+                policy_loss = torch_min(unclipped_objective, clipped_objective).mean()
 
                 # Value loss
-                value_loss = value_loss_function(state_estimated_value[:-1].squeeze(),
-                                                 torch.tensor(memory.rewards[a][batch_start:batch_end],
-                                                              dtype=torch.float32).to(device))
+                value_loss = 0.5 * (state_estimated_value[:-1].squeeze() -
+                                    torch.tensor(memory.rewards[a][batch_start:batch_end],
+                                                 dtype=torch.float32).to(device)).pow(2).mean()
 
-                self.loss = policy_loss + vlc * value_loss - ec * dist_entropy.mean()
+                self.loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
 
                 # Gradient descent
                 optimizer.zero_grad()
@@ -566,6 +578,35 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
+from flatland.core.grid.grid4_utils import get_new_position
+
+
+def find_decision_cells(env):
+    switches = []
+    switches_neighbors = []
+    directions = list(range(4))
+    for h in range(env.height):
+        for w in range(env.width):
+            pos = (h, w)
+            is_switch = False
+            # Check for switch counting the outgoing transition
+            for orientation in directions:
+                possible_transitions = env.rail.get_transitions(*pos, orientation)
+                num_transitions = np.count_nonzero(possible_transitions)
+                if num_transitions > 1:
+                    switches.append(pos)
+                    is_switch = True
+                    break
+            if is_switch:
+                # Add all neighbouring rails, if pos is a switch
+                for orientation in directions:
+                    possible_transitions = env.rail.get_transitions(*pos, orientation)
+                    for movement in directions:
+                        if possible_transitions[movement]:
+                            switches_neighbors.append(get_new_position(pos, movement))
+
+    return set(switches).union(set(switches_neighbors))
+
 
 def check_deadlocks(a1, deadlocks, directions, action_dict, env):
     a2 = None
@@ -646,7 +687,8 @@ def step_shaping(env, action_dict, deadlocks, shortest_path, action_mask, invali
 
     return obs, rewards, done, info, rewards_shaped, deadlocks, new_shortest_path
 
-def custom_observation(env, handle, agent_obs, deadlocks, rail_obs):
+
+def get_custom_observations(env, handle, agent_obs, deadlocks, rail_obs):
 
     agent = env.agents[handle]
     if agent.status == RailAgentStatus.READY_TO_DEPART:
@@ -784,13 +826,6 @@ def train_multiple_agents(env_params, train_params):
                 action_size,
                 train_params)
 
-    skip_cells = [int("1000000000100000", 2),
-                  RailEnvTransitions().rotate_transition(int("1000000000100000", 2), 90),
-                  int("0001001000000000", 2),
-                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 90),
-                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 180),
-                  RailEnvTransitions().rotate_transition(int("0001001000000000", 2), 270)]
-
     # TensorBoard writer
     writer = SummaryWriter(train_params.tensorboard_path)
     writer.add_hparams(vars(train_params), {})
@@ -810,12 +845,13 @@ def train_multiple_agents(env_params, train_params):
 
     # Variables to compute statistics
     action_count = [0] * action_size
-    smoothed_normalized_score = -1.0
-    smoothed_completion = 0.0
-    smoothed_deadlocks = 1.0
+    accumulated_normalized_score = []
+    accumulated_completion = []
+    accumulated_deadlocks = []
     # Evaluation statics
-    smoothed_eval_normalized_score = -1.0
-    smoothed_eval_completion = 0.0
+    accumulated_eval_normalized_score = []
+    accumulated_eval_completion = []
+    accumulated_eval_deads = []
 
     for episode in range(1, n_episodes + 1):
         # Timers
@@ -830,6 +866,7 @@ def train_multiple_agents(env_params, train_params):
         # Reset environment
         reset_timer.start()
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
+        decision_cells = find_decision_cells(env)
         reset_timer.end()
 
         # Setup renderer
@@ -872,7 +909,7 @@ def train_multiple_agents(env_params, train_params):
                     agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth,
                                                              observation_radius=observation_radius)
                     if custom_observations:
-                        agent_obs[agent] = custom_observation(env, agent, agent_obs, deadlocks, rail_obs)
+                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -896,7 +933,7 @@ def train_multiple_agents(env_params, train_params):
                 # If can skip
                 elif train_params.action_skipping \
                         and env.agents[agent].position is not None and env.rail.get_full_transitions(
-                    env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
+                    env.agents[agent].position[0], env.agents[agent].position[1]) not in decision_cells:
                     # We always insert in memory the last time step
                     if step == max_steps - 1:
                         action_dict[agent] = \
@@ -968,23 +1005,24 @@ def train_multiple_agents(env_params, train_params):
                     show_predictions=False
                 )
 
-        if episode % 50 == 0:
-            print("checkpoint")
+            """
+            if done["__all__"]:
+                break
+            """
 
         # Collection information about training
+        normalized_score = score / (max_steps * env.get_num_agents())
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
+        completion_percentage = tasks_finished / max(1, env.get_num_agents())
         deadlocks_percentage = sum(deadlocks) / env.get_num_agents()
-        normalized_score = score / (max_steps * env.get_num_agents())
         action_probs = action_count / np.sum(action_count)
         action_count = [1] * action_size
 
         # Smoothed values for terminal display and for more stable hyper-parameter tuning
-        smoothing = 0.99
-        smoothed_normalized_score = smoothed_normalized_score * smoothing + normalized_score * (1.0 - smoothing)
-        smoothed_completion = smoothed_completion * smoothing + completion * (1.0 - smoothing)
-        smoothed_deadlocks = smoothed_deadlocks * smoothing + deadlocks_percentage * (1.0 - smoothing)
+        accumulated_normalized_score.append(normalized_score)
+        accumulated_completion.append(completion_percentage)
+        accumulated_deadlocks.append(deadlocks_percentage)
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
@@ -1005,19 +1043,19 @@ def train_multiple_agents(env_params, train_params):
             "\tAction Probs: {}".format(
                 episode,
                 normalized_score,
-                smoothed_normalized_score,
-                100 * completion,
-                100 * smoothed_completion,
+                np.mean(accumulated_normalized_score),
+                100 * completion_percentage,
+                100 * np.mean(accumulated_completion),
                 100 * deadlocks_percentage,
-                100 * smoothed_deadlocks,
+                100 * np.mean(accumulated_deadlocks),
                 format_action_prob(action_probs)
             ), end=" ")
 
         # Evaluation
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
-                scores, completions = eval_policy(env, action_size, ppo, train_params, env_params, skip_cells,
-                                                  train_params.eval_episodes, max_steps)
+                scores, completions, deads = eval_policy(env, action_size, ppo, train_params, env_params,
+                                                         train_params.eval_episodes, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -1028,23 +1066,24 @@ def train_multiple_agents(env_params, train_params):
             writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode)
             writer.add_scalar("evaluation/completions_std", np.std(completions), episode)
             writer.add_histogram("evaluation/completions", np.array(completions), episode)
-            # writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
-            # writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
-            # writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
-            smoothing = 0.9
-            smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * \
-                                             (1.0 - smoothing)
-            smoothed_eval_completion = smoothed_eval_completion * smoothing + np.mean(completions) * (1.0 - smoothing)
-            writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode)
-            writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode)
+            writer.add_scalar("evaluation/deadlocks_min", np.min(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_max", np.max(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_mean", np.mean(deads), episode)
+            writer.add_scalar("evaluation/deadlocks_std", np.std(deads), episode)
+            writer.add_histogram("evaluation/deadlocks", np.array(deads), episode)
+            accumulated_eval_normalized_score.append(np.mean(scores))
+            accumulated_eval_completion.append(np.mean(completions))
+            accumulated_eval_deads.append(np.mean(deads))
+            writer.add_scalar("evaluation/accumulated_score", np.mean(accumulated_eval_normalized_score), episode)
+            writer.add_scalar("evaluation/accumulated_completion", np.mean(accumulated_eval_completion), episode)
+            writer.add_scalar("evaluation/accumulated_deadlocks", np.mean(accumulated_eval_deads), episode)
         # Save logs to Tensorboard
         writer.add_scalar("training/score", normalized_score, episode)
-        writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode)
-        writer.add_scalar("training/completion", np.mean(completion), episode)
-        writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode)
-        # writer.add_scalar("training/nb_steps", step, episode)
+        writer.add_scalar("training/accumulated_score", np.mean(accumulated_normalized_score), episode)
+        writer.add_scalar("training/completion", completion_percentage, episode)
+        writer.add_scalar("training/accumulated_completion", np.mean(accumulated_completion), episode)
+        writer.add_scalar("training/deadlocks", deadlocks_percentage, episode)
+        writer.add_scalar("training/accumulated_deadlocks", np.mean(accumulated_deadlocks), episode)
         writer.add_histogram("actions/distribution", np.array(action_probs), episode)
         writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
         writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)
@@ -1061,7 +1100,7 @@ def train_multiple_agents(env_params, train_params):
     training_timer.end()
 
 
-def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_eval_episodes, max_steps):
+def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes, max_steps):
     action_count = [1] * action_size
     scores = []
     completions = []
@@ -1071,6 +1110,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
 
         # Reset environment
         obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
+        decision_cells = find_decision_cells(env)
 
         # Score of the episode as a sum of scores of each step for statistics
         score = 0.0
@@ -1088,6 +1128,9 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
 
+            if env_params.custom_observations:
+                rail_obs = reset_rail_obs(env)
+
             # Mask initialization
             action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
                             for action in range(action_size)] for _ in range(env.get_num_agents())]
@@ -1103,7 +1146,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
                                                              observation_radius=env_params.observation_radius)
 
                     if env_params.custom_observations:
-                        agent_obs[agent] = custom_observation(env, agent, agent_obs, deadlocks)
+                        agent_obs[agent] = get_custom_observations(env, agent, agent_obs, deadlocks, rail_obs)
 
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
@@ -1125,7 +1168,7 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
                 # If can skip
                 elif train_params.action_skipping \
                         and env.agents[agent].position is not None and env.rail.get_full_transitions(
-                    env.agents[agent].position[0], env.agents[agent].position[1]) in skip_cells:
+                    env.agents[agent].position[0], env.agents[agent].position[1]) in decision_cells:
                     # We always insert in memory the last time step
                     if step == max_steps - 1:
                         action_dict[agent] = \
@@ -1162,20 +1205,16 @@ def eval_policy(env, action_size, ppo, train_params, env_params, skip_cells, n_e
             # Update score and compute total rewards equal to each agent
             score += np.sum(list(rewards.values()))
 
-        normalized_score = score / (max_steps * env.get_num_agents())
-        scores.append(normalized_score)
-
+        scores.append(score / (max_steps * env.get_num_agents()))
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
                              for a in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
-        completions.append(completion)
-
+        completions.append(tasks_finished / max(1, env.get_num_agents()))
         deads.append(sum(deadlocks) / max(1, env.get_num_agents()))
 
     print("\t Eval: score {:.3f} done {:.1f} dead {:.1f}%".format(np.mean(scores), np.mean(completions) * 100.0,
                                                                   np.mean(deads) * 100.0))
 
-    return scores, completions
+    return scores, completions, deads
 
 
 def format_action_prob(action_probs):
@@ -1196,9 +1235,9 @@ datehour = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
 print(datehour)
 
 environment_parameters = {
-    "n_agents": 2,
-    "x_dim": 35,
-    "y_dim": 35,
+    "n_agents": 3,
+    "x_dim": 16 * 3,
+    "y_dim": 9 * 3,
     "n_cities": 5,
     "max_rails_between_cities": 2,
     "max_rails_in_city": 3,
@@ -1283,8 +1322,6 @@ training_parameters = {
     # ============================
     # gae or n-steps
     "advantage_estimator": "gae",
-    # huber or mse
-    "value_loss_function": "mse",
 
     # ============================
     # Optimization and rendering
