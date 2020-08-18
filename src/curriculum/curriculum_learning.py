@@ -277,15 +277,15 @@ def curriculum_learning():
                 mycurriculum.get("max_rails_in_city"),
             ))
 
-            completition = 0
+            completion = 0
 
-            while try_outs < 10 and completition < threshold:
+            while try_outs < 10 and completion < threshold:
                 print("Level %d try out number % d" % (level, try_outs))
                 # Train
-                _, completitions, _ = train_multiple_agents(Namespace(**environment_parameters),
+                _, completions, _ = train_multiple_agents(Namespace(**environment_parameters),
                                                             Namespace(**training_parameters))
                 try_outs += 1
-                completition = np.mean(completitions)
+                completion = np.mean(completions)
             print("\n" + "=" * 100)
 
             # Update curriculum

@@ -17,8 +17,6 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-from flatland.core.grid.grid4_utils import get_new_position
-
 from src.common.env_wrapper import EnvWrapper
 from src.common.observation import NormalizeObservations
 from src.common.stats import Stats
@@ -56,7 +54,8 @@ def train_multiple_agents(env_params, train_params):
     # Set the seeds
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
+    if seed is not None:
+        torch.manual_seed(seed)
 
     # Observation builder
     predictor = ShortestPathPredictorForRailEnv(observation_max_path_depth)
@@ -363,6 +362,8 @@ def train_multiple_agents(env_params, train_params):
         writer.add_scalar("timer/total", training_timer.get_current(), episode)
 
     training_timer.end()
+
+    return stats.accumulated_normalized_score, stats.accumulated_completion, stats.accumulated_deadlocks
 
 
 def eval_policy(env, action_size, ppo, train_params, env_params, n_eval_episodes, max_steps, normalize_observations):
