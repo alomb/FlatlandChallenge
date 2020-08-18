@@ -23,9 +23,9 @@ class Manual_Curriculum(Curriculum):
         self.num_levels = len(self.curriculum["curriculum"])
 
     def update(self):
-        # Check rewards
-
         # Increase level
+        if self.level == self.num_levels - 1:
+            raise StopIteration()
         self.level += 1
 
     def get(self, attribute):
@@ -89,7 +89,6 @@ class Semi_Auto_Curriculum(Curriculum):
 
         :raise StopIteration
         """
-        # Check rewards
         # Increase level in the iterator
         self.values = next(self.generator)
 

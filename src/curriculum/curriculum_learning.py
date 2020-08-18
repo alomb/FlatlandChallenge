@@ -12,7 +12,7 @@ from flatland.envs.malfunction_generators import MalfunctionParameters
 from flatland.envs.rail_generators import RailGenerator
 from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
 
-from src.curriculum.curriculum import Semi_Auto_Curriculum, offset_curriculum_generator
+from src.curriculum.curriculum import Semi_Auto_Curriculum, offset_curriculum_generator, Manual_Curriculum
 from src.psppo.ps_ppo_flatland import train_multiple_agents
 
 
@@ -143,9 +143,8 @@ def complex_rail_generator(curriculum) -> RailGenerator:
 def curriculum_learning():
     myseed = 19
     my_num_levels = 70
-
     """
-    mycurriculum = Manual_Curriculum("curriculum/curriculum_old.yml")
+    mycurriculum = Manual_Curriculum("curriculum.yml")
     """
 
     mycurriculum = Semi_Auto_Curriculum(offset_curriculum_generator(my_num_levels, {"x_dim": 20,
@@ -251,7 +250,7 @@ def curriculum_learning():
                 "checkpoint_interval": None,
                 "eval_episodes": None,
                 "use_gpu": False,
-                "render": False,
+                "render": True,
                 "save_model_path": "checkpoint.pt",
                 "load_model_path": "checkpoint.pt",
                 "tensorboard_path": "log/",
@@ -283,7 +282,7 @@ def curriculum_learning():
                 print("Level %d try out number % d" % (level, try_outs))
                 # Train
                 _, completions, _ = train_multiple_agents(Namespace(**environment_parameters),
-                                                            Namespace(**training_parameters))
+                                                          Namespace(**training_parameters))
                 try_outs += 1
                 completion = np.mean(completions)
             print("\n" + "=" * 100)
