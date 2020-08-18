@@ -13,7 +13,7 @@ from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.utils.rendertools import RenderTool
 from torch.utils.tensorboard import SummaryWriter
 
-from src.common.observation import normalize_observation
+from src.common.observation import NormalizeObservations
 from src.common.timer import Timer
 from src.d3qn.policy import D3QNPolicy
 
@@ -68,6 +68,13 @@ def train_multiple_agents(env_params, train_params):
 
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
+
+    normalize_observations = NormalizeObservations(n_features_per_node,
+                                                   n_nodes,
+                                                   False,
+                                                   state_size,
+                                                   observation_tree_depth,
+                                                   observation_radius)
 
     # Max number of steps per episode
     # This is the official formula used during evaluations
@@ -131,7 +138,7 @@ def train_multiple_agents(env_params, train_params):
         # Build agent specific observations
         for agent in env.get_agent_handles():
             if obs[agent]:
-                agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth, observation_radius)
+                agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent, None, None)
                 agent_prev_obs[agent] = agent_obs[agent].copy()
 
         # Run episode
@@ -179,8 +186,7 @@ def train_multiple_agents(env_params, train_params):
                 # Preprocess the new observations
                 if next_obs[agent]:
                     preproc_timer.start()
-                    agent_obs[agent] = normalize_observation(next_obs[agent], observation_tree_depth,
-                                                             observation_radius)
+                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent, None, None)
                     preproc_timer.end()
 
                 score += all_rewards[agent]
