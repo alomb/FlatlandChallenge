@@ -3,29 +3,44 @@ import torch.nn.functional as F
 
 
 class DuelingQNetwork(nn.Module):
-    """Dueling Q-network (https://arxiv.org/abs/1511.06581)"""
+    """
+    Dueling Q-network (https://arxiv.org/abs/1511.06581)
+    """
 
-    def __init__(self, state_size, action_size, hidsize1=128, hidsize2=128):
+    def __init__(self, state_size, action_size, parameters):
         super(DuelingQNetwork, self).__init__()
+        self.shared = parameters.shared
+        self.base_modules = nn.ModuleList([])
+        self.critic_modules = nn.ModuleList([])
+        self.actor_modules = nn.ModuleList([])
 
-        # value network
-        self.fc1_val = nn.Linear(state_size, hidsize1)
-        self.fc2_val = nn.Linear(hidsize1, hidsize2)
-        self.fc3_val = nn.Linear(hidsize2, 1)
+        if parameters.shared:
+            self.base_modules.append(nn.Linear(state_size, parameters.hidden_size))
+            for i in range(parameters.hidden_layers):
+                self.base_modules.append(nn.Linear(parameters.hidden_size, parameters.hidden_size))
+        else:
+            self.critic_modules.append(nn.Linear(state_size, parameters.hidden_size))
+            self.actor_modules.append(nn.Linear(state_size, parameters.hidden_size))
 
-        # advantage network
-        self.fc1_adv = nn.Linear(state_size, hidsize1)
-        self.fc2_adv = nn.Linear(hidsize1, hidsize2)
-        self.fc3_adv = nn.Linear(hidsize2, action_size)
+            for i in range(parameters.hidden_layers):
+                self.critic_modules.append(nn.Linear(parameters.hidden_size, parameters.hidden_size))
+                self.actor_modules.append(nn.Linear(parameters.hidden_size, parameters.hidden_size))
+
+        # Last layer is always separated
+        self.critic_modules.append(nn.Linear(parameters.hidden_size, 1))
+        self.actor_modules.append(nn.Linear(parameters.hidden_size, action_size))
 
     def forward(self, x):
-        val = F.relu(self.fc1_val(x))
-        val = F.relu(self.fc2_val(val))
-        val = self.fc3_val(val)
+        val = x
+        adv = x
+        for layer in self.base_modules:
+            val = F.relu(layer(val))
+            adv = F.relu(layer(adv))
 
-        # advantage calculation
-        adv = F.relu(self.fc1_adv(x))
-        adv = F.relu(self.fc2_adv(adv))
-        adv = self.fc3_adv(adv)
+        for layer in self.critic_modules:
+            val = F.relu(layer(val))
+
+        for layer in self.actor_modules:
+            adv = F.relu(layer(adv))
 
         return val + adv - adv.mean()

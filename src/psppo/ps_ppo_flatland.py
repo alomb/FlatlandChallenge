@@ -66,7 +66,8 @@ def train_multiple_agents(env_params, train_params):
     # Set the seeds
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
+    if seed is not None:
+        torch.manual_seed(seed)
 
     # Observation builder
     predictor = ShortestPathPredictorForRailEnv(observation_max_path_depth)
@@ -302,6 +303,8 @@ def train_multiple_agents(env_params, train_params):
 
     training_timer.end()
 
+    return env._env.accumulated_normalized_score, env._env.accumulated_completion, env._env.accumulated_deadlocks
+
 
 def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps, normalize_observations):
     action_count = [1] * action_size
@@ -509,7 +512,7 @@ if __name__ == "__main__":
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": 1,
+        "checkpoint_interval": 10,
         "eval_episodes": 3,
         "use_gpu": False,
         "render": False,

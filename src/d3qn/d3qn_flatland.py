@@ -1,23 +1,19 @@
-from flatland.envs.agent_utils import RailAgentStatus
-
-
 import random
 from argparse import Namespace
 
-from flatland.utils.rendertools import RenderTool
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch
-
-from flatland.envs.rail_env import RailEnv, RailEnvActions
+from flatland.envs.agent_utils import RailAgentStatus
+from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
+from flatland.envs.observations import TreeObsForRailEnv
+from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
-from flatland.envs.observations import TreeObsForRailEnv
+from flatland.utils.rendertools import RenderTool
+from torch.utils.tensorboard import SummaryWriter
 
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-
-from src.common.observation import normalize_observation
+from src.common.observation import NormalizeObservations
 from src.common.timer import Timer
 from src.d3qn.policy import D3QNPolicy
 
@@ -73,6 +69,13 @@ def train_multiple_agents(env_params, train_params):
     # The action space of flatland is 5 discrete actions
     action_size = env.action_space[0]
 
+    normalize_observations = NormalizeObservations(n_features_per_node,
+                                                   n_nodes,
+                                                   False,
+                                                   state_size,
+                                                   observation_tree_depth,
+                                                   observation_radius)
+
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
@@ -103,10 +106,6 @@ def train_multiple_agents(env_params, train_params):
     accumulated_normalized_score = []
     accumulated_completion = []
     # accumulated_deadlocks = []
-    # Evaluation statics
-    accumulated_eval_normalized_score = []
-    accumulated_eval_completion = []
-    # accumulated_eval_deads = []
 
     agent_obs = [None] * env.get_num_agents()
     agent_prev_obs = [None] * env.get_num_agents()
@@ -134,13 +133,12 @@ def train_multiple_agents(env_params, train_params):
             env_renderer.set_new_rail()
 
         score = 0
-        nb_steps = 0
         actions_taken = []
 
         # Build agent specific observations
         for agent in env.get_agent_handles():
             if obs[agent]:
-                agent_obs[agent] = normalize_observation(obs[agent], observation_tree_depth, observation_radius)
+                agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent, None, None)
                 agent_prev_obs[agent] = agent_obs[agent].copy()
 
         # Run episode
@@ -148,6 +146,7 @@ def train_multiple_agents(env_params, train_params):
             for agent in env.get_agent_handles():
                 if info['action_required'][agent]:
                     # If an action is required, we want to store the obs at that step as well as the action
+                    # TODO: Update values outside?
                     update_values = True
                     action = policy.act(agent_obs[agent], eps=eps_start)
                     action_count[action] += 1
@@ -187,13 +186,10 @@ def train_multiple_agents(env_params, train_params):
                 # Preprocess the new observations
                 if next_obs[agent]:
                     preproc_timer.start()
-                    agent_obs[agent] = normalize_observation(next_obs[agent], observation_tree_depth,
-                                                             observation_radius)
+                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env, agent, None, None)
                     preproc_timer.end()
 
                 score += all_rewards[agent]
-
-            nb_steps = step
 
             if done['__all__']:
                 break
@@ -239,56 +235,6 @@ def train_multiple_agents(env_params, train_params):
                 format_action_prob(action_probs)
             ), end=" ")
 
-        # TODO: Evaluate
-        """
-        # Evaluate policy
-        if episode % train_params.checkpoint_interval == 0:
-            scores, completions, nb_steps_eval = eval_policy(env, policy, train_params.eval_episodes, max_steps)
-            writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
-            writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
-            writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
-            writer.add_scalar("evaluation/scores_std", np.std(scores), episode)
-            writer.add_histogram("evaluation/scores", np.array(scores), episode)
-            writer.add_scalar("evaluation/completions_min", np.min(completions), episode)
-            writer.add_scalar("evaluation/completions_max", np.max(completions), episode)
-            writer.add_scalar("evaluation/completions_mean", np.mean(completions), episode)
-            writer.add_scalar("evaluation/completions_std", np.std(completions), episode)
-            writer.add_histogram("evaluation/completions", np.array(completions), episode)
-            writer.add_scalar("evaluation/nb_steps_min", np.min(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_max", np.max(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_mean", np.mean(nb_steps_eval), episode)
-            writer.add_scalar("evaluation/nb_steps_std", np.std(nb_steps_eval), episode)
-            writer.add_histogram("evaluation/nb_steps", np.array(nb_steps_eval), episode)
-
-            smoothing = 0.9
-            smoothed_eval_normalized_score = smoothed_eval_normalized_score * smoothing + np.mean(scores) * (
-                        1.0 - smoothing)
-            smoothed_eval_completion = smoothed_eval_completion * smoothing + np.mean(completions) * (1.0 - smoothing)
-            writer.add_scalar("evaluation/smoothed_score", smoothed_eval_normalized_score, episode)
-            writer.add_scalar("evaluation/smoothed_completion", smoothed_eval_completion, episode)
-
-        # Save logs to tensorboard
-        writer.add_scalar("training/score", normalized_score, episode)
-        writer.add_scalar("training/smoothed_score", smoothed_normalized_score, episode)
-        writer.add_scalar("training/completion", np.mean(completion), episode)
-        writer.add_scalar("training/smoothed_completion", np.mean(smoothed_completion), episode)
-        writer.add_scalar("training/nb_steps", nb_steps, episode)
-        writer.add_histogram("actions/distribution", np.array(actions_taken), episode)
-        writer.add_scalar("actions/nothing", action_probs[RailEnvActions.DO_NOTHING], episode)
-        writer.add_scalar("actions/left", action_probs[RailEnvActions.MOVE_LEFT], episode)
-        writer.add_scalar("actions/forward", action_probs[RailEnvActions.MOVE_FORWARD], episode)
-        writer.add_scalar("actions/right", action_probs[RailEnvActions.MOVE_RIGHT], episode)
-        writer.add_scalar("actions/stop", action_probs[RailEnvActions.STOP_MOVING], episode)
-        writer.add_scalar("training/epsilon", eps_start, episode)
-        writer.add_scalar("training/buffer_size", len(policy.memory), episode)
-        writer.add_scalar("training/loss", policy.loss, episode)
-        writer.add_scalar("timer/reset", reset_timer.get(), episode)
-        writer.add_scalar("timer/step", step_timer.get(), episode)
-        writer.add_scalar("timer/learn", learn_timer.get(), episode)
-        writer.add_scalar("timer/preproc", preproc_timer.get(), episode)
-        writer.add_scalar("timer/total", training_timer.get_current(), episode)
-        """
-
 
 def format_action_prob(action_probs):
     action_probs = np.round(action_probs, 3)
@@ -300,56 +246,6 @@ def format_action_prob(action_probs):
 
     return buffer
 
-
-"""
-def eval_policy(env, policy, train_params, env_params, n_eval_episodes, max_steps):
-    action_dict = dict()
-    scores = []
-    completions = []
-    nb_steps = []
-
-    for episode in range(n_eval_episodes):
-        agent_obs = [None] * env.get_num_agents()
-        score = 0.0
-
-        obs, info = env.reset(regenerate_rail=True, regenerate_schedule=True)
-
-        final_step = 0
-
-        for step in range(max_steps - 1):
-            for agent in env.get_agent_handles():
-                if obs[agent]:
-                    agent_obs[agent] = normalize_observation(obs[agent], env_params.observation_tree_depth,
-                                                             observation_radius=env_params.observation_radius)
-
-                action = 0
-                if info['action_required'][agent]:
-                    action = policy.act(agent_obs[agent], eps=0.0)
-                action_dict.update({agent: action})
-
-            obs, all_rewards, done, info = env.step(action_dict)
-
-            for agent in env.get_agent_handles():
-                score += all_rewards[agent]
-
-            final_step = step
-
-            if done['__all__']:
-                break
-
-        normalized_score = score / (max_steps * env.get_num_agents())
-        scores.append(normalized_score)
-
-        tasks_finished = sum(done[idx] for idx in env.get_agent_handles())
-        completion = tasks_finished / max(1, env.get_num_agents())
-        completions.append(completion)
-
-        nb_steps.append(final_step)
-
-    print("\tEval: score {:.3f} done {:.1f}%".format(np.mean(scores), np.mean(completions) * 100.0))
-
-    return scores, completions, nb_steps
-"""
 
 if __name__ == "__main__":
     myseed = 14
@@ -379,23 +275,41 @@ if __name__ == "__main__":
     }
 
     training_parameters = {
-        "n_episodes": 2500,
-        "eps_start": 1.0,
-        "eps_end": 0.01,
-        "eps_decay": 0.99,
-        "buffer_size": int(1e6),
-        "buffer_min_size": 0,
-        "batch_size": 32,
-        "gamma": 0.99,
-        "tau": 1e-3,
-        "learning_rate": 0.52e-4,
+        # ============================
+        # Network architecture
+        # ============================
+        "shared": False,
         "hidden_size": 256,
+        "hidden_layers": 2,
         "update_every": 8,
 
+        # epsilon greedy decay regulators
+        "eps_decay": 0.99,
+        "eps_start": 1.0,
+        "eps_end": 0.01,
+
+        "learning_rate": 0.52e-4,
+        # To compute q targets
+        "gamma": 0.99,
+        # To compute target network soft update
+        "tau": 1e-3,
+
+        # ============================
+        # Training setup
+        # ============================
+        "n_episodes": 2500,
+        "batch_size": 32,
+        # Memory maximum size
+        "buffer_size": int(1e6),
+        # Minimum number of samples to start learning
+        "buffer_min_size": 0,
+
+        # ============================
+        # Optimization and rendering
+        # ============================
         "checkpoint_interval": 100,
         "eval_episodes": 25,
         "use_gpu": False,
-        "num_threads": 1,
         "render": False,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
