@@ -1,22 +1,19 @@
-import torch
-from flatland.core.grid.grid4_utils import get_new_position
-from flatland.envs.agent_utils import RailAgentStatus
-
-from torch.utils.tensorboard import SummaryWriter
-
 import random
 from argparse import Namespace
+from datetime import datetime
 
 import numpy as np
+import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
-
 from flatland.envs.malfunction_generators import MalfunctionParameters
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.core.grid.grid4_utils import get_new_position
+from flatland.envs.agent_utils import RailAgentStatus
 
 from src.common.flatland_random_railenv import FlatlandRandomRailEnv
-from src.common.observation import NormalizeObservations
 from src.common.timer import Timer
 from src.psppo.algorithm import PsPPO
 from src.psppo.memory import Memory
@@ -80,13 +77,6 @@ def train_multiple_agents(env_params, train_params):
     # The action space of flatland is 5 discrete actions
     action_size = env.get_rail_env().action_space[0]
 
-    normalize_observations = NormalizeObservations(env.get_rail_env().obs_builder.observation_dim,
-                                                   env_params.observation_tree_depth,
-                                                   env_params.custom_observations,
-                                                   env_params.x_dim,
-                                                   env_params.y_dim,
-                                                   env_params.observation_radius)
-
     # Max number of steps per episode
     # This is the official formula used during evaluations
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
@@ -94,7 +84,7 @@ def train_multiple_agents(env_params, train_params):
 
     memory = Memory(env_params.n_agents)
 
-    ppo = PsPPO(normalize_observations.state_size,
+    ppo = PsPPO(env.state_size,
                 action_size,
                 device,
                 train_params)
@@ -124,19 +114,13 @@ def train_multiple_agents(env_params, train_params):
         step_timer = Timer()
         reset_timer = Timer()
         learn_timer = Timer()
-        preproc_timer = Timer()
 
         # Reset environment
         reset_timer.start()
         obs, info = env.reset()
 
-        rail_obs = normalize_observations.reset_rail_obs(env.get_rail_env())
-
         decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
-
-        # Observation related information
-        agent_obs = [None] * env_params.n_agents
 
         # Run episode
         for step in range(max_steps):
@@ -156,11 +140,7 @@ def train_multiple_agents(env_params, train_params):
                 Agents always enter in the if at least once in the episode so there is no further controls.
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
-                preproc_timer.start()
-                if obs[agent]:
-                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env.get_rail_env(), agent,
-                                                                                    info["deadlocks"][agent], rail_obs)
-
+                if obs[agent] is not None:
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
                         for action in range(action_size):
@@ -171,38 +151,38 @@ def train_multiple_agents(env_params, train_params):
                                 if not all([cell_valid, transition_valid]):
                                     action_mask[agent][action] = 0
 
-                preproc_timer.end()
-
-                # Fill action dict
-                # If an agent is in deadlock leave him learn
-                if info["deadlocks"][agent]:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
-                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                    agents_in_action.add(agent)
-                # If can skip
-                elif train_params.action_skipping \
-                        and env.get_rail_env().agents[agent].position is not None and env.get_rail_env().rail.get_full_transitions(
-                    env.get_rail_env().agents[agent].position[0], env.get_rail_env().agents[agent].position[1]) not in decision_cells:
-                    # We always insert in memory the last time step
-                    if step == max_steps - 1:
+                    # Fill action dict
+                    # If an agent is in deadlock leave him learn
+                    if info["deadlocks"][agent]:
                         action_dict[agent] = \
-                            ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
-                                               action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
                         agents_in_action.add(agent)
-                    # Otherwise skip
+                    # If can skip
+                    elif train_params.action_skipping \
+                            and env.get_rail_env().agents[
+                        agent].position is not None and env.get_rail_env().rail.get_full_transitions(
+                        env.get_rail_env().agents[agent].position[0],
+                        env.get_rail_env().agents[agent].position[1]) not in decision_cells:
+                        # We always insert in memory the last time step
+                        if step == max_steps - 1:
+                            action_dict[agent] = \
+                                ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
+                                                   action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                            agents_in_action.add(agent)
+                        # Otherwise skip
+                        else:
+                            action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                    # Else
+                    elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                        agents_in_action.add(agent)
                     else:
-                        action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                # Else
-                elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent],
-                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                    agents_in_action.add(agent)
-                else:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), memory, action_mask[agent])
-                    agents_in_action.add(agent)
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
+                        agents_in_action.add(agent)
 
             # Update statistics
             for a in list(action_dict.values()):
@@ -214,7 +194,7 @@ def train_multiple_agents(env_params, train_params):
             step_timer.end()
 
             # Update score and compute total rewards equal to each agent
-            total_timestep_reward_shaped = np.sum(rewards[agent]["rewards_shaped"] for agent in range(env_params.n_agents))
+            total_timestep_reward_shaped = sum(rewards[agent]["rewards_shaped"] for agent in range(env_params.n_agents))
 
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
@@ -240,7 +220,7 @@ def train_multiple_agents(env_params, train_params):
                     memory.clear_memory_except_last(a)
 
             if train_params.render:
-                env.get_rail_env().show_render()
+                env._env.show_render()
 
             """
             if done["__all__"]:
@@ -253,13 +233,13 @@ def train_multiple_agents(env_params, train_params):
                 ppo.policy.save(train_params.save_model_path)
         # Rendering
         if train_params.render:
-            env.get_rail_env().close()
+            env._env.close()
 
         # Evaluation
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             with torch.no_grad():
                 scores, completions, deads = eval_policy(env, action_size, ppo, train_params,
-                                                         train_params.eval_episodes, max_steps, normalize_observations)
+                                                         train_params.eval_episodes, max_steps)
             writer.add_scalar("evaluation/scores_min", np.min(scores), episode)
             writer.add_scalar("evaluation/scores_max", np.max(scores), episode)
             writer.add_scalar("evaluation/scores_mean", np.mean(scores), episode)
@@ -278,8 +258,10 @@ def train_multiple_agents(env_params, train_params):
             env._env.accumulated_eval_normalized_score.append(np.mean(scores))
             env._env.accumulated_eval_completion.append(np.mean(completions))
             env._env.accumulated_eval_deads.append(np.mean(deads))
-            writer.add_scalar("evaluation/accumulated_score", np.mean(env._env.accumulated_eval_normalized_score), episode)
-            writer.add_scalar("evaluation/accumulated_completion", np.mean(env._env.accumulated_eval_completion), episode)
+            writer.add_scalar("evaluation/accumulated_score", np.mean(env._env.accumulated_eval_normalized_score),
+                              episode)
+            writer.add_scalar("evaluation/accumulated_completion", np.mean(env._env.accumulated_eval_completion),
+                              episode)
             writer.add_scalar("evaluation/accumulated_deadlocks", np.mean(env._env.accumulated_eval_deads), episode)
         # Save logs to Tensorboard
         writer.add_scalar("training/score", env._env.normalized_score, episode)
@@ -298,7 +280,6 @@ def train_multiple_agents(env_params, train_params):
         writer.add_scalar("timer/reset", reset_timer.get(), episode)
         writer.add_scalar("timer/step", step_timer.get(), episode)
         writer.add_scalar("timer/learn", learn_timer.get(), episode)
-        writer.add_scalar("timer/preproc", preproc_timer.get(), episode)
         writer.add_scalar("timer/total", training_timer.get_current(), episode)
 
     training_timer.end()
@@ -306,7 +287,7 @@ def train_multiple_agents(env_params, train_params):
     return env._env.accumulated_normalized_score, env._env.accumulated_completion, env._env.accumulated_deadlocks
 
 
-def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps, normalize_observations):
+def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps):
     action_count = [1] * action_size
     scores = []
     completions = []
@@ -318,13 +299,8 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps,
         obs, info = env.reset()
         decision_cells = find_decision_cells(env.get_rail_env())
 
-        rail_obs = normalize_observations.reset_rail_obs(env.get_rail_env())
-
         # Score of the episode as a sum of scores of each step for statistics
         score = 0.0
-
-        # Observation related information
-        agent_obs = [None] * env.get_rail_env().get_num_agents()
 
         # Run episode
         for step in range(max_steps):
@@ -344,10 +320,7 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps,
                 Agents always enter in the if at least once in the episode so there is no further controls.
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
-                if obs[agent]:
-                    agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env.get_rail_env(), agent, info["deadlocks"][agent],
-                                                                                    rail_obs)
-
+                if obs[agent] is not None:
                     # Action mask modification only if action masking is True
                     if train_params.action_masking:
                         for action in range(action_size):
@@ -358,36 +331,38 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps,
                                 if not all([cell_valid, transition_valid]):
                                     action_mask[agent][action] = RailEnvActions.DO_NOTHING
 
-                # Fill action dict
-                # If an agent is in deadlock leave him learn
-                if info["deadlocks"][agent]:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
-                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                    agents_in_action.add(agent)
-                # If can skip
-                elif train_params.action_skipping \
-                        and env.get_rail_env().agents[agent].position is not None and env.get_rail_env().rail.get_full_transitions(
-                    env.get_rail_env().agents[agent].position[0], env.get_rail_env().agents[agent].position[1]) in decision_cells:
-                    # We always insert in memory the last time step
-                    if step == max_steps - 1:
+                    # Fill action dict
+                    # If an agent is in deadlock leave him learn
+                    if info["deadlocks"][agent]:
                         action_dict[agent] = \
-                            ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
-                                               action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
                         agents_in_action.add(agent)
-                    # Otherwise skip
+                    # If can skip
+                    elif train_params.action_skipping \
+                            and env.get_rail_env().agents[
+                        agent].position is not None and env.get_rail_env().rail.get_full_transitions(
+                        env.get_rail_env().agents[agent].position[0],
+                        env.get_rail_env().agents[agent].position[1]) in decision_cells:
+                        # We always insert in memory the last time step
+                        if step == max_steps - 1:
+                            action_dict[agent] = \
+                                ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent],
+                                                   action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
+                            agents_in_action.add(agent)
+                        # Otherwise skip
+                        else:
+                            action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                    # Else
+                    elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent],
+                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
+                        agents_in_action.add(agent)
                     else:
-                        action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                # Else
-                elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent],
-                                           action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                    agents_in_action.add(agent)
-                else:
-                    action_dict[agent] = \
-                        ppo.policy_old.act(np.append(agent_obs[agent], [agent]), None, action_mask[agent])
-                    agents_in_action.add(agent)
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent])
+                        agents_in_action.add(agent)
 
             # Update statistics
             for a in list(action_dict.values()):
@@ -411,8 +386,6 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps,
 
     return scores, completions, deads
 
-
-from datetime import datetime
 
 if __name__ == "__main__":
     myseed = 14
@@ -512,8 +485,8 @@ if __name__ == "__main__":
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": 10,
-        "eval_episodes": 3,
+        "checkpoint_interval": None,
+        "eval_episodes": None,
         "use_gpu": False,
         "render": False,
         "save_model_path": "checkpoint.pt",

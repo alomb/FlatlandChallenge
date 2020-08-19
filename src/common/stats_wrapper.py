@@ -19,7 +19,10 @@ class StatsWrapper(gym.Wrapper):
         self.num_agents = env_params.n_agents
         self.episode = 0
         self.action_count = [0] * self.unwrapped.rail_env.action_space[0]
-        self.max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
+        self.max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim +
+                                      (env_params.n_agents / env_params.n_cities)))
+        self.score = 0
+        self.timestep = 0
 
     def reset(self):
         obs, info = self.env.reset()

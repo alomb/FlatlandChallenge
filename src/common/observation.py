@@ -14,15 +14,17 @@ class NormalizeObservations:
                  observation_radius):
 
         self.custom_observations = custom_observations
+        self.custom_obs = np.zeros((height, width, 16))
         self.observation_tree_depth = observation_tree_depth
         self.observation_radius = observation_radius
         # Calculate the state size given the depth of the tree observation and the number of features
         self.n_features_per_node = observation_dim
         self.n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
         # State size depends on features per nodes in observations, custom observations and + 1 (agent id of PS-PPO)
-        self.state_size = self.n_features_per_node * self.n_nodes + (custom_observations * (width * height * 23 + 1)) + 1
+        self.state_size = self.n_features_per_node * self.n_nodes + \
+                          (custom_observations * (width * height * 23 + 1)) + 1
 
-    def _get_custom_observations(self, env, handle, agent_obs, deadlock, rail_obs):
+    def _get_custom_observations(self, env, handle, agent_obs, deadlock):
         agent = env.agents[handle]
         if agent.status == RailAgentStatus.READY_TO_DEPART:
             agent_virtual_position = agent.initial_position
@@ -63,7 +65,7 @@ class NormalizeObservations:
 
         agent_obs = np.append(agent_obs, np.clip(obs_targets, 0, 1))
         agent_obs = np.append(agent_obs, np.clip(obs_agents_state, 0, 1))
-        agent_obs = np.append(agent_obs, rail_obs)
+        agent_obs = np.append(agent_obs, self.custom_obs)
 
         if deadlock:
             agent_obs = np.append(agent_obs, [1])
@@ -184,20 +186,16 @@ class NormalizeObservations:
 
         return data, distance, agent_data
 
-    def reset_rail_obs(self, env):
+    def reset_custom_obs(self, env):
         if self.custom_observations:
-            rail_obs = np.zeros((env.height, env.width, 16))
-            for i in range(rail_obs.shape[0]):
-                for j in range(rail_obs.shape[1]):
+            self.custom_obs = np.zeros((env.height, env.width, 16))
+            for i in range(self.custom_obs.shape[0]):
+                for j in range(self.custom_obs.shape[1]):
                     bitlist = [int(digit) for digit in bin(env.rail.get_full_transitions(i, j))[2:]]
                     bitlist = [0] * (16 - len(bitlist)) + bitlist
-                    rail_obs[i, j] = np.array(bitlist)
+                    self.custom_obs[i, j] = np.array(bitlist)
 
-            return rail_obs
-        else:
-            return None
-
-    def normalize_observation(self, obs, env, agent, deadlocks, rail_obs):
+    def normalize_observation(self, obs, env, agent, deadlocks):
         """
         This function normalizes the observation used by the RL algorithm
         """
@@ -209,6 +207,6 @@ class NormalizeObservations:
         normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
 
         if self.custom_observations:
-            return self._get_custom_observations(env, agent, normalized_obs, deadlocks, rail_obs)
+            return self._get_custom_observations(env, agent, normalized_obs, deadlocks)
         else:
             return normalized_obs

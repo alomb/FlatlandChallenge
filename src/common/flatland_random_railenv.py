@@ -12,22 +12,30 @@ class FlatlandRandomRailEnv:
     def __init__(self,
                  train_params,
                  env_params,
-                 observation):
+                 observation,
+                 normalize_observations=True,
+                 custom_observations=True,
+                 reward_wrapper=True,
+                 stats_wrapper=True):
 
-        self._env = FlatlandGymEnv(
-            rail_env=self._launch(env_params, observation),
-            render=train_params.render
-        )
+        self._env = FlatlandGymEnv(self._launch(env_params, observation),
+                                   normalize_observations,
+                                   custom_observations,
+                                   env_params,
+                                   render=train_params.render)
 
-        self._env = RewardsWrapper(self._env,
-                                   env_params.invalid_action_penalty,
-                                   env_params.stop_penalty,
-                                   env_params.deadlock_penalty,
-                                   env_params.shortest_path_penalty_coefficient,
-                                   env_params.done_bonus)
+        self.state_size = self._env.state_size
 
-        self._env = StatsWrapper(self._env,
-                                 env_params)
+        if reward_wrapper:
+            self._env = RewardsWrapper(self._env,
+                                       env_params.invalid_action_penalty,
+                                       env_params.stop_penalty,
+                                       env_params.deadlock_penalty,
+                                       env_params.shortest_path_penalty_coefficient,
+                                       env_params.done_bonus)
+        if stats_wrapper:
+            self._env = StatsWrapper(self._env,
+                                     env_params)
 
     def _launch(self, env_params, observation):
         return RailEnv(
