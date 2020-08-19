@@ -10,6 +10,11 @@ class DeadlocksDetector:
             # West
             (0, -1)]
 
+        self.deadlocks = []
+
+    def reset(self, num_agents):
+        self.deadlocks = [False for _ in range(num_agents)]
+
     def _check_deadlocks(self, agents, deadlocks, action_dict, env):
         a2 = None
 
@@ -34,14 +39,17 @@ class DeadlocksDetector:
         del agents[-1]
         return False
 
-    def deadlocks_detection(self, env, action_dict, deadlocks, done):
+    def deadlocks_detection(self, env, action_dict, done):
         agents = []
         for a in range(env.get_num_agents()):
             if not done[a]:
                 agents.append(a)
-                if not deadlocks[a]:
-                    deadlocks[a] = self._check_deadlocks(agents, deadlocks, action_dict, env)
-                if not (deadlocks[a]):
+                if not self.deadlocks[a]:
+                    self.deadlocks[a] = self._check_deadlocks(agents, self.deadlocks, action_dict, env)
+                if not (self.deadlocks[a]):
                     del agents[-1]
 
-        return deadlocks
+        return self.deadlocks
+
+    def step(self, env, action_dict, dones):
+        return self.deadlocks_detection(env, action_dict, dones)
