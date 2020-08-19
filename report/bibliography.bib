@@ -113,8 +113,12 @@
 }
 
 @misc{ppo_baselines,
-    title = {OpenAI PPO Baselines},
-    howpublished = {\url{https://github.com/openai/baselines/tree/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/ppo2}}
+    author = {Dhariwal, Prafulla and Hesse, Christopher and Klimov, Oleg and Nichol, Alex and Plappert, Matthias and Radford, Alec and Schulman, John and Sidor, Szymon and Wu, Yuhuai and Zhokhov, Peter},
+    title = {OpenAI Baselines},
+    year = {2017},
+    publisher = {GitHub},
+    journal = {GitHub repository},
+    howpublished = {\url{https://github.com/openai/baselines}},
 }
 
 @misc{ppo_implementation_1,
@@ -136,6 +140,8 @@
 }
 
 @misc{ppo-32-implementations-details,
+    author = {Costa Huang},
+    year = {2020},
     title = {The 32 Implementation Details of Proximal Policy Optimization (PPO) Algorithm},
     howpublished = {\url{https://costa.sh/blog-the-32-implementation-details-of-ppo.html}},
 }
@@ -160,6 +166,21 @@
     eprint={2003.04960},
     archivePrefix={arXiv},
     primaryClass={cs.LG}
+}
+
+@inproceedings{object-oriented-mdp,
+    author = {Silva, Felipe Leno Da and Costa, Anna Helena Reali},
+    title = {Object-Oriented Curriculum Generation for Reinforcement Learning},
+    year = {2018},
+    publisher = {International Foundation for Autonomous Agents and Multiagent Systems},
+    address = {Richland, SC},
+    abstract = {Autonomously learning a complex task takes a very long time for Reinforcement Learning (RL) agents. One way to learn faster is by dividing a complex task into several simple subtasks and organizing them into a Curriculum that guides Transfer Learning (TL) methods to reuse knowledge in a convenient sequence. However, previous works do not take into account the TL method to build specialized Curricula , leaving the burden of a careful subtask selection to a human. We here contribute novel procedures for: (i) dividing the target task into simpler ones under minimal human supervision; (ii) automatically generating Curricula based on object-oriented task descriptions; and (iii) using generated Curricula for reusing knowledge across tasks. Our experiments show that our proposal achieves a better performance using both manually given and generated subtasks when compared to the state-of-the-art technique in two different domains.},
+    booktitle = {Proceedings of the 17th International Conference on Autonomous Agents and MultiAgent Systems},
+    pages = {1026–1034},
+    numpages = {9},
+    keywords = {curriculum learning, transfer learning, reinforcement learning},
+    location = {Stockholm, Sweden},
+    series = {AAMAS '18}
 }
 
 # Action masking

@@ -7,6 +7,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 1
    max_rails_in_city: 0
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 25
@@ -15,6 +17,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 1
    max_rails_in_city: 0
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 30
@@ -23,6 +27,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 4
    max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 25
@@ -31,6 +37,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 4
    max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 27
@@ -39,6 +47,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 3
    max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 35
@@ -47,6 +57,8 @@ curriculum:
    n_cities: 3
    max_rails_between_cities: 4
    max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -55,6 +67,8 @@ curriculum:
    n_cities: 3
    max_rails_between_cities: 5
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -63,6 +77,8 @@ curriculum:
    n_cities: 3
    max_rails_between_cities: 3
    max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -71,6 +87,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 4
    max_rails_in_city: 5
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -79,6 +97,8 @@ curriculum:
    n_cities: 2
    max_rails_between_cities: 1
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
 # 2 agents
  - level:
@@ -88,6 +108,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 1
    max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 35
@@ -96,6 +118,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 1
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -104,6 +128,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 2
    max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 45
@@ -112,6 +138,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 2
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 45
@@ -120,6 +148,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 1
    max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 45
@@ -128,6 +158,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 3
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
 # 3 agents
  - level:
@@ -137,6 +169,8 @@ curriculum:
    n_cities: 5
    max_rails_between_cities: 1
    max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 40
@@ -145,6 +179,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 1
    max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 55
@@ -153,6 +189,8 @@ curriculum:
    n_cities: 4
    max_rails_between_cities: 2
    max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
 
  - level:
    x_dim: 60
@@ -161,4 +199,6 @@ curriculum:
    n_cities: 6
    max_rails_between_cities: 3
    max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
 
