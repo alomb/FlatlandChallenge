@@ -79,16 +79,28 @@ class SumTree:
     interval is found. It is also quite easy to update the weight values of the leaf nodes and propagate the changes.
     All that needs to be done is to take the difference of the change and then add that difference to all upstream node
     parents.
+
+    for example the tree
+
+                    11
+            6               5
+        1       4       3       2
+
+    is
+
+    [11, 6, 5, 1, 4, 3, 2]
+
     """
 
     def __init__(self, capacity):
         """
 
-        :param capacity: Tree capacity
+        :param capacity: Tree capacity, number of leaves and number of stored experiences
         """
         self.capacity = capacity
         # write indicates where the tree is updated
         self.write = 0
+        # 2 * capacity - 1 is the number of nodes, -1 because in the root layer there is only one node
         self.tree = np.zeros(2 * capacity - 1)
         self.data = np.zeros(capacity, dtype=object)
         self.n_entries = 0
@@ -139,11 +151,14 @@ class SumTree:
         :param priority:
         :param data:
         """
+        # Index of the leaf in the tree structure
         idx = self.write + self.capacity - 1
 
+        # Add data update priorities
         self.data[self.write] = data
         self.update(idx, priority)
 
+        # Update data related information
         self.write += 1
         if self.write >= self.capacity:
             self.write = 0
@@ -171,6 +186,7 @@ class SumTree:
         :return: index, priority and data
         """
         idx = self._retrieve(0, s)
+        # Index of the data from the index of the leaf in the tree
         data_idx = idx - self.capacity + 1
 
         return idx, self.tree[idx], self.data[data_idx]
@@ -257,8 +273,8 @@ class PrioritisedExperienceReplay:
         # Compute importance sampling weights
         is_weight = np.power(self.tree.n_entries * sampling_probabilities, -self.per_beta)
         # Rescaling weights from 0 to 1
-        # is_weight /= is_weight.max()
-        is_weight /= np.max(is_weight.max)
+        is_weight /= is_weight.max()
+        # is_weight /= np.max(is_weight.max)
 
         return batch, idxs, is_weight
 
