@@ -8,11 +8,12 @@ from src.psppo.ps_ppo_flatland import train_multiple_agents
 if __name__ == "__main__":
     myseed = 14
 
-    datehour = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-    print(datehour)
+    # namefile = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    namefile = "psppo_naive"
+    print("Filename: {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
+        "n_agents": 1,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         "checkpoint_interval": None,
         "eval_episodes": None,
         "use_gpu": False,
-        "render": True,
+        "render": False,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",
@@ -121,9 +122,9 @@ if __name__ == "__main__":
 
     """
     # Save on Google Drive on Colab
-    "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + datehour + ".pt",
+    "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
     "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
-    "tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs" + datehour + "/",
+    "tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs/logs" + namefile + "/",
     """
 
     """

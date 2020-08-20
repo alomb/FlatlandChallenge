@@ -105,7 +105,7 @@ def train_multiple_agents(env_params, train_params):
                     action_count[action] += 1
                     actions_taken.append(action)
                 else:
-                    update_values = True
+                    update_values = False
                     action = 0
                 action_dict.update({agent: action})
 

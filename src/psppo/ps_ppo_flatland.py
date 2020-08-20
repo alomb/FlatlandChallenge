@@ -147,6 +147,7 @@ def train_multiple_agents(env_params, train_params):
 
                     # Fill action dict
                     # If an agent is in deadlock leave him learn
+                    """
                     if info["deadlocks"][agent]:
                         action_dict[agent] = \
                             ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
@@ -174,6 +175,14 @@ def train_multiple_agents(env_params, train_params):
                         action_dict[agent] = \
                             ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
                         agents_in_action.add(agent)
+                    """
+                    if info["action_required"][agent]:
+                        # If an action is required, we want to store the obs at that step as well as the action
+                        action_dict[agent] = \
+                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
+                        agents_in_action.add(agent)
+                    else:
+                        action_dict[agent] = int(RailEnvActions.DO_NOTHING)
 
             # Environment step
             step_timer.start()
@@ -209,10 +218,8 @@ def train_multiple_agents(env_params, train_params):
             if train_params.render:
                 env._env.show_render()
 
-            """
             if done["__all__"]:
                 break
-            """
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
