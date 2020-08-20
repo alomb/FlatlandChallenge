@@ -81,8 +81,7 @@ class FlatlandGymEnv(gym.Env):
                 show=True,
                 frames=False,
                 show_observations=False,
-                show_predictions=False
-            )
+                show_predictions=False)
 
     def close(self):
         if self.render:

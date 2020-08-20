@@ -4,10 +4,10 @@ from torch.distributions import Categorical
 
 from src.common.policy import Policy
 from src.psppo.memory import Memory
-from src.psppo.model import PsPPOPolicy
+from src.psppo.model import PsPPO
 
 
-class PsPPO(Policy):
+class PsPPOPolicy(Policy):
     """
     The class responsible of some logics of the algorithm especially of the loss computation and updating of the policy.
     """
@@ -15,18 +15,18 @@ class PsPPO(Policy):
     def __init__(self,
                  state_size,
                  action_size,
-                 device,
                  train_params,
                  n_agents):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
-        :param device: The device used, cuda or cpu
         :param train_params: Parameters to influence training
         :param n_agents: number of agents
         """
 
-        self.device = device
+        super(PsPPOPolicy, self).__init__()
+        # Device
+        self.device = torch.device("cuda:0" if train_params.use_gpu and torch.cuda.is_available() else "cpu")
         self.n_agents = n_agents
         self.shared = train_params.shared
         self.learning_rate = train_params.learning_rate
@@ -51,20 +51,18 @@ class PsPPO(Policy):
             raise Exception("Advantage estimator not available")
 
         # The policy updated at each learning epoch
-        self.policy = PsPPOPolicy(state_size,
-                                  action_size,
-                                  device,
-                                  train_params).to(device)
+        self.policy = PsPPO(state_size,
+                            action_size,
+                            train_params).to(self.device)
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=train_params.learning_rate,
                                           eps=train_params.adam_eps)
 
         # The policy updated at the end of the training epochs where is used as the old policy.
         # It is used also to obtain trajectories.
-        self.policy_old = PsPPOPolicy(state_size,
-                                      action_size,
-                                      device,
-                                      train_params).to(device)
+        self.policy_old = PsPPO(state_size,
+                                action_size,
+                                train_params).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
     def _get_advs(self, rewards, dones, state_estimated_value):

@@ -6,14 +6,13 @@ import torch.nn as nn
 import numpy as np
 
 
-class PsPPOPolicy(nn.Module):
+class PsPPO(nn.Module):
     """
     The policy of the PS-PPO algorithm.
     """
     def __init__(self,
                  state_size,
                  action_size,
-                 device,
                  train_params):
         """
         :param state_size: The number of attributes of each state
@@ -21,10 +20,9 @@ class PsPPOPolicy(nn.Module):
         :param train_params: Parameters to influence training
         """
 
-        super(PsPPOPolicy, self).__init__()
+        super(PsPPO, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
-        self.device = device
         self.activation = train_params.activation
         self.softmax = nn.Softmax(dim=-1)
 

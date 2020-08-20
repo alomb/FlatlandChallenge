@@ -92,6 +92,7 @@ if __name__ == "__main__":
         "eval_episodes": 25,
         "use_gpu": False,
         "render": False,
+        "print_stats": True,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",

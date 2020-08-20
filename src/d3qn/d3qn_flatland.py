@@ -35,7 +35,13 @@ def train_multiple_agents(env_params, train_params):
     tree_observation = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
 
     # Setup the environment
-    env = FlatlandRandomRailEnv(train_params, env_params, tree_observation, reward_wrapper=False, stats_wrapper=False)
+    env = FlatlandRandomRailEnv(train_params,
+                                env_params,
+                                tree_observation,
+                                normalize_observations=True,
+                                custom_observations=env_params.custom_observations,
+                                reward_wrapper=True,
+                                stats_wrapper=train_params.print_stats)
     env.reset()
 
     # The action space of flatland is 5 discrete actions
@@ -93,7 +99,8 @@ def train_multiple_agents(env_params, train_params):
                 agent_prev_obs[agent] = obs[agent].copy()
 
         # Run episode
-        for step in range(max_steps - 1):
+        # TODO: Why there was max_steps - 1?
+        for step in range(max_steps):
             for agent in range(env_params.n_agents):
                 if info['action_required'][agent]:
                     # If an action is required, we want to store the obs at that step as well as the action
@@ -119,6 +126,7 @@ def train_multiple_agents(env_params, train_params):
                 """
                 if update_values or done[agent]:
                     learn_timer.start()
+                    # TODO: Reward shaping is still to be completed
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], obs[agent],
                                 done[agent])
                     learn_timer.end()
