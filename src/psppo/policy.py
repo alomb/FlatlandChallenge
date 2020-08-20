@@ -1,119 +1,221 @@
-import os
-from collections import OrderedDict
-
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical
-import numpy as np
+
+from src.common.policy import Policy
+from src.psppo.memory import Memory
+from src.psppo.model import PsPPOPolicy
 
 
-class PsPPOPolicy(nn.Module):
+class PsPPO(Policy):
     """
-    The policy of the PS-PPO algorithm.
+    The class responsible of some logics of the algorithm especially of the loss computation and updating of the policy.
     """
+
     def __init__(self,
                  state_size,
                  action_size,
                  device,
-                 train_params):
+                 train_params,
+                 n_agents):
         """
         :param state_size: The number of attributes of each state
         :param action_size: The number of available actions
+        :param device: The device used, cuda or cpu
         :param train_params: Parameters to influence training
+        :param n_agents: number of agents
         """
 
-        super(PsPPOPolicy, self).__init__()
-        self.state_size = state_size
-        self.action_size = action_size
         self.device = device
-        self.activation = train_params.activation
-        self.softmax = nn.Softmax(dim=-1)
+        self.n_agents = n_agents
+        self.shared = train_params.shared
+        self.learning_rate = train_params.learning_rate
+        self.discount_factor = train_params.discount_factor
+        self.epochs = train_params.epochs
+        self.batch_size = train_params.batch_size
+        self.horizon = train_params.horizon
+        self.eps_clip = train_params.eps_clip
+        self.max_grad_norm = train_params.max_grad_norm
+        self.lmbda = train_params.lmbda
+        self.value_loss_coefficient = train_params.value_loss_coefficient
+        self.entropy_coefficient = train_params.entropy_coefficient
+        self.loss = 0
 
-        # Network creation
-        critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
-        self.critic_network = nn.Sequential(critic_layers)
-        if not train_params.shared:
-            self.actor_network = nn.Sequential(self._build_network(True, train_params.actor_mlp_depth,
-                                                                   train_params.actor_mlp_width))
+        self.memory = Memory(n_agents)
+
+        if train_params.advantage_estimator == "gae":
+            self.gae = True
+        elif train_params.advantage_estimator == "n-steps":
+            self.gae = False
         else:
-            if train_params.critic_mlp_depth <= 1:
-                raise Exception("Shared networks must have depth greater than 1")
-            actor_layers = critic_layers.copy()
-            actor_layers.popitem()
-            actor_layers["actor_output_layer"] = nn.Linear(train_params.critic_mlp_width, action_size)
-            self.actor_network = nn.Sequential(actor_layers)
+            raise Exception("Advantage estimator not available")
 
-        # Network orthogonal initialization
-        def weights_init(m):
-            if isinstance(m, nn.Linear):
-                torch.nn.init.orthogonal_(m.weight, np.sqrt(2))
-                torch.nn.init.zeros_(m.bias)
+        # The policy updated at each learning epoch
+        self.policy = PsPPOPolicy(state_size,
+                                  action_size,
+                                  device,
+                                  train_params).to(device)
 
-        with torch.no_grad():
-            self.critic_network.apply(weights_init)
-            self.actor_network.apply(weights_init)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=train_params.learning_rate,
+                                          eps=train_params.adam_eps)
 
-            # Last layer's weights rescaling
-            list(self.critic_network.children())[-1].weight.mul_(train_params.last_critic_layer_scaling)
-            list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
+        # The policy updated at the end of the training epochs where is used as the old policy.
+        # It is used also to obtain trajectories.
+        self.policy_old = PsPPOPolicy(state_size,
+                                      action_size,
+                                      device,
+                                      train_params).to(device)
+        self.policy_old.load_state_dict(self.policy.state_dict())
 
-        # Load from file if available
-        if train_params.load_model_path is not None:
-            self.load(train_params.load_model_path)
+    def _get_advs(self, rewards, dones, state_estimated_value):
+        rewards = torch.tensor(rewards).to(self.device)
+        # to multiply with not_dones to handle episode boundary (last state has no V(s'))
+        not_dones = 1 - torch.tensor(dones, dtype=torch.int).to(self.device)
 
-    def _build_network(self, is_actor, nn_depth, nn_width):
-        """
-        Creates the network, including activation layers.
-        The actor is not completed with the final softmax layer.
+        if self.gae:
+            assert len(rewards) + 1 == len(state_estimated_value)
 
-        :param is_actor: True if the resulting network will be used as the actor
-        :param nn_depth: The number of layers included the first and last
-        :param nn_width: The number of nodes in each hidden layer
-        :return: an OrderedDict used to build the neural network
-        """
-        if nn_depth <= 0:
-            raise Exception("Networks' depths must be greater than 0")
+            gaes = torch.zeros_like(rewards)
+            future_gae = torch.tensor(0.0, dtype=rewards.dtype).to(self.device)
 
-        network = OrderedDict()
-        output_size = self.action_size if is_actor else 1
-        nn_type = "actor" if is_actor else "critic"
-
-        # First layer
-        network["%s_input" % nn_type] = nn.Linear(self.state_size,
-                                                  nn_width if nn_depth > 1 else output_size)
-        # If it's not the last layer add the activation
-        if nn_depth > 1:
-            network["%s_input_activation(%s)" % (nn_type, self.activation)] = self._get_activation()
-
-        # Add hidden and last layers
-        for layer in range(1, nn_depth):
-            layer_name = "%s_layer_%d" % (nn_type, layer)
-            # Last layer
-            if layer == nn_depth - 1:
-                network[layer_name] = nn.Linear(nn_width, output_size)
-            # Hidden layer
-            else:
-                network[layer_name] = nn.Linear(nn_width, nn_width)
-                network[layer_name + ("_activation(%s)" % self.activation)] = self._get_activation()
-
-        return network
-
-    def _get_activation(self):
-        if self.activation == "ReLU":
-            return nn.ReLU()
-        elif self.activation == "Tanh":
-            return nn.Tanh()
+            for t in reversed(range(len(rewards))):
+                delta = rewards[t] + self.discount_factor * state_estimated_value[t + 1] * not_dones[t] - \
+                        state_estimated_value[t]
+                gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
+            return gaes
         else:
-            print(self.activation)
-            raise Exception("The specified activation function don't exists or is not available")
+            returns = torch.zeros_like(rewards)
+            future_ret = state_estimated_value[-1]
 
-    def act(self, state, memory, action_mask, action=None):
+            for t in reversed(range(len(rewards))):
+                returns[t] = future_ret = rewards[t] + self.discount_factor * future_ret * not_dones[t]
+
+            return returns - state_estimated_value[:-1]
+
+    def _learn(self, memory, a):
+        # Save functions as objects outside to optimize code
+        epochs = self.epochs
+        batch_size = self.batch_size
+
+        policy_evaluate = self._evaluate
+        get_advantages = self._get_advs
+        torch_clamp = torch.clamp
+        torch_min = torch.min
+        obj_eps = self.eps_clip
+        torch_exp = torch.exp
+        ec = self.entropy_coefficient
+        vlc = self.value_loss_coefficient
+        optimizer = self.optimizer
+
+        _ = memory.rewards[a].pop()
+        _ = memory.dones[a].pop()
+
+        last_state = memory.states[a].pop()
+        last_action = memory.actions[a].pop()
+        last_mask = memory.masks[a].pop()
+        _ = memory.logs_of_action_prob[a].pop()
+
+        # Convert lists to tensors
+        old_states = torch.stack(memory.states[a]).to(self.device).detach()
+        old_actions = torch.stack(memory.actions[a]).to(self.device)
+        old_masks = torch.stack(memory.masks[a]).to(self.device)
+        old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(self.device).detach()
+
+        # Optimize policy
+        for _ in range(epochs):
+            for batch_start in range(0, len(old_states), batch_size):
+                batch_end = batch_start + batch_size
+                if batch_end >= len(old_states):
+                    # Evaluating old actions and values
+                    log_of_action_prob, state_estimated_value, dist_entropy = \
+                        policy_evaluate(
+                            torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
+                            torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))),
+                            torch.cat((old_masks[batch_start:batch_end], torch.unsqueeze(last_mask, 0))))
+                else:
+                    # Evaluating old actions and values
+                    log_of_action_prob, state_estimated_value, dist_entropy = \
+                        policy_evaluate(old_states[batch_start:batch_end + 1],
+                                        old_actions[batch_start:batch_end + 1],
+                                        old_masks[batch_start:batch_end + 1])
+
+                # Find the ratio (pi_theta / pi_theta__old)
+                probs_ratio = torch_exp(
+                    log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
+
+                # Find the "Surrogate Loss"
+                advantage = get_advantages(
+                    memory.rewards[a][batch_start:batch_end],
+                    memory.dones[a][batch_start:batch_end],
+                    state_estimated_value.detach())
+
+                # Advantage normalization
+                advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
+
+                # Surrogate losses
+                unclipped_objective = probs_ratio * advantage
+                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
+
+                # Policy loss
+                policy_loss = torch_min(unclipped_objective, clipped_objective).mean()
+
+                # Value loss
+                value_loss = 0.5 * (state_estimated_value[:-1].squeeze() -
+                                    torch.tensor(memory.rewards[a][batch_start:batch_end],
+                                                 dtype=torch.float32).to(self.device)).pow(2).mean()
+
+                self.loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
+                # Gradient descent
+                optimizer.zero_grad()
+                self.loss.backward(retain_graph=True)
+
+                # Gradient clipping
+                if self.max_grad_norm is not None:
+                    nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+
+                optimizer.step()
+
+                # To show graph
+                """
+                from datetime import datetime
+                from torchviz import make_dot
+                now = datetime.now()
+                make_dot(self.loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
+                exit()
+                """
+
+        # Copy new weights into old policy:
+        self.policy_old.load_state_dict(self.policy.state_dict())
+
+    def _evaluate(self, state, action, action_mask):
+        """
+        Evaluate the current policy obtaining useful information on the decided action's probability distribution.
+
+        :param state: the observed state
+        :param action: the performed action
+        :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
+        :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
+        """
+
+        action_logits = self.policy.actor_network(state[:-1])
+
+        # Action masking, default values are True, False are present only if masking is enabled.
+        # If No op is not allowed it is masked even if masking is not active
+        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8).to(self.device))
+
+        action_probs = self.policy.softmax(action_logits)
+
+        action_distribution = Categorical(action_probs)
+
+        return action_distribution.log_prob(action[:-1]), self.policy.critic_network(state), \
+               action_distribution.entropy()
+
+    def act(self, state, action_mask=None, action=None):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
 
         :param state: the observed state
-        :param memory: the memory to update
         :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
         :param action: an action to perform decided by some external logic
         :return: the action to perform
@@ -123,7 +225,7 @@ class PsPPOPolicy(nn.Module):
         agent_id = int(state[-1])
         # Transform the state Numpy array to a Torch Tensor
         state = torch.from_numpy(state).float().to(self.device)
-        action_logits = self.actor_network(state)
+        action_logits = self.policy_old.actor_network(state)
 
         action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
 
@@ -131,7 +233,7 @@ class PsPPOPolicy(nn.Module):
         # If No op is not allowed it is masked even if masking is not active
         action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
 
-        action_probs = self.softmax(action_logits)
+        action_probs = self.policy_old.softmax(action_logits)
 
         """
         From the paper: "The stochastic policy πθ can be represented by a categorical distribution when the actions of
@@ -143,41 +245,34 @@ class PsPPOPolicy(nn.Module):
             action = action_distribution.sample()
 
         # Memory is updated
-        if memory is not None:
-            memory.states[agent_id].append(state)
-            memory.actions[agent_id].append(action)
-            memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
-            memory.masks[agent_id].append(action_mask)
+        self.memory.states[agent_id].append(state)
+        self.memory.actions[agent_id].append(action)
+        self.memory.logs_of_action_prob[agent_id].append(action_distribution.log_prob(action))
+        self.memory.masks[agent_id].append(action_mask)
 
         return action.item()
 
-    def evaluate(self, state, action, action_mask):
-        """
-        Evaluate the current policy obtaining useful information on the decided action's probability distribution.
+    def step(self, agent, total_timestep_reward_shaped, done, last_step):
+        self.memory.rewards[agent].append(total_timestep_reward_shaped)
+        self.memory.dones[agent].append(done["__all__"])
 
-        :param state: the observed state
-        :param action: the performed action
-        :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
-        :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
-        """
+        # Set dones to True when the episode is finished because the maximum number of steps has been reached
+        if last_step:
+            self.memory.dones[agent][-1] = True
 
-        action_logits = self.actor_network(state[:-1])
+        # Update if agent's horizon has been reached
+        if self.memory.length(agent) % (self.horizon + 1) == 0:
+            self._learn(self.memory, agent)
 
-        # Action masking, default values are True, False are present only if masking is enabled.
-        # If No op is not allowed it is masked even if masking is not active
-        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8).to(self.device))
+            """
+            Leave last memory unit because the batch includes an additional step which has not been considered 
+            in the current trajectory (it has been inserted to compute the advantage) but must be considered in 
+            the next trajectory or will be lost.
+            """
+            self.memory.clear_memory_except_last(agent)
 
-        action_probs = self.softmax(action_logits)
+    def save(self, filename):
+        self.policy.save(filename)
 
-        action_distribution = Categorical(action_probs)
-
-        return action_distribution.log_prob(action[:-1]), self.critic_network(state), action_distribution.entropy()
-
-    def save(self, path):
-        torch.save(self.state_dict(), path)
-
-    def load(self, path):
-        if os.path.exists(path):
-            self.load_state_dict(torch.load(path))
-        else:
-            print("Loading file failed. File not found.")
+    def load(self, filename):
+        self.policy.load(filename)

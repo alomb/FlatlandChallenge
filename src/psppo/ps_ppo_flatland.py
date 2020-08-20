@@ -12,8 +12,7 @@ from flatland.envs.agent_utils import RailAgentStatus
 
 from src.common.flatland_random_railenv import FlatlandRandomRailEnv
 from src.common.timer import Timer
-from src.psppo.algorithm import PsPPO
-from src.psppo.memory import Memory
+from src.psppo.policy import PsPPO
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -79,12 +78,11 @@ def train_multiple_agents(env_params, train_params):
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
-    memory = Memory(env_params.n_agents)
-
     ppo = PsPPO(env.state_size,
                 action_size,
                 device,
-                train_params)
+                train_params,
+                env_params.n_agents)
 
     # TensorBoard writer
     writer = SummaryWriter(train_params.tensorboard_path)
@@ -179,7 +177,7 @@ def train_multiple_agents(env_params, train_params):
                     if info["action_required"][agent]:
                         # If an action is required, we want to store the obs at that step as well as the action
                         action_dict[agent] = \
-                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
+                            ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
                         agents_in_action.add(agent)
                     else:
                         action_dict[agent] = int(RailEnvActions.DO_NOTHING)
@@ -188,32 +186,16 @@ def train_multiple_agents(env_params, train_params):
             step_timer.start()
             obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
-            # Update score and compute total rewards equal to each agent
-            total_timestep_reward_shaped = sum(rewards[agent] if isinstance(rewards[agent], float) or isinstance(rewards[agent], int) else
+            # Update score and compute total rewards equal to each agent considering the rewards shaped or normal
+            total_timestep_reward_shaped = sum(rewards[agent] if isinstance(rewards[agent], float) or
+                                                                 isinstance(rewards[agent], int) else
                                                rewards[agent]["rewards_shaped"] for agent in range(env_params.n_agents))
 
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
-                memory.rewards[a].append(total_timestep_reward_shaped)
-                memory.dones[a].append(done["__all__"])
-
-                # Set dones to True when the episode is finished because the maximum number of steps has been reached
-                if step == max_steps - 1:
-                    memory.dones[a][-1] = True
-
-            for a in range(env_params.n_agents):
-                # Update if agent's horizon has been reached
-                if len(memory.states[a]) % (horizon + 1) == 0:
-                    learn_timer.start()
-                    ppo.update(memory, a)
-                    learn_timer.end()
-
-                    """
-                    Leave last memory unit because the batch includes an additional step which has not been considered 
-                    in the current trajectory (it has been inserted to compute the advantage) but must be considered in 
-                    the next trajectory or will be lost.
-                    """
-                    memory.clear_memory_except_last(a)
+                learn_timer.start()
+                ppo.step(a, total_timestep_reward_shaped, done, step == max_steps - 1)
+                learn_timer.end()
 
             if train_params.render:
                 env._env.show_render()
@@ -224,7 +206,7 @@ def train_multiple_agents(env_params, train_params):
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
             if train_params.save_model_path is not None:
-                ppo.policy.save(train_params.save_model_path)
+                ppo.save(train_params.save_model_path)
         # Rendering
         if train_params.render:
             env._env.close()

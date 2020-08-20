@@ -1,9 +1,7 @@
 import random
-from argparse import Namespace
 
 import numpy as np
 import torch
-from flatland.envs.malfunction_generators import MalfunctionParameters
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from torch.utils.tensorboard import SummaryWriter

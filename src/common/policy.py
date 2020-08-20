@@ -1,12 +1,20 @@
-class Policy:
-    def step(self, state, action, reward, next_state, done):
-        raise NotImplementedError
+from abc import ABC, abstractmethod
 
-    def act(self, state, eps=0.):
-        raise NotImplementedError
 
+class Policy(ABC):
+
+    @abstractmethod
+    def step(self, **args):
+        pass
+
+    @abstractmethod
+    def act(self, state, **args):
+        pass
+
+    @abstractmethod
     def save(self, filename):
-        raise NotImplementedError
+        pass
 
+    @abstractmethod
     def load(self, filename):
-        raise NotImplementedError
+        pass
