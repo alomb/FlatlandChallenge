@@ -157,6 +157,8 @@ def train_multiple_agents(env_params, train_params):
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
                 preproc_timer.start()
+                if obs[agent] is None:
+                    print(obs[agent])
                 if obs[agent]:
                     agent_obs[agent] = normalize_observations.normalize_observation(obs[agent], env.get_rail_env(), agent,
                                                                                     info["deadlocks"][agent], rail_obs)
@@ -453,7 +455,7 @@ if __name__ == "__main__":
         "deadlock_penalty": 0.0,
         "shortest_path_penalty_coefficient": 1.0,
         # 1.0 for skipping
-        "done_bonus": 0.0,
+        "done_bonus": 10.0,
     }
 
     training_parameters = {

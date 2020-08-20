@@ -71,7 +71,7 @@ class PsPPO:
                 delta = rewards[t] + self.discount_factor * state_estimated_value[t + 1] * not_dones[t] - \
                         state_estimated_value[t]
                 gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
-
+                print(gaes[t])
             return gaes
         else:
             returns = torch.zeros_like(rewards)
