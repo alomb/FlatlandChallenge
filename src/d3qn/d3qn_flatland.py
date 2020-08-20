@@ -105,7 +105,7 @@ def train_multiple_agents(env_params, train_params):
                     action_count[action] += 1
                     actions_taken.append(action)
                 else:
-                    update_values = False
+                    update_values = True
                     action = 0
                 action_dict.update({agent: action})
 
@@ -192,6 +192,7 @@ if __name__ == "__main__":
         # ============================
         # Network architecture
         # ============================
+        "double_dqn": True,
         "shared": False,
         "hidden_size": 256,
         "hidden_layers": 2,
@@ -213,10 +214,17 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         "batch_size": 32,
-        # Memory maximum size
-        "buffer_size": int(1e6),
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
+
+        # ============================
+        # Memory
+        # ============================
+        # Memory maximum size
+        "buffer_size": int(1e6),
+        # memory type uer or per
+        "memory_type": "per",
+
 
         # ============================
         # Optimization and rendering
