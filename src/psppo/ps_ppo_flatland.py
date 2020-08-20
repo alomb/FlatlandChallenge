@@ -348,7 +348,6 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps)
                             action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                     # Else
                     elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
-                        print("DONE")
                         action_dict[agent] = \
                             ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent],
                                                action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
