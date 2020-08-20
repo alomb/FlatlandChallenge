@@ -1,0 +1,204 @@
+curriculum:
+# 1 agent
+ - level:
+   x_dim: 23
+   y_dim: 20
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 1
+   max_rails_in_city: 0
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 25
+   y_dim: 25
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 1
+   max_rails_in_city: 0
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 30
+   y_dim: 30
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 4
+   max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 25
+   y_dim: 27
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 4
+   max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 27
+   y_dim: 25
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 3
+   max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 35
+   y_dim: 30
+   n_agents: 1
+   n_cities: 3
+   max_rails_between_cities: 4
+   max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 35
+   n_agents: 1
+   n_cities: 3
+   max_rails_between_cities: 5
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 35
+   n_agents: 1
+   n_cities: 3
+   max_rails_between_cities: 3
+   max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 40
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 4
+   max_rails_in_city: 5
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 40
+   n_agents: 1
+   n_cities: 2
+   max_rails_between_cities: 1
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+
+# 2 agents
+ - level:
+   x_dim: 35
+   y_dim: 35
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 1
+   max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 35
+   y_dim: 37
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 1
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 40
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 2
+   max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 45
+   y_dim: 40
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 2
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 45
+   y_dim: 50
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 1
+   max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 45
+   y_dim: 45
+   n_agents: 2
+   n_cities: 4
+   max_rails_between_cities: 3
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+
+# 3 agents
+ - level:
+   x_dim: 50
+   y_dim: 40
+   n_agents: 3
+   n_cities: 5
+   max_rails_between_cities: 1
+   max_rails_in_city: 1
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 40
+   y_dim: 50
+   n_agents: 3
+   n_cities: 4
+   max_rails_between_cities: 1
+   max_rails_in_city: 2
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 55
+   y_dim: 50
+   n_agents: 3
+   n_cities: 4
+   max_rails_between_cities: 2
+   max_rails_in_city: 3
+   malfunction_rate: 0
+   speed_level: 0
+
+ - level:
+   x_dim: 60
+   y_dim: 60
+   n_agents: 3
+   n_cities: 6
+   max_rails_between_cities: 3
+   max_rails_in_city: 4
+   malfunction_rate: 0
+   speed_level: 0
+

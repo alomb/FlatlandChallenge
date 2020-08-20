@@ -23,9 +23,9 @@ class Manual_Curriculum(Curriculum):
         self.num_levels = len(self.curriculum["curriculum"])
 
     def update(self):
-        # Check rewards
-
         # Increase level
+        if self.level == self.num_levels - 1:
+            raise StopIteration()
         self.level += 1
 
     def get(self, attribute):
@@ -43,6 +43,8 @@ def offset_curriculum_generator(num_levels,
                                                          # "max_dist": lambda lvl: 0.3,
                                                          "max_rails_between_cities": lambda lvl: 0.05,
                                                          "max_rails_in_city": lambda lvl: 0.05,
+                                                         "malfunction_level": lambda lvl: 0.05,
+                                                         "speed_level": lambda lvl: 0.05,
                                                          }),
                                 forget_every=None,
                                 forget_intensity=None,
@@ -89,7 +91,6 @@ class Semi_Auto_Curriculum(Curriculum):
 
         :raise StopIteration
         """
-        # Check rewards
         # Increase level in the iterator
         self.values = next(self.generator)
 

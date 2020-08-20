@@ -22,7 +22,8 @@ class RewardsWrapper(gym.Wrapper):
 
     def reset(self):
         obs, info = self.env.reset()
-        self.shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(self.unwrapped.rail_env.get_num_agents())]
+        self.shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in
+                              range(self.unwrapped.rail_env.get_num_agents())]
 
         return obs, info
 
@@ -77,5 +78,5 @@ class RewardsWrapper(gym.Wrapper):
         return rewards
 
     def _check_stop_transition(self, action_dict, rewards):
-        return {a: self.stop_penalty if action_dict[a] == RailEnvActions.STOP_MOVING else rewards[a]
-                for a in range(len(action_dict))}
+        return {a: self.stop_penalty if a in action_dict and action_dict[a] == RailEnvActions.STOP_MOVING
+                else rewards[a] for a in range(self.unwrapped.rail_env.get_num_agents())}

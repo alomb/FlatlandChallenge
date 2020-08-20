@@ -12,7 +12,7 @@ from flatland.envs.malfunction_generators import MalfunctionParameters
 from flatland.envs.rail_generators import RailGenerator
 from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
 
-from src.curriculum.curriculum import Semi_Auto_Curriculum, offset_curriculum_generator
+from src.curriculum.curriculum import Semi_Auto_Curriculum, offset_curriculum_generator, Manual_Curriculum
 from src.psppo.ps_ppo_flatland import train_multiple_agents
 
 
@@ -141,39 +141,60 @@ def complex_rail_generator(curriculum) -> RailGenerator:
 
 
 def curriculum_learning():
-    myseed = 19
-    my_num_levels = 70
+    num_levels = 70
 
     """
-    mycurriculum = Manual_Curriculum("curriculum/curriculum_old.yml")
+    curriculum = Manual_Curriculum("curriculum.yml")
     """
 
-    mycurriculum = Semi_Auto_Curriculum(offset_curriculum_generator(my_num_levels, {"x_dim": 20,
-                                                                                    "y_dim": 20,
-                                                                                    "n_agents": 2,
-                                                                                    "n_cities": 3,
-                                                                                    # "n_extra": 3,
-                                                                                    # "min_dist": 2,
-                                                                                    # "max_dist": 5
-                                                                                    "max_rails_between_cities": 1,
-                                                                                    "max_rails_in_city": 1,
-                                                                                    }),
-                                        my_num_levels)
+    curriculum = Semi_Auto_Curriculum(offset_curriculum_generator(num_levels, {"x_dim": 20,
+                                                                               "y_dim": 20,
+                                                                               "n_agents": 2,
+                                                                               "n_cities": 3,
+                                                                               # "n_extra": 3,
+                                                                               # "min_dist": 2,
+                                                                               # "max_dist": 5
+                                                                               "max_rails_between_cities": 1,
+                                                                               "max_rails_in_city": 1,
+                                                                               "malfunction_level": 0,
+                                                                               "speed_level": 0}),
+                                      num_levels)
 
     try:
+        myseed = 19
         level = 0
+        threshold = 0.57
+
         while True:
+            if curriculum.get("speed_level") < 1:
+                speed_profiles = {1.: 1.0, 1. / 2.: 0.0, 1. / 3.: 0.0, 1. / 4.: 0.0}
+            elif curriculum.get("speed_level") < 2:
+                speed_profiles = {1.: 0.75, 1. / 2.: 0.25, 1. / 3.: 0.0, 1. / 4.: 0.0}
+            elif curriculum.get("speed_level") < 3:
+                speed_profiles = {1.: 0.4, 1. / 2.: 0.3, 1. / 3.: 0.2, 1. / 4.: 0.1}
+            else:
+                speed_profiles = {1.: 0.25, 1. / 2.: 0.25, 1. / 3.: 0.25, 1. / 4.: 0.25}
+
+            if curriculum.get("malfunction_level") < 1:
+                malfunction_rate = 0.0
+            elif curriculum.get("malfunction_level") < 2:
+                malfunction_rate = 0.1
+            elif curriculum.get("malfunction_level") < 3:
+                malfunction_rate = 0.2
+            else:
+                malfunction_rate = 0.3
+
             environment_parameters = {
                 "seed": myseed,
-                "n_agents": mycurriculum.get("n_agents"),
-                "x_dim": mycurriculum.get("x_dim"),
-                "y_dim": mycurriculum.get("y_dim"),
-                "n_cities": mycurriculum.get("n_cities"),
-                # "n_extra": mycurriculum.get("n_extra"),
-                # "min_dist": mycurriculum.get("min_dist"),
-                # "max_dist": mycurriculum.get("max_dist"),
-                "max_rails_between_cities": mycurriculum.get("max_rails_between_cities"),
-                "max_rails_in_city": mycurriculum.get("max_rails_in_city"),
+                "n_agents": curriculum.get("n_agents"),
+                "x_dim": curriculum.get("x_dim"),
+                "y_dim": curriculum.get("y_dim"),
+                "n_cities": curriculum.get("n_cities"),
+                # "n_extra": curriculum.get("n_extra"),
+                # "min_dist": curriculum.get("min_dist"),
+                # "max_dist": curriculum.get("max_dist"),
+                "max_rails_between_cities": curriculum.get("max_rails_between_cities"),
+                "max_rails_in_city": curriculum.get("max_rails_in_city"),
 
                 "observation_tree_depth": 3,
                 "observation_radius": 10,
@@ -181,15 +202,11 @@ def curriculum_learning():
 
                 # Malfunctions
                 "malfunction_parameters": MalfunctionParameters(
-                    malfunction_rate=0,
+                    malfunction_rate=malfunction_rate,
                     min_duration=15,
                     max_duration=50),
                 # Speeds
-                "speed_profiles": {
-                    1.: 1.0,
-                    1. / 2.: 0.0,
-                    1. / 3.: 0.0,
-                    1. / 4.: 0.0},
+                "speed_profiles": speed_profiles,
 
                 # ============================
                 # Custom observations&rewards
@@ -251,7 +268,7 @@ def curriculum_learning():
                 "checkpoint_interval": None,
                 "eval_episodes": None,
                 "use_gpu": False,
-                "render": False,
+                "render": True,
                 "save_model_path": "checkpoint.pt",
                 "load_model_path": "checkpoint.pt",
                 "tensorboard_path": "log/",
@@ -265,17 +282,18 @@ def curriculum_learning():
             }
 
             try_outs = 0
-            threshold = 0.5
 
             print("=" * 100)
-            print("{}x{} grid, {} agents, {} cities, {} rails between cities and {} rails in cities".format(
-                mycurriculum.get("x_dim"),
-                mycurriculum.get("y_dim"),
-                mycurriculum.get("n_agents"),
-                mycurriculum.get("n_cities"),
-                mycurriculum.get("max_rails_between_cities"),
-                mycurriculum.get("max_rails_in_city"),
-            ))
+            print("{}x{} grid, {} agents, {} cities, {} rails between cities, {} rails in cities, malfunctions rate {} "
+                  "and speed {}. Completion threshold of {}".format(curriculum.get("x_dim"),
+                                                                    curriculum.get("y_dim"),
+                                                                    curriculum.get("n_agents"),
+                                                                    curriculum.get("n_cities"),
+                                                                    curriculum.get("max_rails_between_cities"),
+                                                                    curriculum.get("max_rails_in_city"),
+                                                                    malfunction_rate,
+                                                                    speed_profiles,
+                                                                    threshold))
 
             completion = 0
 
@@ -283,13 +301,13 @@ def curriculum_learning():
                 print("Level %d try out number % d" % (level, try_outs))
                 # Train
                 _, completions, _ = train_multiple_agents(Namespace(**environment_parameters),
-                                                            Namespace(**training_parameters))
+                                                          Namespace(**training_parameters))
                 try_outs += 1
                 completion = np.mean(completions)
             print("\n" + "=" * 100)
 
             # Update curriculum
-            mycurriculum.update()
+            curriculum.update()
             level += 1
     except StopIteration:
         return
