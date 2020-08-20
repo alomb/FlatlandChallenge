@@ -15,7 +15,7 @@ class FlatlandRandomRailEnv:
                  observation,
                  normalize_observations=True,
                  custom_observations=True,
-                 reward_wrapper=True,
+                 reward_wrapper=False,
                  stats_wrapper=True):
 
         self._env = FlatlandGymEnv(self._launch(env_params, observation),

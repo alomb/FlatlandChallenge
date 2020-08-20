@@ -34,14 +34,19 @@ class StatsWrapper(gym.Wrapper):
         return obs, info
 
     def step(self, action_dict):
-        # Collection information about training
-        for a in list(action_dict.values()):
-            self.action_count[a] += 1
+
+        # Update statistics
+        for a in range(self.num_agents):
+            if a not in action_dict:
+                self.action_count[0] += 1
+            else:
+                self.action_count[action_dict[a]] += 1
 
         obs, rewards, done, info = self.env.step(action_dict)
-
         self.timestep += 1
-        self.score += np.sum(rewards[agent]["standard_rewards"] for agent in range(self.num_agents))
+
+        self.score += sum(rewards[agent] if isinstance(rewards[agent], float) or isinstance(rewards[agent], int) else
+                          rewards[agent]["standard_rewards"] for agent in range(self.num_agents))
 
         if done["__all__"] or self.timestep >= self.max_steps:
             self._update_and_print_results(info)

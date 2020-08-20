@@ -71,7 +71,6 @@ class PsPPO:
                 delta = rewards[t] + self.discount_factor * state_estimated_value[t + 1] * not_dones[t] - \
                         state_estimated_value[t]
                 gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
-
             return gaes
         else:
             returns = torch.zeros_like(rewards)
@@ -155,7 +154,6 @@ class PsPPO:
                                                  dtype=torch.float32).to(self.device)).pow(2).mean()
 
                 self.loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
-
                 # Gradient descent
                 optimizer.zero_grad()
                 self.loss.backward(retain_graph=True)

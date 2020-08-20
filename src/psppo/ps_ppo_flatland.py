@@ -106,9 +106,6 @@ def train_multiple_agents(env_params, train_params):
     print("\nTraining {} trains on {}x{} grid for {} episodes. Update every {} timesteps.\n"
           .format(env_params.n_agents, env_params.x_dim, env_params.y_dim, n_episodes, horizon))
 
-    # Variables to compute statistics
-    action_count = [0] * action_size
-
     for episode in range(1, n_episodes + 1):
         # Timers
         step_timer = Timer()
@@ -184,17 +181,13 @@ def train_multiple_agents(env_params, train_params):
                             ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
                         agents_in_action.add(agent)
 
-            # Update statistics
-            for a in list(action_dict.values()):
-                action_count[a] += 1
-
             # Environment step
             step_timer.start()
             obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
-
             # Update score and compute total rewards equal to each agent
-            total_timestep_reward_shaped = sum(rewards[agent]["rewards_shaped"] for agent in range(env_params.n_agents))
+            total_timestep_reward_shaped = sum(rewards[agent] if isinstance(rewards[agent], float) or isinstance(rewards[agent], int) else
+                                               rewards[agent]["rewards_shaped"] for agent in range(env_params.n_agents))
 
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
@@ -355,6 +348,7 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps)
                             action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                     # Else
                     elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
+                        print("DONE")
                         action_dict[agent] = \
                             ppo.policy_old.act(np.append(obs[agent], [agent]), None, action_mask[agent],
                                                action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
@@ -372,7 +366,8 @@ def eval_policy(env, action_size, ppo, train_params, n_eval_episodes, max_steps)
             obs, rewards, done, info = env.step(action_dict)
             # Update deadlocks
             # Update score and compute total rewards equal to each agent
-            score += np.sum(rewards[agent]["standard_rewards"] for agent in range(env.get_rail_env().get_num_agents()))
+            score += np.sum(rewards[agent] if isinstance(rewards[agent], float) or isinstance(rewards[agent], int) else
+                            rewards[agent]["standard_rewards"] for agent in range(env.get_rail_env().get_num_agents()))
 
         scores.append(score / (max_steps * env.get_rail_env().get_num_agents()))
         tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
@@ -461,7 +456,7 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
-        "horizon": 512,
+        "horizon": 1024,
         "epochs": 4,
         # 64, 128, 256
         "batch_size": 64,
@@ -488,7 +483,7 @@ if __name__ == "__main__":
         "checkpoint_interval": None,
         "eval_episodes": None,
         "use_gpu": False,
-        "render": False,
+        "render": True,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",
