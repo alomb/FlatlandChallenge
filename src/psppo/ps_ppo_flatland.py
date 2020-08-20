@@ -156,11 +156,8 @@ def train_multiple_agents(env_params, train_params):
                                                action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
                         agents_in_action.add(agent)
                     # If can skip
-                    elif train_params.action_skipping \
-                            and env.get_rail_env().agents[
-                        agent].position is not None and env.get_rail_env().rail.get_full_transitions(
-                        env.get_rail_env().agents[agent].position[0],
-                        env.get_rail_env().agents[agent].position[1]) not in decision_cells:
+                    elif train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
+                            and env.get_rail_env().agents[agent].position not in decision_cells:
                         # We always insert in memory the last time step
                         if step == max_steps - 1:
                             action_dict[agent] = \
