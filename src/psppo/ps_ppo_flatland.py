@@ -10,7 +10,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
-from src.common.flatland_random_railenv import FlatlandRandomRailEnv
+from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.common.timer import Timer
 from src.psppo.policy import PsPPOPolicy
 
@@ -65,13 +65,12 @@ def train_multiple_agents(env_params, train_params):
     tree_observation = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
 
     # Setup the environment
-    env = FlatlandRandomRailEnv(train_params,
-                                env_params,
-                                tree_observation,
-                                normalize_observations=True,
-                                custom_observations=env_params.custom_observations,
-                                reward_wrapper=True,
-                                stats_wrapper=train_params.print_stats)
+    env = FlatlandRailEnv(train_params,
+                          env_params,
+                          tree_observation,
+                          env_params.custom_observations,
+                          env_params.reward_shaping,
+                          train_params.print_stats)
     env.reset()
 
     # The action space of flatland is 5 discrete actions
@@ -82,7 +81,8 @@ def train_multiple_agents(env_params, train_params):
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
-    ppo = PsPPOPolicy(env.state_size,
+    # + 1 because the agent id is used as input in the neural network
+    ppo = PsPPOPolicy(env.state_size + 1,
                       action_size,
                       train_params,
                       env_params.n_agents)

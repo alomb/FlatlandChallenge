@@ -7,18 +7,16 @@ from src.common.gym_env import FlatlandGymEnv
 from src.common.wrappers import RewardsWrapper, StatsWrapper
 
 
-class FlatlandRandomRailEnv:
+class FlatlandRailEnv:
     def __init__(self,
                  train_params,
                  env_params,
                  observation,
-                 normalize_observations=True,
-                 custom_observations=False,
-                 reward_wrapper=False,
-                 stats_wrapper=True):
+                 custom_observations,
+                 reward_wrapper,
+                 stats_wrapper):
 
         self._env = FlatlandGymEnv(self._launch(env_params, observation),
-                                   normalize_observations,
                                    custom_observations,
                                    env_params,
                                    render=train_params.render)

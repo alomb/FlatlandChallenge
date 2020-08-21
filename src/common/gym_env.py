@@ -8,7 +8,6 @@ from src.common.observation import NormalizeObservations
 class FlatlandGymEnv(gym.Env):
     def __init__(self,
                  rail_env,
-                 normalize_observations,
                  custom_observations,
                  env_params,
                  render=False,
@@ -20,13 +19,13 @@ class FlatlandGymEnv(gym.Env):
         self.rail_env = rail_env
         self.deadlocks_detector = DeadlocksDetector()
 
-        self.normalize_observations = normalize_observations
         self.observation_normalizer = NormalizeObservations(self.rail_env.obs_builder.observation_dim,
                                                             env_params.observation_tree_depth,
                                                             custom_observations,
                                                             self.rail_env.width,
                                                             self.rail_env.height,
                                                             env_params.observation_radius)
+
         self.state_size = self.observation_normalizer.state_size
 
         self.render = render

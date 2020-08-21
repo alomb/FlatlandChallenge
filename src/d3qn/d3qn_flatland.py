@@ -6,7 +6,7 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from torch.utils.tensorboard import SummaryWriter
 
-from src.common.flatland_random_railenv import FlatlandRandomRailEnv
+from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.common.timer import Timer
 from src.d3qn.policy import D3QNPolicy
 
@@ -35,13 +35,12 @@ def train_multiple_agents(env_params, train_params):
     tree_observation = TreeObsForRailEnv(max_depth=observation_tree_depth, predictor=predictor)
 
     # Setup the environment
-    env = FlatlandRandomRailEnv(train_params,
-                                env_params,
-                                tree_observation,
-                                normalize_observations=True,
-                                custom_observations=env_params.custom_observations,
-                                reward_wrapper=True,
-                                stats_wrapper=train_params.print_stats)
+    env = FlatlandRailEnv(train_params,
+                          env_params,
+                          tree_observation,
+                          env_params.custom_observations,
+                          env_params.reward_shaping,
+                          train_params.print_stats)
     env.reset()
 
     # The action space of flatland is 5 discrete actions
@@ -53,7 +52,7 @@ def train_multiple_agents(env_params, train_params):
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
     # Double Dueling DQN policy
-    policy = D3QNPolicy(env.state_size - 1, action_size, train_params)
+    policy = D3QNPolicy(env.state_size, action_size, train_params)
 
     # TensorBoard writer
     writer = SummaryWriter(train_params.tensorboard_path)
@@ -153,4 +152,3 @@ def train_multiple_agents(env_params, train_params):
         # Rendering
         if train_params.render:
             env._env.close()
-

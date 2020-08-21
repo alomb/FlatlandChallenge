@@ -40,9 +40,10 @@ if __name__ == "__main__":
         # ============================
         "custom_observations": False,
 
-        "stop_penalty": 0.0,
-        "invalid_action_penalty": 0.0,
-        "deadlock_penalty": 0.0,
+        "reward_shaping": False,
+        "stop_penalty": -0.0,
+        "invalid_action_penalty": -0.0,
+        "deadlock_penalty": -0.0,
         # 1.0 for skipping
         "shortest_path_penalty_coefficient": 1.0,
         "done_bonus": 0.0,

@@ -41,9 +41,7 @@ class StatsWrapper(gym.Wrapper):
         obs, rewards, done, info = self.env.step(action_dict)
         self.timestep += 1
 
-        self.score += sum(rewards[agent] if "rewards_shaped" not in info
-                          else info["rewards_shaped"][agent]
-                          for agent in range(self.num_agents))
+        self.score += sum(rewards[agent] for agent in range(self.num_agents))
 
         if done["__all__"] or self.timestep >= self.max_steps:
             self._update_and_print_results(info)
@@ -125,28 +123,27 @@ class RewardsWrapper(gym.Wrapper):
         num_agents = self.unwrapped.rail_env.get_num_agents()
 
         invalid_rewards_shaped = self._check_invalid_transitions(action_dict)
-        stop_rewards_shaped = self._check_stop_transition(action_dict, invalid_rewards_shaped)
+        invalid_stop_rewards_shaped = self._check_stop_transition(action_dict, invalid_rewards_shaped)
 
         # Environment step
         obs, rewards, done, info = self.env.step(action_dict)
 
-        new_shortest_path = [obs.get(a)[6] if obs.get(a) is not None else 0 for a in range(num_agents)]
-
-        new_rewards_shaped = {
-            a: rewards[a] if stop_rewards_shaped[a] == 0 else rewards[a] + stop_rewards_shaped[a]
-            for a in range(num_agents)}
-
-        rewards_shaped_shortest_path = {a: self.shortest_path_penalty_coefficient * new_rewards_shaped[a]
-        if self.shortest_path[a] < new_shortest_path[a] else new_rewards_shaped[a] for a in
-                                        range(num_agents)}
-
-        # If done it always get the done_bonus
-        rewards_shaped = {a: self.done_bonus if done[a] else rewards_shaped_shortest_path[a] for a in
-                          range(num_agents)}
-
-        info["rewards_shaped"] = dict()
+        rewards_shaped2 = rewards.copy()
         for agent in range(num_agents):
-            info["rewards_shaped"][agent] = rewards_shaped[agent]
+            if done[agent]:
+                rewards_shaped2[agent] = self.done_bonus
+            else:
+                # Sum stop and invalid penalties to the standard reward
+                rewards_shaped2[agent] += invalid_stop_rewards_shaped[agent]
+
+                # Shortest path penalty
+                new_shortest_path = obs.get(agent)[6] if obs.get(agent) is not None else 0
+                if self.shortest_path[agent] < new_shortest_path:
+                    rewards_shaped2[agent] *= self.shortest_path_penalty_coefficient
+
+                # Deadlocks penalty
+                if "deadlocks" in info and info["deadlocks"][agent]:
+                    rewards_shaped2[agent] += self.deadlock_penalty
 
         return obs, rewards, done, info
 
