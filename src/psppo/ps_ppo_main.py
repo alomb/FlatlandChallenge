@@ -38,13 +38,13 @@ if __name__ == "__main__":
         # ============================
         # Custom observations&rewards
         # ============================
-        "custom_observations": True,
+        "custom_observations": False,
 
         "stop_penalty": 0.0,
         "invalid_action_penalty": 0.0,
         "deadlock_penalty": 0.0,
-        "shortest_path_penalty_coefficient": 1.0,
         # 1.0 for skipping
+        "shortest_path_penalty_coefficient": 1.0,
         "done_bonus": 0.0,
     }
 
@@ -54,14 +54,14 @@ if __name__ == "__main__":
         # ============================
         # Shared actor-critic layer
         # If shared is True then the considered sizes are taken from the critic
-        "shared": True,
+        "shared": False,
         # Policy network
         "critic_mlp_width": 128,
-        "critic_mlp_depth": 4,
+        "critic_mlp_depth": 3,
         "last_critic_layer_scaling": 0.1,
         # Actor network
         "actor_mlp_width": 128,
-        "actor_mlp_depth": 4,
+        "actor_mlp_depth": 3,
         "last_actor_layer_scaling": 0.01,
         # Adam learning rate
         "learning_rate": 0.001,
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
-        "horizon": 1024,
+        "horizon": 512,
         "epochs": 4,
         # 64, 128, 256
         "batch_size": 64,
@@ -108,6 +108,7 @@ if __name__ == "__main__":
         "eval_episodes": None,
         "use_gpu": False,
         "render": False,
+        "print_stats": True,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",

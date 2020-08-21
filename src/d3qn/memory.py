@@ -1,23 +1,27 @@
 import random
+from abc import ABC, abstractmethod
 from collections import deque, namedtuple, Iterable
 
 import torch
 import numpy as np
 
 
-class ExperienceReplay:
+class ExperienceReplay(ABC):
 
     def __init__(self):
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
+    @abstractmethod
     def add(self, state, action, reward, next_state, done, priority=None):
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def sample(self):
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def __len__(self):
-        raise NotImplementedError()
+        pass
 
     def v_stack_impr(self, data):
         """
@@ -97,11 +101,11 @@ class SumTree:
 
                     11
             6               5
-        1       4       3       2
+        2       4       3       2
 
     is
 
-    [11, 6, 5, 1, 4, 3, 2]
+    [11, 6, 5, 2, 4, 3, 2]
 
     """
 
@@ -272,26 +276,22 @@ class PrioritisedExperienceReplay(ExperienceReplay):
             a = segment * i
             b = segment * (i + 1)
             data = 0
+            p = None
+            idx = None
 
             while data == 0:
                 s = random.uniform(a, b)
-                (idx, p, data) = self.tree.get(s)
+                idx, p, data = self.tree.get(s)
 
-            """
-            s = random.uniform(a, b)
-            idx, p, data = self.tree.get(s)
-            """
             priorities.append(p)
             batch.append(data)
             idxs.append(idx)
 
-        # sampling_probabilities = priorities / self.tree.total()
         sampling_probabilities = np.array(priorities) / self.tree.total()
         # Compute importance sampling weights
         is_weight = np.power(self.tree.n_entries * sampling_probabilities, -self.per_beta)
         # Rescaling weights from 0 to 1
         is_weight /= is_weight.max()
-        # is_weight /= np.max(is_weight.max)
 
         states = torch.from_numpy(self.v_stack_impr([e.state for e in batch if e is not None])) \
             .float().to(self.device)

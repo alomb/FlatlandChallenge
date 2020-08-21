@@ -36,10 +36,7 @@ class D3QNPolicy(Policy):
             self.buffer_min_size = parameters.buffer_min_size
 
         # Device
-        if parameters.use_gpu and torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
-        else:
-            self.device = torch.device("cpu")
+        self.device = torch.device("cuda:0" if parameters.use_gpu and torch.cuda.is_available() else "cpu")
 
         # Q-Network
         self.qnetwork_local = DuelingQNetwork(state_size, action_size, parameters).to(self.device)

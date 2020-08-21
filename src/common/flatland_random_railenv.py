@@ -4,8 +4,7 @@ from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
 
 from src.common.gym_env import FlatlandGymEnv
-from src.common.rewards_wrapper import RewardsWrapper
-from src.common.stats_wrapper import StatsWrapper
+from src.common.wrappers import RewardsWrapper, StatsWrapper
 
 
 class FlatlandRandomRailEnv:
@@ -14,7 +13,7 @@ class FlatlandRandomRailEnv:
                  env_params,
                  observation,
                  normalize_observations=True,
-                 custom_observations=True,
+                 custom_observations=False,
                  reward_wrapper=False,
                  stats_wrapper=True):
 

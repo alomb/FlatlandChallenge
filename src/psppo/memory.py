@@ -36,3 +36,10 @@ class Memory:
         self.masks[agent] = self.masks[agent][-1:]
         self.rewards[agent] = self.rewards[agent][-1:]
         self.dones[agent] = self.dones[agent][-1:]
+
+    def length(self, agent):
+        assert len(self.actions[agent]) == len(self.states[agent]) == len(self.logs_of_action_prob[agent]) == \
+               len(self.masks[agent]) == len(self.rewards[agent]), "The lengths of the different parts of an agent's " \
+                                                                   "experience are not equal. This should not happen!"
+
+        return len(self.rewards[agent])
