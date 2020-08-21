@@ -59,7 +59,8 @@ class StatsWrapper(gym.Wrapper):
         self.timestep += 1
 
         # Update score and compute total rewards equal to each agent considering the rewards shaped or normal
-        self.score += float(sum(rewards)) if "original_rewards" not in info else float(sum(info["original_rewards"]))
+        self.score += float(sum(rewards.values())) if "original_rewards" not in info \
+            else float(sum(info["original_rewards"].values()))
 
         if done["__all__"] or self.timestep >= self.max_steps:
             self._update_and_print_results(info)
