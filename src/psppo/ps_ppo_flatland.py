@@ -7,39 +7,12 @@ from torch.utils.tensorboard import SummaryWriter
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.core.grid.grid4_utils import get_new_position
 from flatland.envs.agent_utils import RailAgentStatus
 
+from src.common.action_skipping import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.common.timer import Timer
 from src.psppo.policy import PsPPOPolicy
-
-
-def find_decision_cells(env):
-    switches = []
-    switches_neighbors = []
-    directions = list(range(4))
-    for h in range(env.height):
-        for w in range(env.width):
-            pos = (h, w)
-            is_switch = False
-            # Check for switch counting the outgoing transition
-            for orientation in directions:
-                possible_transitions = env.rail.get_transitions(*pos, orientation)
-                num_transitions = np.count_nonzero(possible_transitions)
-                if num_transitions > 1:
-                    switches.append(pos)
-                    is_switch = True
-                    break
-            if is_switch:
-                # Add all neighbouring rails, if pos is a switch
-                for orientation in directions:
-                    possible_transitions = env.rail.get_transitions(*pos, orientation)
-                    for movement in directions:
-                        if possible_transitions[movement]:
-                            switches_neighbors.append(get_new_position(pos, movement))
-
-    return set(switches).union(set(switches_neighbors))
 
 
 def train_multiple_agents(env_params, train_params):
@@ -130,60 +103,36 @@ def train_multiple_agents(env_params, train_params):
                             for action in range(action_size)] for _ in range(env_params.n_agents)]
 
             # Collect and preprocess observations and fill action dictionary
-            for agent in range(env_params.n_agents):
+            for agent in obs:
                 """
                 Agents always enter in the if at least once in the episode so there is no further controls.
                 When obs is absent because the agent has reached its final goal the observation remains the same.
                 """
-                if obs[agent] is not None:
-                    # Action mask modification only if action masking is True
-                    if train_params.action_masking:
-                        for action in range(action_size):
-                            if env.get_rail_env().agents[agent].status != RailAgentStatus.READY_TO_DEPART:
-                                _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
-                                    RailEnvActions(action),
-                                    env.get_rail_env().agents[agent])
-                                if not all([cell_valid, transition_valid]):
-                                    action_mask[agent][action] = 0
+                # Action mask modification only if action masking is True
+                if train_params.action_masking:
+                    for action in range(action_size):
+                        if env.get_rail_env().agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                            _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
+                                RailEnvActions(action),
+                                env.get_rail_env().agents[agent])
+                            if not all([cell_valid, transition_valid]):
+                                action_mask[agent][action] = 0
 
-                    # Fill action dict
-                    # If an agent is in deadlock leave him learn
-                    """
-                    if info["deadlocks"][agent]:
-                        action_dict[agent] = \
-                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
-                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                        agents_in_action.add(agent)
-                    # If can skip
-                    elif train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                            and env.get_rail_env().agents[agent].position not in decision_cells:
-                        # We always insert in memory the last time step
-                        if step == max_steps - 1:
-                            action_dict[agent] = \
-                                ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
-                                                   action=torch.tensor(int(RailEnvActions.MOVE_FORWARD)).to(device))
-                            agents_in_action.add(agent)
-                        # Otherwise skip
-                        else:
-                            action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                    # Else
-                    elif info["status"][agent] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
-                        action_dict[agent] = \
-                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent],
-                                               action=torch.tensor(int(RailEnvActions.DO_NOTHING)).to(device))
-                        agents_in_action.add(agent)
-                    else:
-                        action_dict[agent] = \
-                            ppo.policy_old.act(np.append(obs[agent], [agent]), memory, action_mask[agent])
-                        agents_in_action.add(agent)
-                    """
-                    if info["action_required"][agent]:
-                        # If an action is required, we want to store the obs at that step as well as the action
-                        action_dict[agent] = \
-                            ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
-                        agents_in_action.add(agent)
-                    else:
-                        action_dict[agent] = int(RailEnvActions.DO_NOTHING)
+                # Fill action dict
+                # TODO: Maybe consider deadlocks
+                # Action skipping if in correct cell and not in last time step which is always inserted in memory
+                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
+                        and env.get_rail_env().agents[agent].position not in decision_cells \
+                        and step != max_steps - 1:
+                    action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                # If agent is not arrived or moving between two cells
+                elif info["action_required"][agent]:
+                    # If an action is required, we want to store the obs at that step as well as the action
+                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
+                    agents_in_action.add(agent)
+                # It is not necessary, by default when no action is given to RailEnv.step() DO_NOTHING is performed
+                else:
+                    action_dict[agent] = int(RailEnvActions.DO_NOTHING)
 
             # Environment step
             step_timer.start()

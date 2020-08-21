@@ -97,6 +97,13 @@ if __name__ == "__main__":
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",
+
+        # ============================
+        # Action Masking / Skipping
+        # ============================
+        "action_masking": False,
+        "allow_no_op": True,
+        "action_skipping": False,
     }
 
     train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))

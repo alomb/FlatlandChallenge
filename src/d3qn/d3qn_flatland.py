@@ -4,8 +4,10 @@ import numpy as np
 import torch
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.envs.rail_env import RailEnvActions
 from torch.utils.tensorboard import SummaryWriter
 
+from src.common.action_skipping import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.common.timer import Timer
 from src.d3qn.policy import D3QNPolicy
@@ -86,6 +88,8 @@ def train_multiple_agents(env_params, train_params):
         # Reset environment
         reset_timer.start()
         obs, info = env.reset()
+
+        decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
 
         actions_taken = []
@@ -99,7 +103,15 @@ def train_multiple_agents(env_params, train_params):
         # TODO: Why there was max_steps - 1?
         for step in range(max_steps):
             for agent in range(env_params.n_agents):
-                if info['action_required'][agent]:
+                # Fill action dict
+                # TODO: Maybe consider deadlocks
+                # Action skipping if in correct cell and not in last time step which is always inserted in memory
+                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
+                        and env.get_rail_env().agents[agent].position not in decision_cells \
+                        and step != max_steps - 1:
+                    action = int(RailEnvActions.MOVE_FORWARD)
+                # If agent is not arrived or moving between two cells
+                elif info['action_required'][agent]:
                     # If an action is required, we want to store the obs at that step as well as the action
                     # TODO: Update values outside?
                     update_values = True
@@ -107,7 +119,7 @@ def train_multiple_agents(env_params, train_params):
                     actions_taken.append(action)
                 else:
                     update_values = False
-                    action = 0
+                    action = int(RailEnvActions.DO_NOTHING)
                 action_dict.update({agent: action})
 
             # Environment step
@@ -122,7 +134,6 @@ def train_multiple_agents(env_params, train_params):
                 """
                 if update_values or done[agent]:
                     learn_timer.start()
-                    # TODO: Reward shaping is still to be completed
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], obs[agent],
                                 done[agent])
                     learn_timer.end()

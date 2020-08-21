@@ -19,8 +19,9 @@ class DeadlocksDetector:
         a2 = None
 
         if env.agents[agents[-1]].position is not None:
+            action = action_dict[agents[-1]] if agents[-1] in action_dict else 0
             cell_free, new_cell_valid, _, new_position, transition_valid = \
-                env._check_action_on_agent(action_dict[agents[-1]], env.agents[agents[-1]])
+                env._check_action_on_agent(action, env.agents[agents[-1]])
 
             if not cell_free and new_cell_valid and transition_valid:
                 for a2_tmp in range(env.get_num_agents()):
