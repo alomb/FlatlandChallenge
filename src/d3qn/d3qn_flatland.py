@@ -71,8 +71,6 @@ def train_multiple_agents(env_params, train_params):
     print("\nTraining {} trains on {}x{} grid for {} episodes.\n"
           .format(env_params.n_agents, env_params.x_dim, env_params.y_dim, train_params.n_episodes))
 
-    # Variables to compute statistics
-    action_count = [0] * action_size
     action_dict = dict()
 
     agent_prev_obs = [None] * env_params.n_agents
@@ -106,7 +104,6 @@ def train_multiple_agents(env_params, train_params):
                     # TODO: Update values outside?
                     update_values = True
                     action = policy.act(obs[agent], eps=eps_start)
-                    action_count[action] += 1
                     actions_taken.append(action)
                 else:
                     update_values = False

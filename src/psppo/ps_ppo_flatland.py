@@ -190,15 +190,10 @@ def train_multiple_agents(env_params, train_params):
             obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
 
-            # Update score and compute total rewards equal to each agent considering the rewards shaped or normal
-            total_timestep_reward_shaped = sum(rewards[agent] if "rewards_shaped" not in info
-                                               else info["rewards_shaped"][agent]
-                                               for agent in range(env_params.n_agents))
-
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
                 learn_timer.start()
-                ppo.step(a, total_timestep_reward_shaped, done, step == max_steps - 1)
+                ppo.step(a, float(sum(rewards)), done, step == max_steps - 1)
                 learn_timer.end()
 
             if train_params.render:
@@ -229,7 +224,17 @@ def train_multiple_agents(env_params, train_params):
             writer.add_scalar("actions/forward", env._env.action_probs[RailEnvActions.MOVE_FORWARD], episode)
             writer.add_scalar("actions/right", env._env.action_probs[RailEnvActions.MOVE_RIGHT], episode)
             writer.add_scalar("actions/stop", env._env.action_probs[RailEnvActions.STOP_MOVING], episode)
-            writer.add_scalar("training/loss", ppo.loss, episode)
+            # PS-PPO variables
+            writer.add_scalar("training/state_estimated_value", ppo.state_estimated_value_metric, episode)
+            writer.add_scalar("training/probs_ratio", ppo.probs_ratio_metric, episode)
+            writer.add_scalar("training/advantage", ppo.advantage_metric, episode)
+
+            writer.add_scalar("training/policy_loss", ppo.policy_loss_metric, episode)
+            writer.add_scalar("training/value_loss", ppo.value_loss_metric, episode)
+            writer.add_scalar("training/entropy_loss", ppo.entropy_loss_metric, episode)
+            writer.add_scalar("training/total_loss", ppo.loss_metric, episode)
+
+            # Timers
             writer.add_scalar("timer/reset", reset_timer.get(), episode)
             writer.add_scalar("timer/step", step_timer.get(), episode)
             writer.add_scalar("timer/learn", learn_timer.get(), episode)

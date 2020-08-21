@@ -39,7 +39,14 @@ class PsPPOPolicy(Policy):
         self.lmbda = train_params.lmbda
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
-        self.loss = 0
+
+        self.state_estimated_value_metric = 0
+        self.probs_ratio_metric = 0
+        self.advantage_metric = 0
+        self.policy_loss_metric = 0
+        self.value_loss_metric = 0
+        self.entropy_loss_metric = 0
+        self.loss_metric = 0
 
         self.memory = Memory(n_agents)
 
@@ -162,16 +169,25 @@ class PsPPOPolicy(Policy):
                                     torch.tensor(memory.rewards[a][batch_start:batch_end],
                                                  dtype=torch.float32).to(self.device)).pow(2).mean()
 
-                self.loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
+                loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
                 # Gradient descent
                 optimizer.zero_grad()
-                self.loss.backward(retain_graph=True)
+                loss.backward(retain_graph=True)
 
                 # Gradient clipping
                 if self.max_grad_norm is not None:
                     nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
 
                 optimizer.step()
+
+                with torch.no_grad():
+                    self.state_estimated_value_metric = state_estimated_value.mean()
+                    self.probs_ratio_metric = probs_ratio.mean()
+                    self.advantage_metric = advantage.mean()
+                    self.policy_loss_metric = policy_loss
+                    self.value_loss_metric = vlc * value_loss
+                    self.entropy_loss_metric = ec * dist_entropy.mean()
+                    self.loss_metric = loss
 
                 # To show graph
                 """
