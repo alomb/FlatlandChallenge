@@ -21,8 +21,7 @@ class NormalizeObservations:
         self.n_features_per_node = observation_dim
         self.n_nodes = sum([np.power(4, i) for i in range(observation_tree_depth + 1)])
         # State size depends on features per nodes in observations, custom observations and + 1 (agent id of PS-PPO)
-        self.state_size = self.n_features_per_node * self.n_nodes + \
-                          (custom_observations * (width * height * 23 + 1)) + 1
+        self.state_size = self.n_features_per_node * self.n_nodes + (custom_observations * (width * height * 23 + 1))
 
     def _get_custom_observations(self, env, handle, agent_obs, deadlock):
         agent = env.agents[handle]
