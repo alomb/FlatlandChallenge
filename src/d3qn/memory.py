@@ -5,25 +5,50 @@ import torch
 import numpy as np
 
 
-class ReplayBuffer:
+class ExperienceReplay:
+
+    def __init__(self):
+        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
+
+    def add(self, state, action, reward, next_state, done, priority=None):
+        raise NotImplementedError()
+
+    def sample(self):
+        raise NotImplementedError()
+
+    def __len__(self):
+        raise NotImplementedError()
+
+    def v_stack_impr(self, data):
+        """
+
+        :param data: The list to transform.
+        :return: The data in Numpy array, reshaped as (number of samples, size of single sample) considering possible
+        scalar data of length 1.
+        """
+
+        sub_dim = len(data[0][0]) if isinstance(data[0], Iterable) else 1
+        np_data = np.reshape(np.array(data), (len(data), sub_dim))
+        return np_data
+
+
+class UniformExperienceReplay(ExperienceReplay):
     """
     Fixed-size buffer to store experience tuples.
     """
 
-    def __init__(self, action_size, buffer_size, batch_size, device):
+    def __init__(self, buffer_size, batch_size, device):
         """Initialize a ReplayBuffer object.
 
-        :param action_size: dimension of each action
         :param buffer_size: maximum size of buffer
         :param batch_size: size of each training batch
         """
-        self.action_size = action_size
+        super(UniformExperienceReplay, self).__init__()
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.device = device
-        self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
-    def add(self, state, action, reward, next_state, done):
+    def add(self, state, action, reward, next_state, done, priority=None):
         """
         Add a new experience to memory.
         """
@@ -36,17 +61,17 @@ class ReplayBuffer:
         :return: a random batch sample of experiences from memory.
         """
 
-        experiences = random.sample(self.memory, k=self.batch_size)
+        batch = random.sample(self.memory, k=self.batch_size)
 
-        states = torch.from_numpy(self.__v_stack_impr([e.state for e in experiences if e is not None])) \
+        states = torch.from_numpy(self.v_stack_impr([e.state for e in batch if e is not None])) \
             .float().to(self.device)
-        actions = torch.from_numpy(self.__v_stack_impr([e.action for e in experiences if e is not None])) \
+        actions = torch.from_numpy(self.v_stack_impr([e.action for e in batch if e is not None])) \
             .long().to(self.device)
-        rewards = torch.from_numpy(self.__v_stack_impr([e.reward for e in experiences if e is not None])) \
+        rewards = torch.from_numpy(self.v_stack_impr([e.reward for e in batch if e is not None])) \
             .float().to(self.device)
-        next_states = torch.from_numpy(self.__v_stack_impr([e.next_state for e in experiences if e is not None])) \
+        next_states = torch.from_numpy(self.v_stack_impr([e.next_state for e in batch if e is not None])) \
             .float().to(self.device)
-        dones = torch.from_numpy(self.__v_stack_impr([e.done for e in experiences if e is not None]).astype(np.uint8)) \
+        dones = torch.from_numpy(self.v_stack_impr([e.done for e in batch if e is not None]).astype(np.uint8)) \
             .float().to(self.device)
 
         return states, actions, rewards, next_states, dones
@@ -57,18 +82,6 @@ class ReplayBuffer:
         """
 
         return len(self.memory)
-
-    def __v_stack_impr(self, data):
-        """
-
-        :param data: The list to transform.
-        :return: The data in Numpy array, reshaped as (numebr of samples, size of single sample) considering possible
-        scalar data of length 1.
-        """
-
-        sub_dim = len(data[0][0]) if isinstance(data[0], Iterable) else 1
-        np_data = np.reshape(np.array(data), (len(data), sub_dim))
-        return np_data
 
 
 class SumTree:
@@ -192,12 +205,13 @@ class SumTree:
         return idx, self.tree[idx], self.data[data_idx]
 
 
-class PrioritisedExperienceReplay:
+class PrioritisedExperienceReplay(ExperienceReplay):
     """
     A version of experience replay which more frequently calls on those experiences of the agent where there is more
     learning value.
     """
-    def __init__(self, capacity, per_eps=0.01, per_alpha=0.6, per_beta=0.4, per_beta_increment=0.001):
+    def __init__(self, capacity, batch_size, device, per_eps=0.01, per_alpha=0.6, per_beta=0.4,
+                 per_beta_increment=0.001):
         """
 
         :param capacity: memory capacity
@@ -213,8 +227,11 @@ class PrioritisedExperienceReplay:
         weights for high priority/probability samples and therefore corrects the bias more
         :param per_beta_increment: the value added to per_beta at each sampling until it is annealed to 1
         """
+        super(PrioritisedExperienceReplay, self).__init__()
         self.tree = SumTree(capacity)
         self.capacity = capacity
+        self.batch_size = batch_size
+        self.device = device
         self.per_eps = per_eps
         self.per_alpha = per_alpha
         self.per_beta = per_beta
@@ -228,30 +245,30 @@ class PrioritisedExperienceReplay:
         """
         return (np.abs(td_error) + self.per_eps) ** self.per_alpha
 
-    def add(self, td_error, experience):
+    def add(self, state, action, reward, next_state, done, td_error=None):
         """
-        Update the memory with new experience
-
-        :param td_error: TD error
-        :param experience: the data to add
+        Update the memory with new experience, the td_error here must be inserted to compute priorities.
         """
-        self.tree.add(self._get_priority(td_error), experience)
+        if td_error is None:
+            raise Exception("TD Error must be specified when adding experience in Prioritised Experience Replay!")
 
-    def sample(self, n):
+        self.tree.add(self._get_priority(td_error), self.experience(np.expand_dims(state, 0), action, reward,
+                                                                    np.expand_dims(next_state, 0), done)
+)
+
+    def sample(self):
         """
 
-        Sample a batch of n elements
-        :param n:
         :return: batch, indexes of the data and importance sampling weights
         """
         batch = []
         idxs = []
-        segment = self.tree.total() / n
+        segment = self.tree.total() / self.batch_size
         priorities = []
 
         self.per_beta = np.min([1., self.per_beta + self.per_beta_increment])
 
-        for i in range(n):
+        for i in range(self.batch_size):
             a = segment * i
             b = segment * (i + 1)
             data = 0
@@ -276,7 +293,18 @@ class PrioritisedExperienceReplay:
         is_weight /= is_weight.max()
         # is_weight /= np.max(is_weight.max)
 
-        return batch, idxs, is_weight
+        states = torch.from_numpy(self.v_stack_impr([e.state for e in batch if e is not None])) \
+            .float().to(self.device)
+        actions = torch.from_numpy(self.v_stack_impr([e.action for e in batch if e is not None])) \
+            .long().to(self.device)
+        rewards = torch.from_numpy(self.v_stack_impr([e.reward for e in batch if e is not None])) \
+            .float().to(self.device)
+        next_states = torch.from_numpy(self.v_stack_impr([e.next_state for e in batch if e is not None])) \
+            .float().to(self.device)
+        dones = torch.from_numpy(self.v_stack_impr([e.done for e in batch if e is not None]).astype(np.uint8)) \
+            .float().to(self.device)
+
+        return (states, actions, rewards, next_states, dones), idxs, is_weight
 
     """
     def step(self):
@@ -291,3 +319,10 @@ class PrioritisedExperienceReplay:
         :param td_error:
         """
         self.tree.update(idx, self._get_priority(td_error))
+
+    def __len__(self):
+        """
+        :return: the current size of internal memory.
+        """
+
+        return self.tree.n_entries

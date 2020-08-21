@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 from src.common.policy import Policy
-from src.d3qn.memory import ReplayBuffer
+from src.d3qn.memory import UniformExperienceReplay, PrioritisedExperienceReplay
 from src.d3qn.model import DuelingQNetwork
 
 
@@ -22,7 +22,7 @@ class D3QNPolicy(Policy):
 
         self.state_size = state_size
         self.action_size = action_size
-        self.double_dqn = True
+        self.double_dqn = parameters.double_dqn
         self.hidsize = 1
 
         if not evaluation_mode:
@@ -47,7 +47,13 @@ class D3QNPolicy(Policy):
         if not evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
             self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=self.learning_rate)
-            self.memory = ReplayBuffer(action_size, self.buffer_size, self.batch_size, self.device)
+
+            if parameters.memory_type.lower() == "uer":
+                self.memory = UniformExperienceReplay(self.buffer_size, self.batch_size, self.device)
+            elif parameters.memory_type.lower() == "per":
+                self.memory = PrioritisedExperienceReplay(self.buffer_size, self.batch_size, self.device)
+            else:
+                raise Exception("Unknown experience replay \"{}\"".format(parameters.memory_type))
 
             self.t_step = 0
             self.loss = 0.0
@@ -79,7 +85,25 @@ class D3QNPolicy(Policy):
         assert not self.evaluation_mode, "Policy has been initialized for evaluation only."
 
         # Save experience in replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        if type(self.memory) is UniformExperienceReplay:
+            self.memory.add(state, action, reward, next_state, done)
+        else:
+            old_val = self.qnetwork_local(torch.tensor(state, dtype=torch.float32).to(self.device))[action]
+
+            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).to(self.device)
+
+            if self.double_dqn:
+                # Access at [1] because max returns values and indices, here indices correspond to actions
+                q_best_action = self.qnetwork_local(next_state_tensor).max(0)[1]
+                target_val = self.qnetwork_target(next_state_tensor)[q_best_action]
+            else:
+                target_val = self.qnetwork_target(next_state_tensor).max(0)[0]
+
+            new_val = reward + self.gamma * target_val * (1 - done)
+
+            error = abs(new_val - old_val).item()
+
+            self.memory.add(state, action, reward, next_state, done, error)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % self.update_every
@@ -89,7 +113,13 @@ class D3QNPolicy(Policy):
                 self._learn()
 
     def _learn(self):
-        experiences = self.memory.sample()
+        if type(self.memory) is UniformExperienceReplay:
+            experiences = self.memory.sample()
+            indexes = None
+            is_weights = None
+        else:
+            experiences, indexes, is_weights = self.memory.sample()
+
         states, actions, rewards, next_states, dones = experiences
 
         # Get expected Q values from local model
@@ -105,8 +135,20 @@ class D3QNPolicy(Policy):
         # Compute Q targets for current states
         q_targets = rewards + (self.gamma * q_targets_next * (1 - dones))
 
-        # Compute loss
-        self.loss = F.mse_loss(q_expected, q_targets)
+        if type(self.memory) is UniformExperienceReplay:
+            # Compute loss
+            self.loss = F.mse_loss(q_expected, q_targets)
+        else:
+            errors = torch.abs(q_expected - q_targets).data.numpy()
+
+            # Update priority
+            for i in range(self.batch_size):
+                index = indexes[i]
+                self.memory.update(index, errors[i])
+
+            # Compute loss
+            self.loss = (torch.tensor(is_weights, dtype=torch.float32).to(self.device) *
+                         F.mse_loss(q_expected, q_targets)).mean()
 
         # Minimize the loss
         self.optimizer.zero_grad()
