@@ -4,6 +4,7 @@ from datetime import datetime
 from flatland.envs.malfunction_generators import MalfunctionParameters
 
 from src.d3qn.d3qn_flatland import train_multiple_agents
+from src.d3qn.eval_d3qn import eval_policy
 
 if __name__ == "__main__":
     myseed = 14
@@ -37,7 +38,7 @@ if __name__ == "__main__":
         # ============================
         # Custom observations&rewards
         # ============================
-        "custom_observations": True,
+        "custom_observations": False,
 
         "reward_shaping": False,
         "stop_penalty": -0.0,
@@ -89,7 +90,8 @@ if __name__ == "__main__":
         # ============================
         # Optimization and rendering
         # ============================
-        "checkpoint_interval": 100,
+        "checkpoint_interval": 3,
+        "evaluation_mode": True,
         "eval_episodes": 25,
         "use_gpu": False,
         "render": False,
@@ -99,4 +101,7 @@ if __name__ == "__main__":
         "tensorboard_path": "log/",
     }
 
-    train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
+    if training_parameters["evaluation_mode"]:
+        eval_policy(Namespace(**environment_parameters), Namespace(**training_parameters))
+    else:
+        train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))

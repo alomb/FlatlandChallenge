@@ -155,9 +155,7 @@ class RewardsWrapper(gym.Wrapper):
     def _check_invalid_transitions(self, action_dict):
         rewards = {}
         for agent in range(self.unwrapped.rail_env.get_num_agents()):
-            if self.unwrapped.rail_env.agents[agent].status != RailAgentStatus.READY_TO_DEPART and \
-                    self.unwrapped.rail_env.agents[agent].status != RailAgentStatus.DONE and \
-                    self.unwrapped.rail_env.agents[agent].status != RailAgentStatus.DONE_REMOVED:
+            if self.unwrapped.rail_env.agents[agent].status == RailAgentStatus.ACTIVE:
                 _, cell_valid, _, _, transition_valid = self.unwrapped.rail_env._check_action_on_agent(
                     RailEnvActions(action_dict[agent]),
                     self.unwrapped.rail_env.agents[agent])

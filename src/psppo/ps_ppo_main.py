@@ -1,8 +1,8 @@
 from argparse import Namespace
-from datetime import datetime
 
 from flatland.envs.malfunction_generators import MalfunctionParameters
 
+from src.psppo.eval_psppo import eval_policy
 from src.psppo.ps_ppo_flatland import train_multiple_agents
 
 if __name__ == "__main__":
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         # Activation
         "activation": "Tanh",
         "lmbda": 0.95,
-        "entropy_coefficient": 0.1,
+        "entropy_coefficient": 100,
         # Called also baseline cost in shared setting (0.5)
         # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
         "value_loss_coefficient": 0.001,
@@ -81,10 +81,10 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
-        "horizon": 512,
+        "horizon": 2000,
         "epochs": 4,
         # 64, 128, 256
-        "batch_size": 64,
+        "batch_size": 500,
 
         # ============================
         # Normalization and clipping
@@ -106,7 +106,8 @@ if __name__ == "__main__":
         # ============================
         # Save and evaluate interval
         "checkpoint_interval": 75,
-        "eval_episodes": None,
+        "evaluation_mode": False,
+        "eval_episodes": 3,
         "use_gpu": False,
         "render": False,
         "print_stats": True,
@@ -139,5 +140,7 @@ if __name__ == "__main__":
     %load_ext tensorboard
     % tensorboard --logdir "/content/drive/My Drive/Colab Notebooks/logs_todo"
     """
-
-    train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
+    if training_parameters["evaluation_mode"]:
+        eval_policy(Namespace(**environment_parameters), Namespace(**training_parameters))
+    else:
+        train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
