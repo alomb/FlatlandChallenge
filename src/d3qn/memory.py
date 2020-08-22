@@ -257,8 +257,7 @@ class PrioritisedExperienceReplay(ExperienceReplay):
             raise Exception("TD Error must be specified when adding experience in Prioritised Experience Replay!")
 
         self.tree.add(self._get_priority(td_error), self.experience(np.expand_dims(state, 0), action, reward,
-                                                                    np.expand_dims(next_state, 0), done)
-)
+                                                                    np.expand_dims(next_state, 0), done))
 
     def sample(self):
         """

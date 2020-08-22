@@ -4,6 +4,11 @@ from flatland.core.grid.grid4_utils import get_new_position
 
 
 def find_decision_cells(env):
+    """
+
+    :param env: The RailEnv to inspect
+    :return: A set containing decision cells, made by switches and their neighbors
+    """
     switches = []
     switches_neighbors = []
     directions = list(range(4))
