@@ -1,3 +1,7 @@
+import os
+import sys
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -7,7 +11,7 @@ class DuelingQNetwork(nn.Module):
     Dueling Q-network (https://arxiv.org/abs/1511.06581)
     """
 
-    def __init__(self, state_size, action_size, parameters):
+    def __init__(self, state_size, action_size, parameters, evaluation_mode):
         super(DuelingQNetwork, self).__init__()
         self.shared = parameters.shared
         self.base_modules = nn.ModuleList([])
@@ -30,6 +34,13 @@ class DuelingQNetwork(nn.Module):
         self.critic_modules.append(nn.Linear(parameters.hidden_size, 1))
         self.actor_modules.append(nn.Linear(parameters.hidden_size, action_size))
 
+        loading = False
+
+        if parameters.load_model_path is not None:
+            loading = self.load(parameters.load_model_path)
+        if evaluation_mode and not(loading):
+            sys.exit()
+
     def forward(self, x):
         val = x
         adv = x
@@ -44,3 +55,11 @@ class DuelingQNetwork(nn.Module):
             adv = F.relu(layer(adv))
 
         return val + adv - adv.mean()
+
+    def load(self, path):
+        if os.path.exists(path):
+            self.load_state_dict(torch.load(path))
+            return True
+        else:
+            print("Loading file failed. File not found.")
+            return False

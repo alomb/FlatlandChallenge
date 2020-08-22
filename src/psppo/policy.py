@@ -170,6 +170,7 @@ class PsPPOPolicy(Policy):
                                                  dtype=torch.float32).to(self.device)).pow(2).mean()
 
                 loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
+
                 # Gradient descent
                 optimizer.zero_grad()
                 loss.backward(retain_graph=True)

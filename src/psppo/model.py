@@ -1,4 +1,5 @@
 import os
+import sys
 from collections import OrderedDict
 
 import torch
@@ -25,6 +26,7 @@ class PsPPO(nn.Module):
         self.action_size = action_size
         self.activation = train_params.activation
         self.softmax = nn.Softmax(dim=-1)
+        self.evaluation_mode = train_params.evaluation_mode
 
         # Network creation
         critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
@@ -55,8 +57,12 @@ class PsPPO(nn.Module):
             list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
 
         # Load from file if available
+        loading = False
+
         if train_params.load_model_path is not None:
-            self.load(train_params.load_model_path)
+            loading = self.load(train_params.load_model_path)
+        if self.evaluation_mode and not(loading):
+            sys.exit()
 
     def _build_network(self, is_actor, nn_depth, nn_width):
         """
@@ -110,5 +116,7 @@ class PsPPO(nn.Module):
     def load(self, path):
         if os.path.exists(path):
             self.load_state_dict(torch.load(path))
+            return True
         else:
             print("Loading file failed. File not found.")
+            return False

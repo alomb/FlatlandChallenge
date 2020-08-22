@@ -17,15 +17,15 @@ class D3QNPolicy(Policy):
     Dueling Double DQN policy
     """
 
-    def __init__(self, state_size, action_size, parameters, evaluation_mode=False):
-        self.evaluation_mode = evaluation_mode
+    def __init__(self, state_size, action_size, parameters):
+        self.evaluation_mode = parameters.evaluation_mode
 
         self.state_size = state_size
         self.action_size = action_size
         self.double_dqn = parameters.double_dqn
         self.hidsize = 1
 
-        if not evaluation_mode:
+        if not parameters.evaluation_mode:
             self.hidsize = parameters.hidden_size
             self.buffer_size = parameters.buffer_size
             self.batch_size = parameters.batch_size
@@ -39,9 +39,9 @@ class D3QNPolicy(Policy):
         self.device = torch.device("cuda:0" if parameters.use_gpu and torch.cuda.is_available() else "cpu")
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(state_size, action_size, parameters).to(self.device)
+        self.qnetwork_local = DuelingQNetwork(state_size, action_size, parameters, parameters.evaluation_mode).to(self.device)
 
-        if not evaluation_mode:
+        if not parameters.evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
             self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=self.learning_rate)
 
