@@ -71,7 +71,7 @@ if __name__ == "__main__":
         # Activation
         "activation": "Tanh",
         "lmbda": 0.95,
-        "entropy_coefficient": 100,
+        "entropy_coefficient": 0.01,
         # Called also baseline cost in shared setting (0.5)
         # (C54): {0.001, 0.1, 1.0, 10.0, 100.0}
         "value_loss_coefficient": 0.001,
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
         "horizon": 2000,
-        "epochs": 4,
+        "epochs": 8,
         # 64, 128, 256
         "batch_size": 500,
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "discount_factor": 0.99,
         "max_grad_norm": 0.5,
         # PPO-style value clipping
-        "eps_clip": 0.25,
+        "eps_clip": 0.2,
 
         # ============================
         # Advantage estimation
@@ -105,8 +105,8 @@ if __name__ == "__main__":
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": 5,
-        "evaluation_mode": True,
+        "checkpoint_interval": 75,
+        "evaluation_mode": False,
         "eval_episodes": 5,
         "use_gpu": False,
         "render": False,

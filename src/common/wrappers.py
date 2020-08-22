@@ -50,9 +50,7 @@ class StatsWrapper(gym.Wrapper):
         """
         # Update statistics
         for a in range(self.num_agents):
-            if a not in action_dict:
-                self.action_count[0] += 1
-            else:
+            if a in action_dict:
                 self.action_count[action_dict[a]] += 1
 
         obs, rewards, done, info = self.env.step(action_dict)
@@ -81,7 +79,7 @@ class StatsWrapper(gym.Wrapper):
         self.accumulated_normalized_score.append(self.normalized_score)
         self.accumulated_completion.append(self.completion_percentage)
         self.accumulated_deadlocks.append(self.deadlocks_percentage)
-
+        self.action_count = [0] * self.unwrapped.rail_env.action_space[0]
         self.episode += 1
         print(
             "\rEpisode {}"

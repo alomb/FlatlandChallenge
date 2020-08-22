@@ -131,8 +131,8 @@ def train_multiple_agents(env_params, train_params):
                     action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
                     agents_in_action.add(agent)
                 # It is not necessary, by default when no action is given to RailEnv.step() DO_NOTHING is performed
-                else:
-                    action_dict[agent] = int(RailEnvActions.DO_NOTHING)
+                #else:
+                #    action_dict[agent] = int(RailEnvActions.DO_NOTHING)
 
             # Environment step
             step_timer.start()

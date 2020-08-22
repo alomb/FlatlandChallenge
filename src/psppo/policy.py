@@ -82,12 +82,13 @@ class PsPPOPolicy(Policy):
 
             gaes = torch.zeros_like(rewards)
             future_gae = torch.tensor(0.0, dtype=rewards.dtype).to(self.device)
-
+            returns = []
             for t in reversed(range(len(rewards))):
                 delta = rewards[t] + self.discount_factor * state_estimated_value[t + 1] * not_dones[t] - \
                         state_estimated_value[t]
                 gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
-            return gaes
+                returns.insert(0, gaes[t] + state_estimated_value[t])
+            return torch.tensor(returns).to(self.device)
         else:
             returns = torch.zeros_like(rewards)
             future_ret = state_estimated_value[-1]
@@ -148,11 +149,12 @@ class PsPPOPolicy(Policy):
                 probs_ratio = torch_exp(
                     log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
 
-                # Find the "Surrogate Loss"
-                advantage = get_advantages(
+                returns = get_advantages(
                     memory.rewards[a][batch_start:batch_end],
                     memory.dones[a][batch_start:batch_end],
                     state_estimated_value.detach())
+                # Find the "Surrogate Loss"
+                advantage = returns - state_estimated_value[:-1]
 
                 # Advantage normalization
                 advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
@@ -165,9 +167,8 @@ class PsPPOPolicy(Policy):
                 policy_loss = torch_min(unclipped_objective, clipped_objective).mean()
 
                 # Value loss
-                value_loss = 0.5 * (state_estimated_value[:-1].squeeze() -
-                                    torch.tensor(memory.rewards[a][batch_start:batch_end],
-                                                 dtype=torch.float32).to(self.device)).pow(2).mean()
+                value_loss = 0.5 * (torch.tensor(memory.rewards[a][batch_start:batch_end],dtype=torch.float32).to(self.device)
+                                    - state_estimated_value[:-1].squeeze()).pow(2).mean()
 
                 loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
 
