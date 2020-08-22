@@ -105,9 +105,9 @@ if __name__ == "__main__":
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": 75,
-        "evaluation_mode": False,
-        "eval_episodes": 3,
+        "checkpoint_interval": 5,
+        "evaluation_mode": True,
+        "eval_episodes": 5,
         "use_gpu": False,
         "render": False,
         "print_stats": True,

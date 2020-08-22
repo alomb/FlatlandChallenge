@@ -7,6 +7,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import torch
 from flatland.envs.rail_env import RailEnvActions
 
+from src.common.action_skipping import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.psppo.policy import PsPPOPolicy
 
@@ -66,6 +67,7 @@ def eval_policy(env_params, train_params):
                         for action in range(action_size)] for _ in range(env_params.n_agents)]
 
         obs, info = env.reset()
+        decision_cells = find_decision_cells(env.get_rail_env())
 
         for step in range(max_steps):
             for agent in range(env_params.n_agents):
@@ -80,10 +82,12 @@ def eval_policy(env_params, train_params):
                                 if not all([cell_valid, transition_valid]):
                                     action_mask[agent][action] = 0
 
-                if info["action_required"][agent]:
-                    # If an action is required, we want to store the obs at that step as well as the action
-                    action_dict[agent] = \
-                        ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
+                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
+                        and env.get_rail_env().agents[agent].position not in decision_cells \
+                        and step != max_steps - 1:
+                    action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
+                elif info["action_required"][agent]:
+                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
                 else:
                     action_dict[agent] = int(RailEnvActions.DO_NOTHING)
 

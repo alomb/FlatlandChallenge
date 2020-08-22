@@ -99,6 +99,13 @@ if __name__ == "__main__":
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",
         "tensorboard_path": "log/",
+
+        # ============================
+        # Action Masking / Skipping
+        # ============================
+        "action_masking": False,
+        "allow_no_op": True,
+        "action_skipping": False,
     }
 
     if training_parameters["evaluation_mode"]:

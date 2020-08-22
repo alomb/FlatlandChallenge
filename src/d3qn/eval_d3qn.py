@@ -4,7 +4,9 @@ import numpy as np
 import torch
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
+from flatland.envs.rail_env import RailEnvActions
 
+from src.common.action_skipping import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.d3qn.policy import D3QNPolicy
 
@@ -58,13 +60,18 @@ def eval_policy(env_params, train_params):
 
         # Reset environment
         obs, info = env.reset()
+        decision_cells = find_decision_cells(env.get_rail_env())
 
         for step in range(max_steps):
             for agent in range(env_params.n_agents):
-                if info['action_required'][agent]:
+                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
+                        and env.get_rail_env().agents[agent].position not in decision_cells \
+                        and step != max_steps - 1:
+                    action = int(RailEnvActions.MOVE_FORWARD)
+                elif info['action_required'][agent]:
                     action = policy.act(obs[agent])
                 else:
-                    action = 0
+                    action = int(RailEnvActions.DO_NOTHING)
                 action_dict.update({agent: action})
 
             # Environment step
