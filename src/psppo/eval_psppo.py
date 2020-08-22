@@ -94,10 +94,10 @@ def eval_policy(env_params, train_params):
             obs, all_rewards, done, info = env.step(action_dict)
 
             if train_params.render:
-                env._env.show_render()
+                env.env.show_render()
 
             if done['__all__']:
                 break
 
         if train_params.render:
-            env._env.close()
+            env.env.close()

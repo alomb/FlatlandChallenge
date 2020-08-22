@@ -5,11 +5,10 @@ import torch
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnvActions
-from torch.utils.tensorboard import SummaryWriter
 
 from src.common.action_skipping import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
-from src.common.timer import Timer
+from src.common.utils import Timer, TensorBoardLogger
 from src.d3qn.policy import D3QNPolicy
 
 
@@ -56,18 +55,22 @@ def train_multiple_agents(env_params, train_params):
     # Double Dueling DQN policy
     policy = D3QNPolicy(env.state_size, action_size, train_params)
 
-    # TensorBoard writer
-    writer = SummaryWriter(train_params.tensorboard_path)
-    writer.add_hparams(vars(train_params), {})
+    # Timers
+    training_timer = Timer()
+    step_timer = Timer()
+    reset_timer = Timer()
+    learn_timer = Timer()
+
     # Remove attributes not printable by Tensorboard
     board_env_params = vars(env_params)
     del board_env_params["speed_profiles"]
     del board_env_params["malfunction_parameters"]
-    writer.add_hparams(board_env_params, {})
+
+    # TensorBoard writer
+    tensorboard_logger = TensorBoardLogger(train_params.tensorboard_path, board_env_params, vars(train_params))
 
     ####################################################################################################################
     # Training starts
-    training_timer = Timer()
     training_timer.start()
 
     print("\nTraining {} trains on {}x{} grid for {} episodes.\n"
@@ -80,10 +83,10 @@ def train_multiple_agents(env_params, train_params):
     update_values = False
 
     for episode in range(train_params.n_episodes + 1):
-        # Timers
-        step_timer = Timer()
-        reset_timer = Timer()
-        learn_timer = Timer()
+        # Reset timers
+        step_timer.reset()
+        reset_timer.reset()
+        learn_timer.reset()
 
         # Reset environment
         reset_timer.start()
@@ -145,7 +148,7 @@ def train_multiple_agents(env_params, train_params):
                     obs[agent] = next_obs[agent]
 
             if train_params.render:
-                env._env.show_render()
+                env.env.show_render()
 
             if done['__all__']:
                 break
@@ -159,4 +162,21 @@ def train_multiple_agents(env_params, train_params):
                 policy.save(train_params.save_model_path)
         # Rendering
         if train_params.render:
-            env._env.close()
+            env.env.close()
+
+        # Update total time
+        training_timer.end()
+
+        if train_params.print_stats:
+            tensorboard_logger.update_tensorboard(episode,
+                                                  env.env,
+                                                  {},
+                                                  {"step": step_timer,
+                                                   "reset": reset_timer,
+                                                   "learn": learn_timer,
+                                                   "train": training_timer})
+
+    return env.env.accumulated_normalized_score, \
+           env.env.accumulated_completion, \
+           env.env.accumulated_deadlocks, \
+           training_timer.get()

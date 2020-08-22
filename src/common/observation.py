@@ -178,7 +178,7 @@ class NormalizeObservations:
 
         for direction in TreeObsForRailEnv.tree_explored_actions_char:
             sub_data, sub_distance, sub_agent_data = self._split_subtree_into_feature_groups(tree.childs[direction], 1,
-                                                                                        max_tree_depth)
+                                                                                             max_tree_depth)
             data = np.concatenate((data, sub_data))
             distance = np.concatenate((distance, sub_distance))
             agent_data = np.concatenate((agent_data, sub_agent_data))
@@ -200,9 +200,9 @@ class NormalizeObservations:
         """
         data, distance, agent_data = self._split_tree_into_feature_groups(obs, self.observation_tree_depth)
 
-        data = self._norm_obs_clip(data, clip_min=0, fixed_radius=self.observation_radius)
-        distance = self._norm_obs_clip(distance, clip_min=0, normalize_to_range=True)
-        agent_data = np.clip(agent_data, 0, 1)
+        data = self._norm_obs_clip(data, fixed_radius=self.observation_radius)
+        distance = self._norm_obs_clip(distance, normalize_to_range=True)
+        agent_data = np.clip(agent_data, -1, 1)
         normalized_obs = np.concatenate((np.concatenate((data, distance)), agent_data))
 
         if self.custom_observations:

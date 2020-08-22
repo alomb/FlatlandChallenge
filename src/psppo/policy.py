@@ -196,7 +196,7 @@ class PsPPOPolicy(Policy):
                 from datetime import datetime
                 from torchviz import make_dot
                 now = datetime.now()
-                make_dot(self.loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
+                make_dot(loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
                 exit()
                 """
 

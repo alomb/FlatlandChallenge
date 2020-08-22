@@ -300,8 +300,8 @@ def curriculum_learning():
             while try_outs < 10 and completion < threshold:
                 print("Level %d try out number % d" % (level, try_outs))
                 # Train
-                _, completions, _ = train_multiple_agents(Namespace(**environment_parameters),
-                                                          Namespace(**training_parameters))
+                _, completions, _, _ = train_multiple_agents(Namespace(**environment_parameters),
+                                                             Namespace(**training_parameters))
                 try_outs += 1
                 completion = np.mean(completions)
             print("\n" + "=" * 100)
