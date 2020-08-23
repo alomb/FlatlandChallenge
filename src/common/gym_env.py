@@ -61,7 +61,7 @@ class FlatlandGymEnv(gym.Env):
         obs, rewards, dones, info = self.rail_env.step(action_dict)
 
         # Compute deadlocks
-        deadlocks = self.deadlocks_detector.step(self.rail_env, action_dict, dones)
+        deadlocks = self.deadlocks_detector.step(self.rail_env)
         info["deadlocks"] = {}
         for agent in range(self.rail_env.get_num_agents()):
             info["deadlocks"][agent] = deadlocks[agent]
