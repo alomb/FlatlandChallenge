@@ -153,6 +153,7 @@ class PsPPOPolicy(Policy):
                     memory.rewards[a][batch_start:batch_end],
                     memory.dones[a][batch_start:batch_end],
                     state_estimated_value.detach())
+
                 # Find the "Surrogate Loss"
                 advantage = returns - state_estimated_value[:-1]
 
@@ -269,8 +270,9 @@ class PsPPOPolicy(Policy):
         return action.item()
 
     def step(self, agent, total_timestep_reward_shaped, done, last_step):
+
         self.memory.rewards[agent].append(total_timestep_reward_shaped)
-        self.memory.dones[agent].append(done["__all__"])
+        self.memory.dones[agent].append(done[agent])
 
         # Set dones to True when the episode is finished because the maximum number of steps has been reached
         if last_step:

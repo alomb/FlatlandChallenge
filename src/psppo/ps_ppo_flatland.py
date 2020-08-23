@@ -145,7 +145,8 @@ def train_multiple_agents(env_params, train_params):
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
                 learn_timer.start()
-                ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
+                #ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
+                ppo.step(a, rewards[a], done, step == max_steps - 1)
                 learn_timer.end()
 
             if train_params.render:
