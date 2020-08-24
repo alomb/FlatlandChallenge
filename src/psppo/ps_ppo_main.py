@@ -85,6 +85,8 @@ if __name__ == "__main__":
         "epochs": 8,
         # 64, 128, 256
         "batch_size": 500,
+        # normal or shuffle
+        "batch_mode": "shuffle",
 
         # ============================
         # Normalization and clipping

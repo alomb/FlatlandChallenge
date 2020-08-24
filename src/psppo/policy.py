@@ -33,6 +33,7 @@ class PsPPOPolicy(Policy):
         self.discount_factor = train_params.discount_factor
         self.epochs = train_params.epochs
         self.batch_size = train_params.batch_size
+        self.batch_shuffle = True if train_params.batch_mode.lower() == "shuffle" else False
         self.horizon = train_params.horizon
         self.eps_clip = train_params.eps_clip
         self.max_grad_norm = train_params.max_grad_norm
@@ -50,9 +51,9 @@ class PsPPOPolicy(Policy):
 
         self.memory = Memory(n_agents)
 
-        if train_params.advantage_estimator == "gae":
+        if train_params.advantage_estimator.lower() == "gae":
             self.gae = True
-        elif train_params.advantage_estimator == "n-steps":
+        elif train_params.advantage_estimator.lower() == "n-steps":
             self.gae = False
         else:
             raise Exception("Advantage estimator not available")
@@ -122,13 +123,40 @@ class PsPPOPolicy(Policy):
         _ = memory.logs_of_action_prob[a].pop()
 
         # Convert lists to tensors
-        old_states = torch.stack(memory.states[a]).to(self.device).detach()
-        old_actions = torch.stack(memory.actions[a]).to(self.device)
+        old_states = torch.stack(memory.states[a]).to(self.device)
+        old_actions = torch.tensor(memory.actions[a]).to(self.device)
         old_masks = torch.stack(memory.masks[a]).to(self.device)
-        old_logs_of_action_prob = torch.stack(memory.logs_of_action_prob[a]).to(self.device).detach()
+        old_logs_of_action_prob = torch.tensor(memory.logs_of_action_prob[a]).to(self.device)
+        old_rewards = torch.tensor(memory.rewards[a]).to(self.device)
+
+        with torch.no_grad():
+            _, state_estimated_value, _ = policy_evaluate(torch.cat((old_states, torch.unsqueeze(last_state, 0))),
+                                                          torch.cat((old_actions, torch.unsqueeze(last_action, 0))),
+                                                          torch.cat((old_masks, torch.unsqueeze(last_mask, 0))))
+
+        returns = get_advantages(
+            memory.rewards[a],
+            memory.dones[a],
+            state_estimated_value)
+
+        # Find the "Surrogate Loss"
+        advantage = returns - state_estimated_value[:-1].squeeze()
+
+        # Advantage normalization
+        advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
 
         # Optimize policy
         for _ in range(epochs):
+
+            if self.batch_shuffle:
+                perm = torch.randperm(len(old_states))
+                old_states = old_states[perm]
+                old_actions = old_actions[perm]
+                old_masks = old_masks[perm]
+                old_logs_of_action_prob = old_logs_of_action_prob[perm]
+                old_rewards = old_rewards[perm]
+                advantage = advantage[perm]
+
             for batch_start in range(0, len(old_states), batch_size):
                 batch_end = batch_start + batch_size
                 if batch_end >= len(old_states):
@@ -147,29 +175,19 @@ class PsPPOPolicy(Policy):
 
                 # Find the ratio (pi_theta / pi_theta__old)
                 probs_ratio = torch_exp(
-                    log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end].detach())
-
-                returns = get_advantages(
-                    memory.rewards[a][batch_start:batch_end],
-                    memory.dones[a][batch_start:batch_end],
-                    state_estimated_value.detach())
-
-                # Find the "Surrogate Loss"
-                advantage = returns - state_estimated_value[:-1]
-
-                # Advantage normalization
-                advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
+                    log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end])
 
                 # Surrogate losses
-                unclipped_objective = probs_ratio * advantage
-                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * advantage
+                unclipped_objective = probs_ratio * advantage[batch_start:batch_end]
+                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * \
+                                    advantage[batch_start:batch_end]
 
                 # Policy loss
                 policy_loss = torch_min(unclipped_objective, clipped_objective).mean()
 
                 # Value loss
-                value_loss = 0.5 * (torch.tensor(memory.rewards[a][batch_start:batch_end],dtype=torch.float32).to(self.device)
-                                    - state_estimated_value[:-1].squeeze()).pow(2).mean()
+                value_loss = 0.5 * (old_rewards[batch_start:batch_end] -
+                                    state_estimated_value[:-1].squeeze()).pow(2).mean()
 
                 loss = -policy_loss + vlc * value_loss - ec * dist_entropy.mean()
 
