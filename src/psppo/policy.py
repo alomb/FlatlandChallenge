@@ -142,9 +142,6 @@ class PsPPOPolicy(Policy):
         # Find the "Surrogate Loss"
         advantage = returns - state_estimated_value[:-1].squeeze()
 
-        # Advantage normalization
-        advantage = (advantage - torch.mean(advantage)) / (torch.std(advantage) + 1e-10)
-
         # Optimize policy
         for _ in range(epochs):
 
@@ -173,14 +170,18 @@ class PsPPOPolicy(Policy):
                                         old_actions[batch_start:batch_end + 1],
                                         old_masks[batch_start:batch_end + 1])
 
+                batch_advantage = advantage[batch_start:batch_end]
+
+                # Advantage normalization
+                batch_advantage = (batch_advantage - torch.mean(batch_advantage)) / (torch.std(batch_advantage) + 1e-10)
+
                 # Find the ratio (pi_theta / pi_theta__old)
                 probs_ratio = torch_exp(
                     log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end])
 
                 # Surrogate losses
-                unclipped_objective = probs_ratio * advantage[batch_start:batch_end]
-                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * \
-                                    advantage[batch_start:batch_end]
+                unclipped_objective = probs_ratio * batch_advantage
+                clipped_objective = torch_clamp(probs_ratio, 1 - obj_eps, 1 + obj_eps) * batch_advantage
 
                 # Policy loss
                 policy_loss = torch_min(unclipped_objective, clipped_objective).mean()
