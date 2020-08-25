@@ -37,12 +37,11 @@ def find_decision_cells(env):
     return set(switches).union(set(switches_neighbors))
 
 
-def get_action_masking(env, agent, n_agents, action_size, train_params):
+def get_action_masking(env, agent, action_size, train_params):
     """
 
     :param env: the environment
     :param agent: the agent index/handler
-    :param n_agents: environment's number of agents
     :param action_size: the environment's number of available actions
     :param train_params: training parameters to customize the mask
     :return: the action mask for the passed agent
@@ -66,6 +65,6 @@ def get_action_masking(env, agent, n_agents, action_size, train_params):
                     env.get_rail_env().agents[agent])
 
                 if not all([cell_valid, transition_valid]):
-                    action_mask[agent][action] = 0
+                    action_mask[action] = 0
 
     return action_mask

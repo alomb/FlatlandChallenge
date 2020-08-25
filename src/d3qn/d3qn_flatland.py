@@ -107,7 +107,7 @@ def train_multiple_agents(env_params, train_params):
 
             for agent in range(env_params.n_agents):
                 # Create action mask
-                action_mask = get_action_masking(env, agent, env_params.n_agents, action_size, train_params)
+                action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
                 # Action skipping if in correct cell and not in last time step which is always inserted in memory
