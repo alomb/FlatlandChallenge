@@ -137,6 +137,8 @@ def train_multiple_agents(env_params, train_params):
                     learn_timer.end()
 
                     agent_prev_obs[agent] = obs[agent].copy()
+
+                    # Agent shouldn't be in action_dict in order to print correctly the action's stats
                     if agent not in action_dict:
                         agent_prev_action[agent] = 0
                     else:

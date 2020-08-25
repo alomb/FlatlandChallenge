@@ -274,13 +274,13 @@ class PrioritisedExperienceReplay(ExperienceReplay):
         for i in range(self.batch_size):
             a = segment * i
             b = segment * (i + 1)
-            #data = 0
-            #p = None
-            #idx = None
+            data = 0
+            p = None
+            idx = None
 
-            #while data == 0:
-            s = random.uniform(a, b)
-            idx, p, data = self.tree.get(s)
+            while data == 0:
+                s = random.uniform(a, b)
+                idx, p, data = self.tree.get(s)
 
             priorities.append(p)
             batch.append(data)

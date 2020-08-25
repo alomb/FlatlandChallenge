@@ -1,3 +1,9 @@
+import numpy as np
+
+from flatland.core.grid.grid4_utils import get_new_position
+from flatland.envs.agent_utils import RailAgentStatus
+
+
 class DeadlocksDetector:
     def __init__(self):
         self.directions = [
@@ -15,42 +21,51 @@ class DeadlocksDetector:
     def reset(self, num_agents):
         self.deadlocks = [False for _ in range(num_agents)]
 
-    def _check_deadlocks(self, agents, deadlocks, action_dict, env):
-        a2 = None
+    def _check_deadlock(self, rail_env):
+        # For each active and not deadlocked agent
+        for agent in list(filter(lambda a: a.status == RailAgentStatus.ACTIVE and not self.deadlocks[a.handle],
+                                 rail_env.agents)):
 
-        if env.agents[agents[-1]].position is not None:
-            action = action_dict[agents[-1]] if agents[-1] in action_dict else 0
-            cell_free, new_cell_valid, _, new_position, transition_valid = \
-                env._check_action_on_agent(action, env.agents[agents[-1]])
+            position = agent.position
+            direction = agent.direction
 
-            if not cell_free and new_cell_valid and transition_valid:
-                for a2_tmp in range(env.get_num_agents()):
-                    if env.agents[a2_tmp].position == new_position:
-                        a2 = a2_tmp
-                        break
-
-        if a2 is None:
-            return False
-        if deadlocks[a2] or a2 in agents:
-            return True
-        agents.append(a2)
-        deadlocks[a2] = self._check_deadlocks(agents, deadlocks, action_dict, env)
-        if deadlocks[a2]:
-            return True
-        del agents[-1]
-        return False
-
-    def deadlocks_detection(self, env, action_dict, done):
-        agents = []
-        for a in range(env.get_num_agents()):
-            if not done[a]:
-                agents.append(a)
-                if not self.deadlocks[a]:
-                    self.deadlocks[a] = self._check_deadlocks(agents, self.deadlocks, action_dict, env)
-                if not (self.deadlocks[a]):
-                    del agents[-1]
-
+            while position is not None:
+                possible_transitions = rail_env.rail.get_transitions(*position, direction)
+                num_transitions = np.count_nonzero(possible_transitions)
+                # If the agent can only move towards one direction
+                if num_transitions == 1:
+                    new_direction_me = np.argmax(possible_transitions)
+                    new_cell_me = get_new_position(position, new_direction_me)
+                    opp_agent = rail_env.agent_positions[new_cell_me]
+                    # and the next cell contains an agent
+                    if opp_agent != -1:
+                        # collect information about the movement of the opposite agent, its next position, its next
+                        # direction and its number of transitions
+                        opp_position = rail_env.agents[opp_agent].position
+                        opp_direction = rail_env.agents[opp_agent].direction
+                        opp_possible_transitions = rail_env.rail.get_transitions(*opp_position, opp_direction)
+                        opp_num_transitions = np.count_nonzero(opp_possible_transitions)
+                        # If only one movement is valid
+                        if opp_num_transitions == 1:
+                            # Check if there is not an head to back collision
+                            if opp_direction != direction:
+                                self.deadlocks[agent.handle] = True
+                                position = None
+                            # Else check opposite agent to discover chains of collisions
+                            else:
+                                position = new_cell_me
+                                direction = new_direction_me
+                        # If the opposite agent can move away from the collision also its alternative movements must be
+                        # controlled
+                        else:
+                            position = new_cell_me
+                            direction = new_direction_me
+                    else:
+                        position = None
+                else:
+                    position = None
         return self.deadlocks
 
-    def step(self, env, action_dict, dones):
-        return self.deadlocks_detection(env, action_dict, dones)
+    def step(self, env):
+        return self._check_deadlock(env)
+
