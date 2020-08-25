@@ -20,7 +20,7 @@ if __name__ == "__main__":
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
         "seed": myseed,
-        "observation_tree_depth": 3,
+        "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
         # Malfunctions
@@ -90,8 +90,8 @@ if __name__ == "__main__":
         # ============================
         # Optimization and rendering
         # ============================
-        "checkpoint_interval": 3,
-        "evaluation_mode": True,
+        "checkpoint_interval": 75,
+        "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
         "render": False,

@@ -44,15 +44,19 @@ class DuelingQNetwork(nn.Module):
     def forward(self, x):
         val = x
         adv = x
-        for layer in self.base_modules:
-            val = F.relu(layer(val))
-            adv = F.relu(layer(adv))
 
-        for layer in self.critic_modules:
-            val = F.relu(layer(val))
+        for i in range(len(self.base_modules)):
+            val = F.relu(self.base_modules[i](val))
+            adv = F.relu(self.base_modules[i](adv))
 
-        for layer in self.actor_modules:
-            adv = F.relu(layer(adv))
+        for i in range(len(self.critic_modules) - 1):
+            val = self.critic_modules[i](val)
+
+        for i in range(len(self.actor_modules) - 1):
+            adv = self.actor_modules[i](adv)
+
+        val = self.critic_modules[-1](val)
+        adv = self.actor_modules[-1](adv)
 
         return val + adv - adv.mean()
 
