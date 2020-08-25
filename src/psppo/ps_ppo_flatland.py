@@ -114,7 +114,8 @@ def train_multiple_agents(env_params, train_params):
                 # Action mask modification only if action masking is True
                 if train_params.action_masking:
                     for action in range(action_size):
-                        if env.get_rail_env().agents[agent].status != RailAgentStatus.READY_TO_DEPART:
+                        if env.get_rail_env().agents[agent].status == RailAgentStatus.ACTIVE or \
+                                env.get_rail_env().agents[agent].status == RailAgentStatus.DONE:
                             _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
                                 RailEnvActions(action),
                                 env.get_rail_env().agents[agent])

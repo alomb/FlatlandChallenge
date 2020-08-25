@@ -40,7 +40,7 @@ if __name__ == "__main__":
         # ============================
         "custom_observations": False,
 
-        "reward_shaping": True,
+        "reward_shaping": False,
         "stop_penalty": -0.0,
         "invalid_action_penalty": -0.0,
         "deadlock_penalty": -3.0,
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         # ============================
         # Action Masking / Skipping
         # ============================
-        "action_masking": False,
+        "action_masking": True,
         "allow_no_op": True,
         "action_skipping": False
     }
