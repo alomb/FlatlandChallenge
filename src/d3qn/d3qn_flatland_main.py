@@ -90,8 +90,8 @@ if __name__ == "__main__":
         # ============================
         # Optimization and rendering
         # ============================
-        "checkpoint_interval": 3,
-        "evaluation_mode": True,
+        "checkpoint_interval": 75,
+        "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
         "render": False,

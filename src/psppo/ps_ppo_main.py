@@ -81,10 +81,10 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
-        "horizon": 2000,
+        "horizon": 4096,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 500,
+        "batch_size": 1024,
 
         # ============================
         # Normalization and clipping

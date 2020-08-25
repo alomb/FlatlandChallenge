@@ -76,8 +76,6 @@ def train_multiple_agents(env_params, train_params):
     print("\nTraining {} trains on {}x{} grid for {} episodes.\n"
           .format(env_params.n_agents, env_params.x_dim, env_params.y_dim, train_params.n_episodes))
 
-    action_dict = dict()
-
     agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
     update_values = False
@@ -95,8 +93,6 @@ def train_multiple_agents(env_params, train_params):
         decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
 
-        actions_taken = []
-
         # Build agent specific observations
         for agent in range(env_params.n_agents):
             if obs[agent] is not None:
@@ -105,6 +101,7 @@ def train_multiple_agents(env_params, train_params):
         # Run episode
         # TODO: Why there was max_steps - 1?
         for step in range(max_steps):
+            action_dict = dict()
             for agent in range(env_params.n_agents):
                 # Fill action dict
                 # TODO: Maybe consider deadlocks
@@ -119,11 +116,9 @@ def train_multiple_agents(env_params, train_params):
                     # TODO: Update values outside?
                     update_values = True
                     action = policy.act(obs[agent], eps=eps_start)
-                    actions_taken.append(action)
+                    action_dict.update({agent: action})
                 else:
                     update_values = False
-                    action = int(RailEnvActions.DO_NOTHING)
-                action_dict.update({agent: action})
 
             # Environment step
             step_timer.start()
@@ -142,7 +137,10 @@ def train_multiple_agents(env_params, train_params):
                     learn_timer.end()
 
                     agent_prev_obs[agent] = obs[agent].copy()
-                    agent_prev_action[agent] = action_dict[agent]
+                    if agent not in action_dict:
+                        agent_prev_action[agent] = 0
+                    else:
+                        agent_prev_action[agent] = action_dict[agent]
 
                 if next_obs[agent] is not None:
                     obs[agent] = next_obs[agent]
