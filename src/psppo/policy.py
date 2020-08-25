@@ -246,14 +246,13 @@ class PsPPOPolicy(Policy):
         return action_distribution.log_prob(action[:-1]), self.policy.critic_network(state), \
                action_distribution.entropy()
 
-    def act(self, state, action_mask=None, action=None):
+    def act(self, state, action_mask=None):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
 
         :param state: the observed state
-        :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
-        :param action: an action to perform decided by some external logic
+        :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
         :return: the action to perform
         """
 
@@ -277,8 +276,7 @@ class PsPPOPolicy(Policy):
         """
         action_distribution = Categorical(action_probs)
 
-        if action is None:
-            action = action_distribution.sample()
+        action = action_distribution.sample()
 
         # Memory is updated
         self.memory.states[agent_id].append(state)

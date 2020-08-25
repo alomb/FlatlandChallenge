@@ -10,6 +10,7 @@ class Timer(object):
     """
     Class to record elapsed time
     """
+
     def __init__(self):
         self.total_time = 0.0
         self.start_time = 0.0
@@ -62,6 +63,7 @@ class TensorBoardLogger:
     """
     Class to handle Tensorboard logging.
     """
+
     def __init__(self, tensorboard_path, env_params, train_params):
         """
 

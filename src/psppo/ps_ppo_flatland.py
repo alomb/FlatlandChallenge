@@ -6,9 +6,8 @@ import torch
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.agent_utils import RailAgentStatus
 
-from src.common.action_skipping import find_decision_cells
+from src.common.action_skipping_masking import find_decision_cells, get_action_masking
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.psppo.policy import PsPPOPolicy
@@ -95,46 +94,40 @@ def train_multiple_agents(env_params, train_params):
 
         # Run episode
         for step in range(max_steps):
-            # Action counter used for statistics
+            # Action dictionary to feed to step
             action_dict = dict()
 
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
 
-            # Mask initialization
-            action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
-                            for action in range(action_size)] for _ in range(env_params.n_agents)]
-
-            # Collect and preprocess observations and fill action dictionary
+            """
+            Collect, preprocess observations and fill action dictionary
+            Agents always enter here at least once in the episode so there is no further controls.
+            When obs is absent is because the agent has reached its final goal and the observation remains the same.
+            """
             for agent in obs:
-                """
-                Agents always enter in the if at least once in the episode so there is no further controls.
-                When obs is absent because the agent has reached its final goal the observation remains the same.
-                """
-                # Action mask modification only if action masking is True
-                if train_params.action_masking:
-                    for action in range(action_size):
-                        if env.get_rail_env().agents[agent].status == RailAgentStatus.ACTIVE or \
-                                env.get_rail_env().agents[agent].status == RailAgentStatus.DONE:
-                            _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
-                                RailEnvActions(action),
-                                env.get_rail_env().agents[agent])
-                            if not all([cell_valid, transition_valid]):
-                                action_mask[agent][action] = 0
+                # Create action mask
+                action_mask = get_action_masking(env, agent, env_params.n_agents, action_size, train_params)
 
                 # Fill action dict
                 # Action skipping if in correct cell and not in last time step which is always inserted in memory
+                # TODO: check max_steps condition
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
                         and env.get_rail_env().agents[agent].position not in decision_cells \
                         and step != max_steps - 1:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                # If agent is not arrived or moving between two cells
+                # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
+                # when the agent is moving in the deadlock triggering the second case)
                 elif info["action_required"][agent]:
-                    # If an action is required, we want to store the obs at that step as well as the action
-                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
+                    # If an action is required, the actor predicts an action and the obs, actions, masks are stored
+                    # TODO: Consider a torch.no_grad()
+                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask=action_mask)
                     agents_in_action.add(agent)
-                # It is not necessary an else branch.
-                # By default when no action is given to RailEnv.step() DO_NOTHING is performed
+                """
+                Here it is not necessary an else branch to update the dict.
+                By default when no action is given to RailEnv.step() for a specific agent, DO_NOTHING is assigned by the
+                Flatland engine.
+                """
 
             # Environment step
             step_timer.start()
@@ -144,7 +137,7 @@ def train_multiple_agents(env_params, train_params):
             # Update dones and rewards for each agent that performed act()
             for a in agents_in_action:
                 learn_timer.start()
-                #ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
+                # ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
                 ppo.step(a, rewards[a], done, step == max_steps - 1)
                 learn_timer.end()
 

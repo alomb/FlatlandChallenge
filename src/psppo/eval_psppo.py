@@ -7,7 +7,7 @@ from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 import torch
 from flatland.envs.rail_env import RailEnvActions
 
-from src.common.action_skipping import find_decision_cells
+from src.common.action_skipping_masking import find_decision_cells
 from src.common.flatland_random_railenv import FlatlandRailEnv
 from src.psppo.policy import PsPPOPolicy
 

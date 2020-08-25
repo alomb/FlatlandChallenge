@@ -59,6 +59,7 @@ class D3QNPolicy(Policy):
         """
 
         :param state: the state to act on
+        :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
         :param eps: the epsilon-greedy factor to influence the exploration-exploitation tradeoff
         :return:
 
