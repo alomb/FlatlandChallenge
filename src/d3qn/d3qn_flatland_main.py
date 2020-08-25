@@ -103,7 +103,7 @@ if __name__ == "__main__":
         # ============================
         # Action Masking / Skipping
         # ============================
-        "action_masking": False,
+        "action_masking": True,
         "allow_no_op": True,
         "action_skipping": False,
     }

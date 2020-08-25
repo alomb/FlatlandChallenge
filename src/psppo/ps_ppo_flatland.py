@@ -122,7 +122,6 @@ def train_multiple_agents(env_params, train_params):
                                 action_mask[agent][action] = 0
 
                 # Fill action dict
-                # TODO: Maybe consider deadlocks
                 # Action skipping if in correct cell and not in last time step which is always inserted in memory
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
                         and env.get_rail_env().agents[agent].position not in decision_cells \
@@ -133,9 +132,8 @@ def train_multiple_agents(env_params, train_params):
                     # If an action is required, we want to store the obs at that step as well as the action
                     action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
                     agents_in_action.add(agent)
-                # It is not necessary, by default when no action is given to RailEnv.step() DO_NOTHING is performed
-                #else:
-                #    action_dict[agent] = int(RailEnvActions.DO_NOTHING)
+                # It is not necessary an else branch.
+                # By default when no action is given to RailEnv.step() DO_NOTHING is performed
 
             # Environment step
             step_timer.start()

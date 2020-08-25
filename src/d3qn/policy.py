@@ -55,14 +55,17 @@ class D3QNPolicy(Policy):
             self.t_step = 0
             self.loss = 0.0
 
-    def act(self, state, eps=0.):
+    def act(self, state, action_mask=None, eps=0.):
         """
 
         :param state: the state to act on
         :param eps: the epsilon-greedy factor to influence the exploration-exploitation tradeoff
         :return:
+
+
         """
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
@@ -70,6 +73,8 @@ class D3QNPolicy(Policy):
 
         # Epsilon-greedy action selection
         if random.random() > eps:
+            action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+            action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
             return np.argmax(action_values.cpu().data.numpy())
         else:
             return random.choice(np.arange(self.action_size))

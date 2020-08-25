@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 import torch
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnvActions
@@ -78,7 +79,6 @@ def train_multiple_agents(env_params, train_params):
 
     agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
-    update_values = False
 
     for episode in range(train_params.n_episodes + 1):
         # Reset timers
@@ -93,6 +93,10 @@ def train_multiple_agents(env_params, train_params):
         decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
 
+        # Mask initialization
+        action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
+                        for action in range(action_size)] for _ in range(env_params.n_agents)]
+
         # Build agent specific observations
         for agent in range(env_params.n_agents):
             if obs[agent] is not None:
@@ -101,10 +105,23 @@ def train_multiple_agents(env_params, train_params):
         # Run episode
         # TODO: Why there was max_steps - 1?
         for step in range(max_steps):
+            # Action counter used for statistics
             action_dict = dict()
+
+            # Set used to track agents that didn't skipped the action
+            agents_in_action = set()
+
             for agent in range(env_params.n_agents):
+                if train_params.action_masking:
+                    for action in range(action_size):
+                        if env.get_rail_env().agents[agent].status == RailAgentStatus.ACTIVE or \
+                                env.get_rail_env().agents[agent].status == RailAgentStatus.DONE:
+                            _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
+                                RailEnvActions(action),
+                                env.get_rail_env().agents[agent])
+                            if not all([cell_valid, transition_valid]):
+                                action_mask[agent][action] = 0
                 # Fill action dict
-                # TODO: Maybe consider deadlocks
                 # Action skipping if in correct cell and not in last time step which is always inserted in memory
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
                         and env.get_rail_env().agents[agent].position not in decision_cells \
@@ -114,11 +131,11 @@ def train_multiple_agents(env_params, train_params):
                 elif info['action_required'][agent]:
                     # If an action is required, we want to store the obs at that step as well as the action
                     # TODO: Update values outside?
-                    update_values = True
-                    action = policy.act(obs[agent], eps=eps_start)
+                    agents_in_action.add(agent)
+                    action = policy.act(obs[agent], action_mask=action_mask[agent], eps=eps_start)
                     action_dict.update({agent: action})
-                else:
-                    update_values = False
+                # It is not necessary an else branch.
+                # By default when no action is given to RailEnv.step() DO_NOTHING is performed
 
             # Environment step
             step_timer.start()
@@ -130,7 +147,7 @@ def train_multiple_agents(env_params, train_params):
                 Update replay buffer and train agent. Only update the values when we are done or when an action was 
                 taken and thus relevant information is present
                 """
-                if update_values or done[agent]:
+                if agent in agents_in_action or done[agent]:
                     learn_timer.start()
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], obs[agent],
                                 done[agent])
