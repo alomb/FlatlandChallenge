@@ -442,7 +442,7 @@ PPO was conceived to improve the policy-based techniques by introducing an algor
 PPO relies on clipped probability ratios, which forms a pessimistic estimate of the performance of the policy, and data sampled from applying for several time steps the policy to obtain a so called trajectory.
 Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
 
-\subsection{Implementation}\label{subsec:the-implementation}
+\subsection{Implementation}\label{subsec:implementation}
 
 This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\citep{ppo_implementation_1}~\citep{ppo_implementation_2} to be crucial for the overall algorithm performance.
 In particular they found significantly beneficial to initialize the policy network so that the action distribution has zero mean, a low standard deviation and is independent from the observation.
@@ -456,6 +456,7 @@ Some actor-critic implementations make parts of the actor and critic networks sh
 This is because the norm of gradients flowing back from the actor gradients and the critic gradients are at completely different scales which are often hard to calibrate.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
 Neural networks' weights are initialized using orthogonal initialization while biases are initially set to zero.
+% TODO: network generation pytorch
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo_implementation_2}}]
 Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
@@ -482,8 +483,9 @@ with torch.no_grad():
 	list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
 \end{lstlisting}
 
-% TODO: initialization (C56), adam epsilon (C28) and learning rate (C24) and its decaying (C31) and Adam beta/momentum (C26)
-% TODO: standard deviation of actions (C59-C62)
+Neural networks are trained using Adam optimizer.
+References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
+% TODO: target network
 
 \subsubsection{Training setup}
 
@@ -516,8 +518,7 @@ Always use observation normalization and check if value function normalization i
 Gradient clipping might slightly help but is of secondary importance.
 \end{quoting}
 
-% TODO: (C67)
-We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss.
+We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss,
 
 % TODO: value function normalization (C66)
 
@@ -540,7 +541,7 @@ The $Q$ value can be estimated in the following way:
 	V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V^{\pi}(s_{t + N})\label{eq:N-step}
 \end{equation}
 
-where $V^{\pi}$ is a value function approximator and $N$ controls the bias–variance tradeoff of the estimator.
+where $V^{\pi}$ is a value function approximator, $N$ controls the bias–variance tradeoff of the estimator and $\gamma$ is the discount factor.
 $V^{\pi}$ tends to be biased because it is computed with a function approximator but has lower variance than the actual summed rewards since they are obtained from a single trajectory.
 Bigger $N$ values results in an estimator closer to empirical returns and induce less bias and more variance.
 Variance of the actual rewards typically increases the more steps away from the current step $t$ are taken, while close to $t$, the benefits of using an unbiased estimate may outweigh the variance introduced.
@@ -567,8 +568,18 @@ GAE is defined in the following way:
 \end{equation}
 
 where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
+\\
+\\
+The total loss function is composed by three elements:
+\begin{itemize}
+	\item The surrogate loss obtained from the minimum between the clipped and the unclipped objectives.
+	\item The value loss obtained from the training of the critic network as a state-value function, used to predict values that are needed for the advantages computation in the surrogate loss.
+The value loss is computed as a squared error loss. % TODO check
+	\item Entropy computed from the action categorical distribution to ensure sufficient exploration.
+\end{itemize}
 
-% TODO: overall loss include value and entropy (value (C56) and entropy coefficients (C))
+In our implementation these three elements are added together and used to compute the gradients with the Pytorch function \textit{backward()} and optimize the networks.
+The value loss and the entropy in the sum are multiplied by their respective coefficients. %TODO: comments on coefficients and loss values
 
 \subsubsection{Action Masking and action skipping}\label{subsubsec:action_masking_ppo}
 Some studies~\citep{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
@@ -580,7 +591,15 @@ This operation actually change the gradient calculation for the actor network's 
 
 \subsection{Testing}\label{subsec:testing}
 
-\section{Curriculum Learning}\label{sec:meta-reinforcement-learning}
+%TODO: horizon and batch, shuffle not shuffled, reward shaping, masking, skipping, allow no op
+
+\section{D3QN}\label{sec:d3qn}
+
+\subsection{Implementation}\label{subsec:implementation2}
+
+\subsection{Testing}\label{subsec:testing2}
+
+\section{Curriculum Learning}\label{sec:curriculum-learning}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{bengio_curiculum}}]
 The basic idea is to start small, learn easier aspects of the task or easier subtasks, and then gradually increase the difficulty level.\\
@@ -598,7 +617,7 @@ Curriculum Learning applied to Reinforcement Learning must consider three differ
 Transfer learning has been studied to speed up the learning by providing some initial knowledge rather than starting from zero, it has been successfully applied on policies, models, value functions and more.
 There are multiple paradigms and approaches to implement the aforementioned aspects, for example: tasks can be structured into graphs or sequences, can be automatically or manually generated, can be based on the agent behaviour or not (adaptivity), can be classified in one or more types.
 
-\subsection{Implementation}\label{subsec:implementation}
+\subsection{Implementation}\label{subsec:implementation3}
 
 Task generation is the problem of producing a set of tasks such that knowledge transfer through them is beneficial.
 Most of the methods assume the domain can be parameterized using some kind of representation, where different instantiations of these parameters create different tasks.
@@ -615,7 +634,7 @@ Defining multiple tasks in Flatland is not easy, we hypothesized tasks such as "
 The problem of generating environment is not easy too because parameters must be tuned to generate environments with feasible solutions and a coherent generation, as instance the number of agents must be lower than the number of cities or the size of the map can influence the maximum number of cities, rails between and within cities.
 One alternative approach is to manually describe ranges of coherent parameter values or levels of difficulty that allows an adaptive and automatic process of task sequencing.
 
-\subsection{Testing}\label{subsec:testing2}
+\subsection{Testing}\label{subsec:testing3}
 
 \newpage
 ~\nocite{*}
