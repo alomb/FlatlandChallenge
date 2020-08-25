@@ -194,7 +194,7 @@ class RewardsWrapper(gym.Wrapper):
         for agent in range(self.unwrapped.rail_env.get_num_agents()):
             if self.unwrapped.rail_env.agents[agent].status == RailAgentStatus.ACTIVE:
                 _, cell_valid, _, _, transition_valid = self.unwrapped.rail_env._check_action_on_agent(
-                    RailEnvActions(action_dict[agent]),
+                    RailEnvActions(action_dict[agent] if agent in action_dict else 0),
                     self.unwrapped.rail_env.agents[agent])
                 if not all([cell_valid, transition_valid]):
                     rewards[agent] = self.invalid_action_penalty

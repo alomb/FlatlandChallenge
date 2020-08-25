@@ -103,7 +103,6 @@ def train_multiple_agents(env_params, train_params):
                 agent_prev_obs[agent] = obs[agent].copy()
 
         # Run episode
-        # TODO: Why there was max_steps - 1?
         for step in range(max_steps):
             # Action counter used for statistics
             action_dict = dict()
@@ -130,7 +129,6 @@ def train_multiple_agents(env_params, train_params):
                 # If agent is not arrived or moving between two cells
                 elif info['action_required'][agent]:
                     # If an action is required, we want to store the obs at that step as well as the action
-                    # TODO: Update values outside?
                     agents_in_action.add(agent)
                     action = policy.act(obs[agent], action_mask=action_mask[agent], eps=eps_start)
                     action_dict.update({agent: action})
