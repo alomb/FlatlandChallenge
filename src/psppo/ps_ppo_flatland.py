@@ -100,9 +100,6 @@ def train_multiple_agents(env_params, train_params):
         done = {a: False for a in range(env_params.n_agents)}
         done["__all__"] = all(done.values())
 
-        # A boolean to include in trajectories also the last agents that reached their destinations
-        break_next = False
-
         decision_cells = find_decision_cells(env.get_rail_env())
 
         agent_ids = get_agent_ids(env.get_rail_env().agents, env_params.malfunction_parameters.malfunction_rate)
@@ -179,11 +176,8 @@ def train_multiple_agents(env_params, train_params):
                 env.env.show_render()
 
             # If all agents have been arrived and this is not the last step do another one, otherwise stop
-            if done["__all__"] or break_next:
-                if not is_last_step and not break_next:
-                    break_next = True
-                else:
-                    break
+            if done["__all__"]:
+                break
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
