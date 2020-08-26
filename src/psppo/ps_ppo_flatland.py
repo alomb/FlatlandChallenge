@@ -13,6 +13,15 @@ from src.common.utils import Timer, TensorBoardLogger
 from src.psppo.policy import PsPPOPolicy
 
 
+def get_agent_ids(agents, malfunction_rate):
+
+    max_speed = 1.0
+    max_malfunction_rate = 0.1 * 10
+    max_value = max_speed + max_malfunction_rate
+
+    return {a.handle: (a.speed_data["speed"] + malfunction_rate * 10) / max_value for a in agents}
+
+
 def train_multiple_agents(env_params, train_params):
     # Environment parameters
     seed = env_params.seed
@@ -65,7 +74,7 @@ def train_multiple_agents(env_params, train_params):
     learn_timer = Timer()
 
     # Remove attributes not printable by Tensorboard
-    board_env_params = vars(env_params)
+    board_env_params = vars(env_params).copy()
     del board_env_params["speed_profiles"]
     del board_env_params["malfunction_parameters"]
 
@@ -90,6 +99,8 @@ def train_multiple_agents(env_params, train_params):
         obs, info = env.reset()
 
         decision_cells = find_decision_cells(env.get_rail_env())
+
+        agent_ids = get_agent_ids(env.get_rail_env().agents, env_params.malfunction_parameters.malfunction_rate)
         reset_timer.end()
 
         # Run episode
@@ -110,18 +121,17 @@ def train_multiple_agents(env_params, train_params):
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # Action skipping if in correct cell and not in last time step which is always inserted in memory
-                # TODO: check max_steps condition
+                # TODO: consider done agents and last step
+                # Action skipping if the agent is in not in a decision cell
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells \
-                        and step != max_steps - 1:
+                        and env.get_rail_env().agents[agent].position not in decision_cells:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the second case)
                 elif info["action_required"][agent]:
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
-                    # TODO: Consider a torch.no_grad()
-                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask=action_mask)
+                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent_ids[agent]]), action_mask=action_mask,
+                                                 agent_id=agent)
                     agents_in_action.add(agent)
                 """
                 Here it is not necessary an else branch to update the dict.
@@ -138,7 +148,7 @@ def train_multiple_agents(env_params, train_params):
             for a in agents_in_action:
                 learn_timer.start()
                 # ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
-                ppo.step(a, rewards[a], done, step == max_steps - 1)
+                ppo.step(a, rewards[a], done[a], step == max_steps - 1)
                 learn_timer.end()
 
             if train_params.render:

@@ -68,17 +68,24 @@ class D3QNPolicy(Policy):
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
 
         self.qnetwork_local.eval()
+
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
+
+            if action_mask is not None:
+                action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+                action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
+
         self.qnetwork_local.train()
 
         # Epsilon-greedy action selection
         if random.random() > eps:
-            action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
-            action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
             return np.argmax(action_values.cpu().data.numpy())
         else:
-            return random.choice(np.arange(self.action_size))
+            # Randomly choose an available action
+            masked_actions = torch.nonzero(action_values > -1e+8, as_tuple=False)[:, 1]
+            choice = torch.multinomial(masked_actions.float(), 1)
+            return masked_actions[choice].item()
 
     def step(self, state, action, reward, next_state, done):
         """
