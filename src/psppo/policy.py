@@ -246,7 +246,7 @@ class PsPPOPolicy(Policy):
         return action_distribution.log_prob(action[:-1]), self.policy.critic_network(state), \
                action_distribution.entropy()
 
-    def act(self, state, action_mask=None, agent_id=None):
+    def act(self, state, action_mask, agent_id=None):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
@@ -267,9 +267,8 @@ class PsPPOPolicy(Policy):
         with torch.no_grad():
             action_logits = self.policy_old.actor_network(state)
 
-            if action_mask is not None:
-                action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
-                action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
+            action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+            action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
 
             action_probs = self.policy_old.softmax(action_logits)
 
@@ -291,15 +290,10 @@ class PsPPOPolicy(Policy):
 
         return action.item()
 
-    def step(self, agent, agent_reward, agent_done, last_step):
+    def step(self, agent, agent_reward, agent_done):
 
         self.memory.rewards[agent].append(agent_reward)
         self.memory.dones[agent].append(agent_done)
-
-        # Set dones to True when the episode is finished because the maximum number of steps has been reached
-        # TODO: check because is not always inserted
-        if last_step:
-            self.memory.dones[agent][-1] = True
 
         # Update if agent's horizon has been reached
         if self.memory.length(agent) % (self.horizon + 1) == 0:

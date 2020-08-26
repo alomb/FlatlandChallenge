@@ -39,7 +39,10 @@ class D3QNPolicy(Policy):
         self.device = torch.device("cuda:0" if parameters.use_gpu and torch.cuda.is_available() else "cpu")
 
         # Q-Network
-        self.qnetwork_local = DuelingQNetwork(state_size, action_size, parameters, parameters.evaluation_mode).to(self.device)
+        self.qnetwork_local = DuelingQNetwork(state_size,
+                                              action_size,
+                                              parameters,
+                                              parameters.evaluation_mode).to(self.device)
 
         if not parameters.evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
@@ -55,12 +58,12 @@ class D3QNPolicy(Policy):
             self.t_step = 0
             self.loss = 0.0
 
-    def act(self, state, action_mask=None, eps=0.):
+    def act(self, state, action_mask, eps=0.):
         """
 
         :param state: the state to act on
         :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
-        :param eps: the epsilon-greedy factor to influence the exploration-exploitation tradeoff
+        :param eps: the epsilon-greedy factor to influence the exploration-exploitation trade-off
         :return:
 
 
@@ -72,9 +75,8 @@ class D3QNPolicy(Policy):
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
 
-            if action_mask is not None:
-                action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
-                action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
+            action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+            action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
 
         self.qnetwork_local.train()
 

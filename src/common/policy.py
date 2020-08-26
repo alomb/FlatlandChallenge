@@ -8,7 +8,7 @@ class Policy(ABC):
         pass
 
     @abstractmethod
-    def act(self, state, **args):
+    def act(self, state, action_mask, **args):
         pass
 
     @abstractmethod

@@ -96,7 +96,12 @@ def train_multiple_agents(env_params, train_params):
 
         # Reset environment
         reset_timer.start()
-        obs, info = env.reset()
+        prev_obs, info = env.reset()
+        done = {a: False for a in range(env_params.n_agents)}
+        done["__all__"] = all(done.values())
+
+        # A boolean to include in trajectories also the last agents that reached their destinations
+        break_next = False
 
         decision_cells = find_decision_cells(env.get_rail_env())
 
@@ -111,27 +116,33 @@ def train_multiple_agents(env_params, train_params):
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
 
+            # Flag to control the last step of an episode
+            is_last_step = step == (max_steps - 1)
+
             """
-            Collect, preprocess observations and fill action dictionary
-            Agents always enter here at least once in the episode so there is no further controls.
-            When obs is absent is because the agent has reached its final goal and the observation remains the same.
+            Collect trajectories and fill action dictionary.
+            When an agent's observation is absent is because the agent has reached its final goal, to allow also agents
+            that reached their goal to fill trajectories prev_obs[a] is updated only when th agent has not reached 
+            the goal. In conclusion, prev_obs[a] can be a new observation or the last one.
             """
-            for agent in obs:
+            for agent in prev_obs:
                 # Create action mask
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # TODO: consider done agents and last step
-                # Action skipping if the agent is in not in a decision cell
+                # Action skipping if the agent is in not in a decision cell and not in last step.
+                # TODO: action skipping may skips agents arrival and done agent
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells:
+                        and env.get_rail_env().agents[agent].position not in decision_cells\
+                        and not is_last_step:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
-                # when the agent is moving in the deadlock triggering the second case)
-                elif info["action_required"][agent]:
+                # If agent is moving between two cells or trapped in a deadlock (the latter is caught only
+                # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
+                # agent has reached its destination.
+                elif info["action_required"][agent] or is_last_step or done[agent]:
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
-                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent_ids[agent]]), action_mask=action_mask,
-                                                 agent_id=agent)
+                    action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
+                                                 action_mask, agent_id=agent)
                     agents_in_action.add(agent)
                 """
                 Here it is not necessary an else branch to update the dict.
@@ -141,21 +152,38 @@ def train_multiple_agents(env_params, train_params):
 
             # Environment step
             step_timer.start()
-            obs, rewards, done, info = env.step(action_dict)
+            next_obs, rewards, done, info = env.step(action_dict)
             step_timer.end()
 
-            # Update dones and rewards for each agent that performed act()
-            for a in agents_in_action:
-                learn_timer.start()
-                # ppo.step(a, float(sum(rewards.values())), done, step == max_steps - 1)
-                ppo.step(a, rewards[a], done[a], step == max_steps - 1)
-                learn_timer.end()
+            """
+            Update observation only if agent has not reached the target. When an agent reaches its target the returned 
+            obs is None.
+            """
+            for a in range(env_params.n_agents):
+                if not done[a]:
+                    prev_obs[a] = next_obs[a].copy()
+
+            # To represent the end of the episode inside the trajectory of each agent.
+            if is_last_step:
+                done["__all__"] = True
+
+            for a in range(env_params.n_agents):
+                # Update dones and rewards for each agent that performed act() or step is the episode's last or has
+                # finished
+                if a in agents_in_action:
+                    learn_timer.start()
+                    ppo.step(a, rewards[a], done["__all__"])
+                    learn_timer.end()
 
             if train_params.render:
                 env.env.show_render()
 
-            if done["__all__"]:
-                break
+            # If all agents have been arrived and this is not the last step do another one, otherwise stop
+            if done["__all__"] or break_next:
+                if not is_last_step and not break_next:
+                    break_next = True
+                else:
+                    break
 
         # Save checkpoints
         if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
