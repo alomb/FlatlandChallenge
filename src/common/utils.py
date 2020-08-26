@@ -102,7 +102,8 @@ class TensorBoardLogger:
         # Policy parameters
         for param_name, param in policy_params.items():
             assert type(param_name) is str, "Parameters names must be strings!"
-            self.writer.add_scalar("training/" + param_name, param, episode)
+            if param is not None:
+                self.writer.add_scalar("training/" + param_name, param, episode)
 
         # Timers
         for timer_name, timer in timers.items():
