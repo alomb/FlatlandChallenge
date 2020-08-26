@@ -246,29 +246,34 @@ class PsPPOPolicy(Policy):
         return action_distribution.log_prob(action[:-1]), self.policy.critic_network(state), \
                action_distribution.entropy()
 
-    def act(self, state, action_mask=None):
+    def act(self, state, action_mask=None, agent_id=None):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
 
         :param state: the observed state
         :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
+        :param agent_id: the agent handle
         :return: the action to perform
         """
 
-        # The agent name is appended at the state
-        agent_id = int(state[-1])
+        assert agent_id is not None and type(agent_id) is int, "agent_id must be an integer and not None"
+
         # Transform the state Numpy array to a Torch Tensor
         state = torch.from_numpy(state).float().to(self.device)
-        action_logits = self.policy_old.actor_network(state)
 
-        action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+        self.policy_old.actor_network.eval()
 
-        # Action masking, default values are True, False are present only if masking is enabled.
-        # If No op is not allowed it is masked even if masking is not active
-        action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
+        with torch.no_grad():
+            action_logits = self.policy_old.actor_network(state)
 
-        action_probs = self.policy_old.softmax(action_logits)
+            if action_mask is not None:
+                action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+                action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
+
+            action_probs = self.policy_old.softmax(action_logits)
+
+        self.policy_old.actor_network.train()
 
         """
         From the paper: "The stochastic policy πθ can be represented by a categorical distribution when the actions of
@@ -286,12 +291,13 @@ class PsPPOPolicy(Policy):
 
         return action.item()
 
-    def step(self, agent, total_timestep_reward_shaped, done, last_step):
+    def step(self, agent, agent_reward, agent_done, last_step):
 
-        self.memory.rewards[agent].append(total_timestep_reward_shaped)
-        self.memory.dones[agent].append(done[agent])
+        self.memory.rewards[agent].append(agent_reward)
+        self.memory.dones[agent].append(agent_done)
 
         # Set dones to True when the episode is finished because the maximum number of steps has been reached
+        # TODO: check because is not always inserted
         if last_step:
             self.memory.dones[agent][-1] = True
 

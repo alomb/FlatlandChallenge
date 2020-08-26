@@ -25,7 +25,7 @@ if __name__ == "__main__":
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0,
+            malfunction_rate=0.0,  # 0.0075
             min_duration=15,
             max_duration=50),
         # Speeds
@@ -81,10 +81,10 @@ if __name__ == "__main__":
         # ============================
         "n_episodes": 2500,
         # 512, 1024, 2048, 4096
-        "horizon": 4096,
+        "horizon": 512,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 500,
+        "batch_size": 32,
         # normal or shuffle
         "batch_mode": "shuffle",
 

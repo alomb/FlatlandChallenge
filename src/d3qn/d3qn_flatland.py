@@ -110,11 +110,9 @@ def train_multiple_agents(env_params, train_params):
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # Action skipping if in correct cell and not in last time step which is always inserted in memory
-                # TODO: check max_steps condition
+                # Action skipping if the agent is in not in a decision cell
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells \
-                        and step != max_steps - 1:
+                        and env.get_rail_env().agents[agent].position not in decision_cells:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the second case)
