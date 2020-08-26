@@ -13,7 +13,7 @@ if __name__ == "__main__":
     print("Filename: {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
+        "n_agents": 10,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         # ============================
         # Action Masking / Skipping
         # ============================
-        "action_masking": True,
+        "action_masking": False,
         "allow_no_op": True,
         "action_skipping": False
     }

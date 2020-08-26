@@ -411,7 +411,7 @@ This section provides some details on how observations and actions have been mod
 % TODO
 
 \subsection{Actions}\label{subsec:actions}
-As mentioned before~\ref{subsec:environment-actions} the Flatland environments provides for each agent five different actions.
+As mentioned before~\ref{subsec:environment-actions} the Flatland environment provides for each agent five different actions.
 The DO\_NOTHING is not necessary to reach a solution, because the agent can continue moving forward deciding each time the action MOVE\_FORWARD or stop using STOP\_MOVING\@.
 As we think that further from being useless it may also damage the overall performance we decided to consider its removal.
 It has already mentioned the ambiguity of the actions MOVE\_LEFT and MOVE\_RIGHT where they are forbidden, it is natural to conclude that the agents may learn bad policies that maps these actions to the same effect of the MOVE\_FORWARD action.
@@ -424,8 +424,46 @@ Actions masking is described in details in the respective implementations~\ref{s
 
 \subsection{Rewards}\label{subsec:rewards2}
 
-% TODO reward shaping
+As mentioned before~\ref{subsec:rewards} the Flatland environment provides a basic rewards system which in the current implementation we can briefly describe in this way:
+\begin{itemize}
+	\item Every step agent receives a negative reward proportionate to his speed if he has not reached his destination.
+	\item Each agent receives a reward equal to 0 if he has reached his destination.
+	\item If all agents have reached their destination they receive a reward equal to 1.
+\end{itemize}
+We think that this reward system does not represent all the complexity of the problem because there is not much distintiction between the states that agents may be in while navigating in the environment. Agents must basically learn two behaviors:
+\begin{itemize}
+	\item Reach their destination in the shortest time possible.
+	\item Avoid collisions with other agents.
+\end{itemize}
+This is not neccessarily the order. Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance. According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards. In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}. Crafting rewards is not easy beacuse as a consequence we could get a cobra effect:
 
+\begin{quoting}[font=itshape, begintext={"}, endtext={ \footnote{https://medium.com/@BonsaiAI/deep-reinforcement-learning-models-tips-tricks-for-writing-reward-functions-a84fe525e8e0}}]
+Historically, the government tried to incentivize people to assist them in ridding the area of cobras. If citizens brought in a venomous snake they had killed, the government would give you some money. Naturally, people started breeding venomous snakes.
+\end{quoting}
+Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong. Anyway 
+we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system. In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
+
+\begin{itemize}
+	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, shich is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
+	\item \textbf{$stop\_penalty$}: It is used to penalize more agents who have chosen the STOP\_MOVING action by subtracting the value assigned to the reward computed in the previous step.
+	\item \textbf{$deadlock\_penalty$}: It is used to penalize agents in deadlocks by subtracting the value assigned to the reward associated with the agent calculated in the previous step.
+	\item \textbf{$shortest\_path\_penalty\_coefficient$}: It is used to penalize agents who are moving away from their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
+	\item \textbf{$done\_bonus$}: It is used to reward agents who have arrived at their destination by assigning them a positive reward.
+\end{itemize}
+Let's consider for example this set of parameters:
+
+\begin{lstlisting}[label={rewards_params}]
+"reward_shaping": True,
+"stop_penalty": -0.0,
+"invalid_action_penalty": -1.0,
+"deadlock_penalty": -3,
+"shortest_path_penalty_coefficient": 1.5,
+"done_bonus": 1.0,
+\end{lstlisting}
+
+suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target. According to the description given above, the reward will be calculated as follows:
+\begin{displaymath}{reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -1 = -2}\end{displaymath}
+\begin{displaymath}{reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-2)= -3}\end{displaymath}
 \section{PS-PPO}\label{sec:ps-ppo}
 \subsection{Algorithm}\label{subsec:the-algorithm}
 The algorithm is inspired by the work~\citep{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
