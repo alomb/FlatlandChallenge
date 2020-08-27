@@ -13,7 +13,7 @@ if __name__ == "__main__":
     print("Filename: {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 10,
+        "n_agents": 3,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0.0,  # 0.0075
+            malfunction_rate=0,
             min_duration=15,
             max_duration=50),
         # Speeds
@@ -40,13 +40,13 @@ if __name__ == "__main__":
         # ============================
         "custom_observations": False,
 
-        "reward_shaping": False,
+        "reward_shaping": True,
         "stop_penalty": -0.0,
         "invalid_action_penalty": -0.0,
         "deadlock_penalty": -3.0,
         # 1.0 for skipping
-        "shortest_path_penalty_coefficient": 1.22,
-        "done_bonus": 0.0,
+        "shortest_path_penalty_coefficient": 1.33,
+        "done_bonus": 0.33,
     }
 
     training_parameters = {
@@ -79,13 +79,11 @@ if __name__ == "__main__":
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 2500,
-        # 512, 1024, 2048, 4096
-        "horizon": 512,
+        "n_episodes": 10000,
+        "horizon": 4096,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 32,
-        # normal or shuffle
+        "batch_size": 512,
         "batch_mode": "shuffle",
 
         # ============================
@@ -105,12 +103,12 @@ if __name__ == "__main__":
 
         # ============================
         # Optimization and rendering
-        # ============================
+        # ===========33=================
         # Save and evaluate interval
         "checkpoint_interval": 75,
         "evaluation_mode": False,
-        "eval_episodes": 5,
-        "use_gpu": False,
+        "eval_episodes": 3,
+        "use_gpu": True,
         "render": False,
         "print_stats": True,
         "save_model_path": "checkpoint.pt",
@@ -120,8 +118,8 @@ if __name__ == "__main__":
         # ============================
         # Action Masking / Skipping
         # ============================
-        "action_masking": False,
-        "allow_no_op": True,
+        "action_masking": True,
+        "allow_no_op": False,
         "action_skipping": False
     }
 
