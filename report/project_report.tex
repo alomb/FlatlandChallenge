@@ -214,7 +214,7 @@ Stop the agent in the current occupied cell.
 	}{
 		reward is computed
 	}
- 	\caption{The \textit{\_step\_agent} algorithm}\label{alg:flatland_agent_loop}
+ 	\caption{The \textit{\_step\_agent} algorithm}\label{alg:flatland-agent-loop}
 \end{algorithm}
 \noindent
 \\
@@ -418,7 +418,7 @@ It has already mentioned the ambiguity of the actions MOVE\_LEFT and MOVE\_RIGHT
 We observed that this phenomenon is very common due to the presence of long straight paths where the agent is allowed only to stop or move forward and concluded that even stopping in the middle of the rail does not have much sense because agents still stop when other agents block their way due to deadlocks, different speeds or malfunctions.
 For this reason we considered the possibility to force agents to only decide and learn in switches, where multiple actions are allowed and agents may learn to give way to other agents, avoid deadlocks, reach the target and more.
 This considerations lead to skipping a lot of choices during learning and deploy \textbf{Action Masking} to avoid illegal actions.
-Actions masking is described in details in the respective implementations~\ref{subsubsec:action_masking_ppo}.
+Actions masking is described in details in the respective implementations~\ref{subsubsec:action-masking-ppo}.
 % TODO complete refs to implementations
 ~\ref{subsec:rewards2} analyze an alternative approach to action masking based on rewards.
 
@@ -430,21 +430,29 @@ As mentioned before~\ref{subsec:rewards} the Flatland environment provides a bas
 	\item Each agent receives a reward equal to 0 if he has reached his destination.
 	\item If all agents have reached their destination they receive a reward equal to 1.
 \end{itemize}
-We think that this reward system does not represent all the complexity of the problem because there is not much distintiction between the states that agents may be in while navigating in the environment. Agents must basically learn two behaviors:
+We think that this reward system does not represent all the complexity of the problem because there is not much distinction between the states that agents may be in while navigating in the environment.
+Agents must basically learn two behaviors:
 \begin{itemize}
 	\item Reach their destination in the shortest time possible.
 	\item Avoid collisions with other agents.
 \end{itemize}
-This is not neccessarily the order. Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance. According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards. In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}. Crafting rewards is not easy beacuse as a consequence we could get a cobra effect:
+This is not neccessarily the order.
+Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance.
+According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards.
+In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}.
+Crafting rewards is not easy beacuse as a consequence we could get a cobra effect:
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={ \footnote{https://medium.com/@BonsaiAI/deep-reinforcement-learning-models-tips-tricks-for-writing-reward-functions-a84fe525e8e0}}]
-Historically, the government tried to incentivize people to assist them in ridding the area of cobras. If citizens brought in a venomous snake they had killed, the government would give you some money. Naturally, people started breeding venomous snakes.
+Historically, the government tried to incentivize people to assist them in ridding the area of cobras.
+If citizens brought in a venomous snake they had killed, the government would give you some money.
+Naturally, people started breeding venomous snakes.
 \end{quoting}
-Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong. Anyway 
-we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system. In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
+Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong.
+Anyway  we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system.
+In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
 
 \begin{itemize}
-	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, shich is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
+	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, which is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
 	\item \textbf{$stop\_penalty$}: It is used to penalize more agents who have chosen the STOP\_MOVING action by subtracting the value assigned to the reward computed in the previous step.
 	\item \textbf{$deadlock\_penalty$}: It is used to penalize agents in deadlocks by subtracting the value assigned to the reward associated with the agent calculated in the previous step.
 	\item \textbf{$shortest\_path\_penalty\_coefficient$}: It is used to penalize agents who are moving away from their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
@@ -452,7 +460,7 @@ we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly duri
 \end{itemize}
 Let's consider for example this set of parameters:
 
-\begin{lstlisting}[label={rewards_params}]
+\begin{lstlisting}[label={lst:rewards-params}]
 "reward_shaping": True,
 "stop_penalty": -0.0,
 "invalid_action_penalty": -1.0,
@@ -461,11 +469,13 @@ Let's consider for example this set of parameters:
 "done_bonus": 1.0,
 \end{lstlisting}
 
-suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target. According to the description given above, the reward will be calculated as follows:
+suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target.
+According to the description given above, the reward will be calculated as follows:
 \begin{displaymath}{reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -1 = -2}\end{displaymath}
 \begin{displaymath}{reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-2)= -3}\end{displaymath}
+
 \section{PS-PPO}\label{sec:ps-ppo}
-\subsection{Algorithm}\label{subsec:the-algorithm}
+\subsection{Algorithm}\label{subsec:algorithm}
 The algorithm is inspired by the work~\citep{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
 In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
 They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent techniques suffer from the non-stationarity of the multi-agents environments and the lack of communication.
@@ -537,7 +547,7 @@ It is important to consider that PPO is an on-policy algorithm, every time exper
 This behaviour is strictly related to a common RL feature called \textbf{sample efficiency}.
 Off-policy algorithms such as DQN are more sample efficient because can store huge quantities of information and use them more easily and efficiently.
 We hypothesize that horizon must depend on the specific environment, and the implications in Flatland are even deeper as the environment can drastically change its complexity.
-After some experiments we observed that higher values of horizon tends to perform better and we have found similar comments on other works, including arguments on implications of the value to assign to the decaying factor used to calculate the advantage~\ref{subsubsec:advantage_estimation}.
+After some experiments we observed that higher values of horizon tends to perform better and we have found similar comments on other works, including arguments on implications of the value to assign to the decaying factor used to calculate the advantage~\ref{subsubsec:advantage-estimation}.
 \\
 \\
 One of the greatest advantage of PPO, thanks to PPO's simpler objective, over the other policy-based algorithms is the possibility to perform multiple epochs on the collected data.
@@ -570,7 +580,7 @@ if self.max_grad_norm is not None:
 	nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
 \end{lstlisting}
 
-\subsubsection{Advantage estimation and loss}\label{subsubsec:advantage_estimation}
+\subsubsection{Advantage estimation and loss}\label{subsubsec:advantage-estimation}
 
 The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
 
@@ -587,7 +597,7 @@ As $N$ increases, the variance in the estimates will likely start to become prob
 The advantage is measured subtracting from $V_t^{(N)}$ the estimated value $V^{\pi}(s_t)$.
 
 \begin{equation}
-	A_t^{(N)} = V_t^{(N)} - V^{\pi}(s_t)\label{eq:N-step_advantage}
+	A_t^{(N)} = V_t^{(N)} - V^{\pi}(s_t)\label{eq:N-step-advantage}
 \end{equation}
 
 GAE was proposed as an improvement over the N-steps result~\citep{gae}.
@@ -619,7 +629,7 @@ The value loss is computed as a squared error loss. % TODO check
 In our implementation these three elements are added together and used to compute the gradients with the Pytorch function \textit{backward()} and optimize the networks.
 The value loss and the entropy in the sum are multiplied by their respective coefficients. %TODO: comments on coefficients and loss values
 
-\subsubsection{Action Masking and action skipping}\label{subsubsec:action_masking_ppo}
+\subsubsection{Action masking and action skipping}\label{subsubsec:action-masking-ppo}
 Some studies~\citep{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
 As mentioned in~\ref{subsec:rewards2} a very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them.
 During this period it is possible that the agent converges to a wrong policy.
@@ -629,11 +639,68 @@ This operation actually change the gradient calculation for the actor network's 
 
 \subsection{Testing}\label{subsec:testing}
 
+PS-PPO hyperparameters
+\begin{itemize}
+	\item Network Architecture
+	\begin{itemize}
+		\item "shared": False
+		\item "critic\_mlp\_depth": 3
+		\item "last\_critic\_layer\_scaling": 0.1
+		\item "actor\_mlp\_width": 128
+		\item "actor\_mlp\_depth": 3
+		\item "last\_actor\_layer\_scaling": 0.01
+		\item "learning\_rate": 0.001 (Adam learning rate)
+		\item "adam\_eps": 1e-5 (Adam $\epsilon$ value)
+		\item "activation": "Tanh" ("Tanh or "ReLU")
+	\end{itemize}
+	\item Training setup
+	\begin{itemize}
+		\item "n\_episodes": 2500
+		\item "horizon": 512 (Common values are 512, 1024, 2048, 4096)
+		\item "epochs": 8
+		\item "batch\_size": 32 (Common values are 64, 128, 256)
+		\item "batch\_mode": "shuffle" ("shuffle" or "normal")
+	\end{itemize}
+	\item Policy and advantage
+	\begin{itemize}
+		\item "advantage\_estimator": "gae" ("gae" or "n-steps")
+		\item "lmbda": 0.95
+		\item "entropy\_coefficient": 0.01
+		\item "value\_loss\_coefficient": 0.001
+	\end{itemize}
+	\item Normalization and clipping
+	\begin{itemize}
+		\item "discount\_factor": 0.99 (Common values are 0.95, 0.97, 0.99, 0.999)
+		\item "max\_grad\_norm": 0.5 (Gradient clipping)
+		\item "eps\_clip": 0.2 (Objective clipping)
+	\end{itemize}
+	\item Action Masking and Skipping
+	\begin{itemize}
+		\item "action\_masking": False
+		\item "allow\_no\_op": True
+		\item "action\_skipping": False
+	\end{itemize}
+\end{itemize}
+
+
 %TODO: horizon and batch, shuffle not shuffled, reward shaping, masking, skipping, allow no op
 
 \section{D3QN}\label{sec:d3qn}
 
+\subsection{Algorithm}\label{subsec:algorithm2}
+
 \subsection{Implementation}\label{subsec:implementation2}
+
+
+\subsubsection{Network architecture}
+
+\subsubsection{Training setup}
+
+\subsubsection{Memory}
+
+\subsubsection{Action masking and action skipping}\label{subsubsec:action-masking-ppo2}
+
+\subsubsection{}
 
 \subsection{Testing}\label{subsec:testing2}
 
