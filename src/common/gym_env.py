@@ -62,6 +62,7 @@ class FlatlandGymEnv(gym.Env):
 
         # Compute deadlocks
         deadlocks = self.deadlocks_detector.step(self.rail_env)
+        print(deadlocks)
         info["deadlocks"] = {}
         for agent in range(self.rail_env.get_num_agents()):
             info["deadlocks"][agent] = deadlocks[agent]

@@ -408,7 +408,34 @@ This section provides some details on how observations and actions have been mod
 
 \subsection{Observations}\label{subsec:observations}
 
-% TODO
+Flatland environment provides three basic observations to get started: \textbf{Global}, \textbf{Local Grid}, \textbf{Local Tree}. 
+Due to the greater scalability we have done the experiments mostly using \textbf{Local Tree} as it depends on some parameters which are independent of the size of the grid and the number of agents.
+For the latter the observation vector is composed of 4 sequential parts, corresponding to data from the up to 4 possible movements in a \textbf{RailEnv}.
+The possibile movements are sorted relative to the current orientation of the agent, rather than NESW as for the transitions.
+The order is \textbf{left}, \textbf{forward}, \textbf{right}, \textbf{back}.
+Each branch data is organized as:
+
+\begin{lstlisting}[label={lst:tree-obs}]
+[root node information] +
+[recursive branch data from 'left'] +
+[recursive from 'forward'] +
+[recursive from 'right] +
+[recursive from 'back']
+\end{lstlisting}
+
+Each node information is composed of 9 features:
+
+\begin{enumerate}
+\item [1:]If own target lies on the explored branch the current distance from the agent in number of cells is stored.
+\item [2:]If another agent’s target is detected, the distance in number of cells from the current agent position is stored.
+\item [3:]If another agent is detected, the distance in number of cells from the current agent position is stored.
+\item [4:]Possible conflict detected (This only works when we use a predictor and will not be important in this tutorial)
+\item [5:]If an unusable switch (for the agent) is detected we store the distance. An unusable switch is a switch where the agent does not have any choice of path, but other agents coming from
+\item [6:]This feature stores the distance (in number of cells) to the next node (e.g. switch or target or dead-end)
+\item [7:]Minimum remaining travel distance from this node to the agent’s target given the direction of the agent if this path is chosen
+\item [8:]Agent in the same direction found on path to node
+\item [9:]Agent in the opposite direction on path to node
+\end{enumerate}
 
 \subsection{Actions}\label{subsec:actions}
 As mentioned before~\ref{subsec:environment-actions} the Flatland environment provides for each agent five different actions.
