@@ -97,8 +97,6 @@ def train_multiple_agents(env_params, train_params):
         # Reset environment
         reset_timer.start()
         prev_obs, info = env.reset()
-        done = {a: False for a in range(env_params.n_agents)}
-        done["__all__"] = all(done.values())
 
         decision_cells = find_decision_cells(env.get_rail_env())
 
@@ -136,7 +134,7 @@ def train_multiple_agents(env_params, train_params):
                 # If agent is moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
                 # agent has reached its destination.
-                elif info["action_required"][agent] or is_last_step or done[agent]:
+                elif info["action_required"][agent] or (is_last_step and not done[agent]):
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
                                                  action_mask, agent_id=agent)
@@ -160,16 +158,17 @@ def train_multiple_agents(env_params, train_params):
                 if not done[a]:
                     prev_obs[a] = next_obs[a].copy()
 
-            # To represent the end of the episode inside the trajectory of each agent.
-            if is_last_step:
-                done["__all__"] = True
-
             for a in range(env_params.n_agents):
                 # Update dones and rewards for each agent that performed act() or step is the episode's last or has
                 # finished
+
+                # To represent the end of the episode inside the trajectory of each agent.
+                if is_last_step:
+                    done[a] = True
+
                 if a in agents_in_action:
                     learn_timer.start()
-                    ppo.step(a, rewards[a], done["__all__"])
+                    ppo.step(a, rewards[a], done[a])
                     learn_timer.end()
 
             if train_params.render:
