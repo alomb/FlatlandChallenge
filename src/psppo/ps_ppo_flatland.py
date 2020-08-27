@@ -163,10 +163,6 @@ def train_multiple_agents(env_params, train_params):
                 # Update dones and rewards for each agent that performed act() or step is the episode's last or has
                 # finished
 
-                # To represent the end of the episode inside the trajectory of each agent.
-                if is_last_step:
-                    done[a] = True
-
                 if a in agents_in_action:
                     learn_timer.start()
                     ppo.step(a, rewards[a], done[a])
