@@ -23,8 +23,13 @@ class DeadlocksDetector:
 
     def _check_deadlock(self, rail_env):
         # For each active and not deadlocked agent
+        apple = list(filter(lambda a: a.status == RailAgentStatus.ACTIVE and not self.deadlocks[a.handle],
+                                 rail_env.agents))
         for agent in list(filter(lambda a: a.status == RailAgentStatus.ACTIVE and not self.deadlocks[a.handle],
                                  rail_env.agents)):
+
+            if agent.status == RailAgentStatus.DONE or agent.status == RailAgentStatus.DONE_REMOVED:
+                print("EH!")
 
             position = agent.position
             direction = agent.direction
@@ -67,5 +72,64 @@ class DeadlocksDetector:
         return self.deadlocks
 
     def step(self, env):
-        return self._check_deadlock(env)
+        deads = self._check_deadlock(env)
+        print(deads)
+        return deads
 
+    """
+    def step(self, env):
+        # return self._check_deadlock(env)
+        agents = []
+        for a in range(env.get_num_agents()):
+            if not env.agents[a].status not in [RailAgentStatus.DONE_REMOVED, RailAgentStatus.READY_TO_DEPART]:
+                agents.append(a)
+                if not self.deadlocks[a]:
+                    self.deadlocks[a] = self._check_deadlocks(agents, self.deadlocks, env)
+                if not (self.deadlocks[a]):
+                    del agents[-1]
+
+        print(self.deadlocks)
+        return self.deadlocks
+
+    def _check_feasible_transitions(self, pos_a1, transitions, env):
+        for direction, values in enumerate(self.directions):
+            if transitions[direction] == 1:
+                position_check = (pos_a1[0] + values[0], pos_a1[1] + values[1])
+                if not (env.cell_free(position_check)):
+                    for a2 in range(env.get_num_agents()):
+                        if env.agents[a2].position == position_check:
+                            return a2
+
+        return None
+
+    def _check_next_pos(self, a1, env):
+        if env.agents[a1].position is not None:
+            pos_a1 = env.agents[a1].position
+            dir_a1 = env.agents[a1].direction
+        else:
+            pos_a1 = env.agents[a1].initial_position
+            dir_a1 = env.agents[a1].initial_direction
+        if env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1)[dir_a1] == 1:
+            position_check = (pos_a1[0] + self.directions[dir_a1][0], pos_a1[1] + self.directions[dir_a1][1])
+            if not (env.cell_free(position_check)):
+                for a2 in range(env.get_num_agents()):
+                    if env.agents[a2].position == position_check:
+                        return a2
+        else:
+            return self._check_feasible_transitions(pos_a1, env.rail.get_transitions(pos_a1[0], pos_a1[1], dir_a1), env)
+
+        return None
+
+    def _check_deadlocks(self, a1, deadlocks, env):
+        a2 = self._check_next_pos(a1[-1], env)
+
+        if a2 is None:
+            return False
+        if deadlocks[a2] or a2 in a1:
+            return True
+        a1.append(a2)
+        deadlocks[a2] = self._check_deadlocks(a1, deadlocks, env)
+        if deadlocks[a2]:
+            return True
+        del a1[-1]
+    """
