@@ -87,7 +87,7 @@ def eval_policy(env_params, train_params):
                         and step != max_steps - 1:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 elif info["action_required"][agent]:
-                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent])
+                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent], agent_id=agent)
                 else:
                     action_dict[agent] = int(RailEnvActions.DO_NOTHING)
 
@@ -95,6 +95,8 @@ def eval_policy(env_params, train_params):
 
             if train_params.render:
                 env.env.show_render()
+
+            print(info['deadlocks'])
 
             if done['__all__']:
                 break

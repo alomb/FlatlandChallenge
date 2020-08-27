@@ -131,6 +131,8 @@ class RewardsWrapper(gym.Wrapper):
         self.deadlock_penalty = deadlock_penalty
         self.shortest_path_penalty_coefficient = shortest_path_penalty_coefficient
         self.done_bonus = done_bonus
+        # Hypothesis: the greatest possible reward in the module is awarded to a deadlocked agent
+        self.normalization_factor = abs(self.deadlock_penalty) + 1
 
     def reset(self):
         """
@@ -181,6 +183,9 @@ class RewardsWrapper(gym.Wrapper):
                 # Deadlocks penalty
                 if "deadlocks" in info and info["deadlocks"][agent]:
                     rewards_shaped[agent] += self.deadlock_penalty
+
+        for agent in range(num_agents):
+            rewards_shaped[agent] /= self.normalization_factor
 
         return obs, rewards_shaped, done, info
 
