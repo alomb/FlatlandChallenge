@@ -41,13 +41,13 @@ class PsPPOPolicy(Policy):
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
 
-        self.state_estimated_value_metric = 0
-        self.probs_ratio_metric = 0
-        self.advantage_metric = 0
-        self.policy_loss_metric = 0
-        self.value_loss_metric = 0
-        self.entropy_loss_metric = 0
-        self.loss_metric = 0
+        self.state_estimated_value_metric = None
+        self.probs_ratio_metric = None
+        self.advantage_metric = None
+        self.policy_loss_metric = None
+        self.value_loss_metric = None
+        self.entropy_loss_metric = None
+        self.loss_metric = None
 
         self.memory = Memory(n_agents)
 
