@@ -191,8 +191,7 @@ def train_multiple_agents(env_params, train_params):
         training_timer.end()
 
         if train_params.print_stats:
-            tensorboard_logger.update_tensorboard(episode,
-                                                  env.env,
+            tensorboard_logger.update_tensorboard(env.env,
                                                   {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,
