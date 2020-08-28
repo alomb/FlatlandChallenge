@@ -6,11 +6,12 @@ from flatland.envs.malfunction_generators import MalfunctionParameters
 from src.d3qn.d3qn_flatland import train_multiple_agents
 from src.d3qn.eval_d3qn import eval_policy
 
-if __name__ == "__main__":
-    myseed = 14
 
-    datehour = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-    print(datehour)
+def train():
+    seed = 14
+
+    namefile = "d3qn_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    print("Running {}".format(namefile))
 
     environment_parameters = {
         "n_agents": 3,
@@ -19,7 +20,7 @@ if __name__ == "__main__":
         "n_cities": 5,
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
-        "seed": myseed,
+        "seed": seed,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
@@ -96,9 +97,9 @@ if __name__ == "__main__":
         "use_gpu": False,
         "render": False,
         "print_stats": True,
-        "save_model_path": "checkpoint.pt",
-        "load_model_path": "checkpoint.pt",
-        "tensorboard_path": "log/",
+        "save_model_path": namefile + ".pt",
+        "load_model_path": namefile + ".pt",
+        "tensorboard_path": "log_" + namefile + "/",
 
         # ============================
         # Action Masking / Skipping
@@ -112,3 +113,7 @@ if __name__ == "__main__":
         eval_policy(Namespace(**environment_parameters), Namespace(**training_parameters))
     else:
         train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
+
+
+if __name__ == "__main__":
+    train()

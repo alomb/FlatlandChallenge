@@ -41,7 +41,7 @@ class PsPPOPolicy(Policy):
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
 
-        with torch.no_grad:
+        with torch.no_grad():
             self.state_estimated_value_stat = 0
             self.probs_ratio_stat = 0
             self.advantage_stat = 0
@@ -316,7 +316,7 @@ class PsPPOPolicy(Policy):
         self.policy.load(filename)
 
     def empy_stats(self):
-        with torch.no_grad:
+        with torch.no_grad():
             self.state_estimated_value_stat = 0
             self.probs_ratio_stat = 0
             self.advantage_stat = 0

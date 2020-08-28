@@ -16,7 +16,7 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from src.common.action_skipping_masking import find_decision_cells, get_action_masking
-from src.common.flatland_random_railenv import FlatlandRailEnv
+from src.common.flatland_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.psppo.policy import PsPPOPolicy
 

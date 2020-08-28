@@ -1,14 +1,15 @@
 import random
 
-from flatland.envs.agent_utils import RailAgentStatus
 import numpy as np
+import torch
+
+from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-import torch
 from flatland.envs.rail_env import RailEnvActions
 
 from src.common.action_skipping_masking import find_decision_cells
-from src.common.flatland_random_railenv import FlatlandRailEnv
+from src.common.flatland_railenv import FlatlandRailEnv
 from src.psppo.policy import PsPPOPolicy
 
 
