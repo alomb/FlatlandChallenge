@@ -21,7 +21,8 @@ from src.d3qn.policy import D3QNPolicy
 
 def train_multiple_agents(env_params, train_params):
     if use_wandb:
-        wandb.init(project="flatland-challenge",
+        wandb.init(project="flatland-challenge-lorem-ipsum-dolor-sit-amet",
+                   entity="lomb",
                    tags="d3qn",
                    config={**vars(train_params), **vars(env_params)},
                    sync_tensorboard=True)
