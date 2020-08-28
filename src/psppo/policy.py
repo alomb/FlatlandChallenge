@@ -41,13 +41,15 @@ class PsPPOPolicy(Policy):
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
 
-        self.state_estimated_value_metric = None
-        self.probs_ratio_metric = None
-        self.advantage_metric = None
-        self.policy_loss_metric = None
-        self.value_loss_metric = None
-        self.entropy_loss_metric = None
-        self.loss_metric = None
+        with torch.no_grad:
+            self.state_estimated_value_stat = 0
+            self.probs_ratio_stat = 0
+            self.advantage_stat = 0
+            self.policy_loss_stat = 0
+            self.value_loss_stat = 0
+            self.entropy_loss_stat = 0
+            self.loss_stat = 0
+            self.tot_stats = 0
 
         self.memory = Memory(n_agents)
 
@@ -203,13 +205,14 @@ class PsPPOPolicy(Policy):
                 optimizer.step()
 
                 with torch.no_grad():
-                    self.state_estimated_value_metric = state_estimated_value.mean()
-                    self.probs_ratio_metric = probs_ratio.mean()
-                    self.advantage_metric = advantage.mean()
-                    self.policy_loss_metric = policy_loss
-                    self.value_loss_metric = vlc * value_loss
-                    self.entropy_loss_metric = ec * dist_entropy.mean()
-                    self.loss_metric = loss
+                    self.state_estimated_value_stat += state_estimated_value.mean()
+                    self.probs_ratio_stat += probs_ratio.mean()
+                    self.advantage_stat += advantage.mean()
+                    self.policy_loss_stat += policy_loss
+                    self.value_loss_stat += vlc * value_loss
+                    self.entropy_loss_stat += ec * dist_entropy.mean()
+                    self.loss_stat += loss
+                    self.tot_stats += 1
 
                 # To show graph
                 """
@@ -311,3 +314,14 @@ class PsPPOPolicy(Policy):
 
     def load(self, filename):
         self.policy.load(filename)
+
+    def empy_stats(self):
+        with torch.no_grad:
+            self.state_estimated_value_stat = 0
+            self.probs_ratio_stat = 0
+            self.advantage_stat = 0
+            self.policy_loss_stat = 0
+            self.value_loss_stat = 0
+            self.entropy_loss_stat = 0
+            self.loss_stat = 0
+            self.tot_stats = 0

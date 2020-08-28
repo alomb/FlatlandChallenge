@@ -75,38 +75,39 @@ class TensorBoardLogger:
 
         self.writer.add_hparams(train_params, {})
         self.writer.add_hparams(env_params, {})
+        self.step = 0
 
-    def update_tensorboard(self, episode, env, policy_params, timers):
+    def update_tensorboard(self, env, train_params, timers):
         """
         Save logs to Tensorboard
 
-        :param episode: the current episode
         :param env: the environment used to extract some statistics
-        :param policy_params: a dictionary of policy's statistics to record
+        :param train_params: a dictionary of training statistics to record
         :param timers: a dictionary of timers to record
         """
         # Environment parameters
-        self.writer.add_scalar("training/score", env.normalized_score, episode)
-        self.writer.add_scalar("training/accumulated_score", np.mean(env.accumulated_normalized_score), episode)
-        self.writer.add_scalar("training/completion", env.completion_percentage, episode)
-        self.writer.add_scalar("training/accumulated_completion", np.mean(env.accumulated_completion), episode)
-        self.writer.add_scalar("training/deadlocks", env.deadlocks_percentage, episode)
-        self.writer.add_scalar("training/accumulated_deadlocks", np.mean(env.accumulated_deadlocks), episode)
-        self.writer.add_histogram("actions/distribution", np.array(env.action_probs), episode)
-        self.writer.add_scalar("actions/nothing", env.action_probs[RailEnvActions.DO_NOTHING], episode)
-        self.writer.add_scalar("actions/left", env.action_probs[RailEnvActions.MOVE_LEFT], episode)
-        self.writer.add_scalar("actions/forward", env.action_probs[RailEnvActions.MOVE_FORWARD], episode)
-        self.writer.add_scalar("actions/right", env.action_probs[RailEnvActions.MOVE_RIGHT], episode)
-        self.writer.add_scalar("actions/stop", env.action_probs[RailEnvActions.STOP_MOVING], episode)
+        self.writer.add_scalar("metrics/score", env.normalized_score, self.step)
+        self.writer.add_scalar("metrics/accumulated_score", np.mean(env.accumulated_normalized_score), self.step)
+        self.writer.add_scalar("metrics/completion", env.completion_percentage, self.step)
+        self.writer.add_scalar("metrics/accumulated_completion", np.mean(env.accumulated_completion), self.step)
+        self.writer.add_scalar("metrics/deadlocks", env.deadlocks_percentage, self.step)
+        self.writer.add_scalar("metrics/accumulated_deadlocks", np.mean(env.accumulated_deadlocks), self.step)
+        self.writer.add_histogram("actions/distribution", np.array(env.action_probs), self.step)
+        self.writer.add_scalar("actions/nothing", env.action_probs[RailEnvActions.DO_NOTHING], self.step)
+        self.writer.add_scalar("actions/left", env.action_probs[RailEnvActions.MOVE_LEFT], self.step)
+        self.writer.add_scalar("actions/forward", env.action_probs[RailEnvActions.MOVE_FORWARD], self.step)
+        self.writer.add_scalar("actions/right", env.action_probs[RailEnvActions.MOVE_RIGHT], self.step)
+        self.writer.add_scalar("actions/stop", env.action_probs[RailEnvActions.STOP_MOVING], self.step)
 
-        # Policy parameters
-        for param_name, param in policy_params.items():
+        # Training parameters
+        for param_name, param in train_params.items():
             assert type(param_name) is str, "Parameters names must be strings!"
-            if param is not None:
-                self.writer.add_scalar("training/" + param_name, param, episode)
+            self.writer.add_scalar("training/" + param_name, param, self.step)
 
         # Timers
         for timer_name, timer in timers.items():
             assert type(timer_name) is str and type(timer) is Timer, "A Timer object and its name (string) must be" \
                                                                      "passed!"
-            self.writer.add_scalar("timer/" + timer_name, timer.get(), episode)
+            self.writer.add_scalar("timers/" + timer_name, timer.get(), self.step)
+
+        self.step += 1

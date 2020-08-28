@@ -80,10 +80,10 @@ if __name__ == "__main__":
         # Training setup
         # ============================
         "n_episodes": 10000,
-        "horizon": 4096,
+        "horizon": 512,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 512,
+        "batch_size": 32,
         "batch_mode": "shuffle",
 
         # ============================

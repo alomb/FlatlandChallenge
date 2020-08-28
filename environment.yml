@@ -28,5 +28,7 @@ dependencies:
     - torchviz
     # To read config files
     - pyyaml
+    # Weights and Biases
+    - wandb
     # To keep the env clean
     - pip-autoremove

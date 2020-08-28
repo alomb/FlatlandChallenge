@@ -2,6 +2,13 @@ import random
 
 import numpy as np
 import torch
+try:
+    import wandb
+    use_wandb = True
+except ImportError as e:
+    print("Install wandb and login to load TensorBoard logs.")
+    use_wandb = False
+
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnvActions
@@ -13,6 +20,12 @@ from src.d3qn.policy import D3QNPolicy
 
 
 def train_multiple_agents(env_params, train_params):
+    if use_wandb:
+        wandb.init(project="flatland-challenge",
+                   tags="d3qn",
+                   config={**vars(train_params), **vars(env_params)},
+                   sync_tensorboard=True)
+
     # Environment parameters
     seed = env_params.seed
 
@@ -54,6 +67,9 @@ def train_multiple_agents(env_params, train_params):
 
     # Double Dueling DQN policy
     policy = D3QNPolicy(env.state_size, action_size, train_params)
+
+    if use_wandb:
+        wandb.watch(policy.qnetwork_local)
 
     # Timers
     training_timer = Timer()
