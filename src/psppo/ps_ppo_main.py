@@ -45,10 +45,10 @@ def train():
         "reward_shaping": False,
         "stop_penalty": -0.0,
         "invalid_action_penalty": -0.0,
-        "deadlock_penalty": -3.0,
+        "deadlock_penalty": -15.0,
         # 1.0 for skipping
-        "shortest_path_penalty_coefficient": 1.33,
-        "done_bonus": 0.33,
+        "shortest_path_penalty_coefficient": 1 + 1/15,
+        "done_bonus": 1/15,
     }
 
     training_parameters = {
@@ -109,9 +109,9 @@ def train():
         # Save and evaluate interval
         "checkpoint_interval": 75,
         "evaluation_mode": False,
-        "eval_episodes": 3,
-        "use_gpu": True,
-        "render": False,
+        "eval_episodes": 25,
+        "use_gpu": False,
+        "render": True,
         "print_stats": True,
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",

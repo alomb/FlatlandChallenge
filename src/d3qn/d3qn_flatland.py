@@ -79,7 +79,7 @@ def train_multiple_agents(env_params, train_params):
     learn_timer = Timer()
 
     # TensorBoard writer
-    tensorboard_logger = TensorBoardLogger(train_params.tensorboard_path)
+    tensorboard_logger = TensorBoardLogger(wandb.run.dir)
 
     ####################################################################################################################
     # Training starts
