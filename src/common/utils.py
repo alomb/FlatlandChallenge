@@ -64,7 +64,7 @@ class TensorBoardLogger:
     Class to handle Tensorboard logging.
     """
 
-    def __init__(self, tensorboard_path, env_params, train_params):
+    def __init__(self, tensorboard_path, env_params=None, train_params=None):
         """
 
         :param tensorboard_path: the path where logs are saved
@@ -73,8 +73,10 @@ class TensorBoardLogger:
         """
         self.writer = SummaryWriter(tensorboard_path)
 
-        self.writer.add_hparams(train_params, {})
-        self.writer.add_hparams(env_params, {})
+        if train_params is not None:
+            self.writer.add_hparams(train_params, {})
+        if env_params is not None:
+            self.writer.add_hparams(env_params, {})
         self.step = 0
 
     def update_tensorboard(self, env, train_params, timers):
