@@ -15,26 +15,26 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
+        "n_agents": 5,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
-        "seed": seed,
+        "seed": None,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0,
+            malfunction_rate=0.005,
             min_duration=15,
             max_duration=50),
         # Speeds
         "speed_profiles": {
-            1.: 1.0,
-            1. / 2.: 0.0,
-            1. / 3.: 0.0,
+            1.: 0.5,
+            1. / 2.: 0.25,
+            1. / 3.: 0.25,
             1. / 4.: 0.0},
 
         # ============================
@@ -42,7 +42,7 @@ def train():
         # ============================
         "custom_observations": False,
 
-        "reward_shaping": True,
+        "reward_shaping": False,
         "stop_penalty": -0.0,
         "invalid_action_penalty": -0.0,
         "deadlock_penalty": -3.0,
@@ -81,7 +81,7 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 10000,
+        "n_episodes": 650,
         "horizon": 512,
         "epochs": 8,
         # 64, 128, 256
