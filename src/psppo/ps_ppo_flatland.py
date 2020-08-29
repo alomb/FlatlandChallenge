@@ -34,9 +34,8 @@ def train_multiple_agents(env_params, train_params):
         wandb.init(project="flatland-challenge-lorem-ipsum-dolor-sit-amet",
                    entity="lomb",
                    tags="ps-ppo",
-                   config={**vars(train_params), **vars(env_params)})
-
-        wandb.tensorboard.patch(pytorch=True, save=False)
+                   config={**vars(train_params), **vars(env_params)},
+                   sync_tensorboard=True)
 
     # Environment parameters
     seed = env_params.seed
@@ -93,7 +92,7 @@ def train_multiple_agents(env_params, train_params):
     learn_timer = Timer()
 
     # TensorBoard writer
-    tensorboard_logger = TensorBoardLogger(train_params.tensorboard_path)
+    tensorboard_logger = TensorBoardLogger(wandb.run.dir)
 
     ####################################################################################################################
     # Training starts
