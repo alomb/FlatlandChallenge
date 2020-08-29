@@ -78,13 +78,8 @@ def train_multiple_agents(env_params, train_params):
     reset_timer = Timer()
     learn_timer = Timer()
 
-    # Remove attributes not printable by Tensorboard
-    board_env_params = vars(env_params)
-    del board_env_params["speed_profiles"]
-    del board_env_params["malfunction_parameters"]
-
     # TensorBoard writer
-    tensorboard_logger = TensorBoardLogger(train_params.tensorboard_path, board_env_params, vars(train_params))
+    tensorboard_logger = TensorBoardLogger(train_params.tensorboard_path)
 
     ####################################################################################################################
     # Training starts

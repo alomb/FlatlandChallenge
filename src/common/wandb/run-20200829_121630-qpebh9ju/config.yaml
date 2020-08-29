@@ -1,0 +1,176 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.9.5
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.2
+action_masking:
+  desc: null
+  value: true
+action_skipping:
+  desc: null
+  value: false
+activation:
+  desc: null
+  value: ReLU
+actor_mlp_depth:
+  desc: null
+  value: 3
+actor_mlp_width:
+  desc: null
+  value: 128
+adam_eps:
+  desc: null
+  value: 1.0e-05
+advantage_estimator:
+  desc: null
+  value: gae
+allow_no_op:
+  desc: null
+  value: false
+batch_mode:
+  desc: null
+  value: shuffle
+batch_size:
+  desc: null
+  value: 32
+checkpoint_interval:
+  desc: null
+  value: 75
+critic_mlp_depth:
+  desc: null
+  value: 3
+critic_mlp_width:
+  desc: null
+  value: 256
+custom_observations:
+  desc: null
+  value: false
+deadlock_penalty:
+  desc: null
+  value: -3.0
+discount_factor:
+  desc: null
+  value: 0.99
+done_bonus:
+  desc: null
+  value: 0.33
+entropy_coefficient:
+  desc: null
+  value: 0.01
+epochs:
+  desc: null
+  value: 8
+eps_clip:
+  desc: null
+  value: 0.2
+eval_episodes:
+  desc: null
+  value: 3
+evaluation_mode:
+  desc: null
+  value: false
+horizon:
+  desc: null
+  value: 512
+invalid_action_penalty:
+  desc: null
+  value: -0.0
+last_actor_layer_scaling:
+  desc: null
+  value: 0.01
+last_critic_layer_scaling:
+  desc: null
+  value: 0.1
+learning_rate:
+  desc: null
+  value: 0.001
+lmbda:
+  desc: null
+  value: 0.95
+load_model_path:
+  desc: null
+  value: psppo_08_29_2020_12_16_31.pt
+malfunction_parameters:
+  desc: null
+  value:
+  - 0
+  - 15
+  - 50
+max_grad_norm:
+  desc: null
+  value: 0.5
+max_rails_between_cities:
+  desc: null
+  value: 2
+max_rails_in_city:
+  desc: null
+  value: 3
+n_agents:
+  desc: null
+  value: 3
+n_cities:
+  desc: null
+  value: 5
+n_episodes:
+  desc: null
+  value: 10000
+observation_max_path_depth:
+  desc: null
+  value: 30
+observation_radius:
+  desc: null
+  value: 10
+observation_tree_depth:
+  desc: null
+  value: 2
+print_stats:
+  desc: null
+  value: true
+render:
+  desc: null
+  value: false
+reward_shaping:
+  desc: null
+  value: true
+save_model_path:
+  desc: null
+  value: psppo_08_29_2020_12_16_31.pt
+seed:
+  desc: null
+  value: 14
+shared:
+  desc: null
+  value: false
+shortest_path_penalty_coefficient:
+  desc: null
+  value: 1.33
+speed_profiles:
+  desc: null
+  value:
+    0.25: 0.0
+    0.3333333333333333: 0.0
+    0.5: 0.0
+    1.0: 1.0
+stop_penalty:
+  desc: null
+  value: -0.0
+tensorboard_path:
+  desc: null
+  value: log_psppo_08_29_2020_12_16_31/
+use_gpu:
+  desc: null
+  value: true
+value_loss_coefficient:
+  desc: null
+  value: 0.1
+x_dim:
+  desc: null
+  value: 48
+y_dim:
+  desc: null
+  value: 27
