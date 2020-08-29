@@ -3,18 +3,25 @@ import random
 import numpy as np
 import torch
 
+try:
+    import wandb
+
+    use_wandb = True
+except ImportError as e:
+    print("Install wandb and login to load TensorBoard logs.")
+    use_wandb = False
+
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
 from src.common.action_skipping_masking import find_decision_cells, get_action_masking
-from src.common.flatland_random_railenv import FlatlandRailEnv
+from src.common.flatland_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.psppo.policy import PsPPOPolicy
 
 
 def get_agent_ids(agents, malfunction_rate):
-
     max_speed = 1.0
     max_malfunction_rate = 0.1 * 10
     max_value = max_speed + max_malfunction_rate
@@ -23,6 +30,13 @@ def get_agent_ids(agents, malfunction_rate):
 
 
 def train_multiple_agents(env_params, train_params):
+    if use_wandb:
+        wandb.init(project="flatland-challenge-lorem-ipsum-dolor-sit-amet",
+                   entity="lomb",
+                   tags="ps-ppo",
+                   config={**vars(train_params), **vars(env_params)},
+                   sync_tensorboard=True)
+
     # Environment parameters
     seed = env_params.seed
 
@@ -66,6 +80,10 @@ def train_multiple_agents(env_params, train_params):
                       action_size,
                       train_params,
                       env_params.n_agents)
+
+    if use_wandb:
+        wandb.watch(ppo.policy.actor_network)
+        wandb.watch(ppo.policy.critic_network)
 
     # Timers
     training_timer = Timer()
@@ -128,13 +146,13 @@ def train_multiple_agents(env_params, train_params):
                 # Action skipping if the agent is in not in a decision cell and not in last step.
                 # TODO: action skipping may skips agents arrival and done agent
                 if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells\
+                        and env.get_rail_env().agents[agent].position not in decision_cells \
                         and not is_last_step:
                     action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 # If agent is moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
                 # agent has reached its destination.
-                elif info["action_required"][agent]: #or is_last_step or done[agent]:
+                elif info["action_required"][agent]:  # or is_last_step or done[agent]:
 
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
@@ -188,19 +206,21 @@ def train_multiple_agents(env_params, train_params):
 
         # Update Tensorboard statistics
         if train_params.print_stats:
-            tensorboard_logger.update_tensorboard(episode,
-                                                  env.env,
-                                                  {"state_estimated_value": ppo.state_estimated_value_metric,
-                                                   "probs_ratio": ppo.probs_ratio_metric,
-                                                   "advantage": ppo.advantage_metric,
-                                                   "policy_loss": ppo.policy_loss_metric,
-                                                   "value_loss": ppo.value_loss_metric,
-                                                   "entropy_loss": ppo.entropy_loss_metric,
-                                                   "total_loss": ppo.loss_metric},
+            tensorboard_logger.update_tensorboard(env.env,
+                                                  {"state_estimated_value": ppo.state_estimated_value_stat /
+                                                                            ppo.tot_stats,
+                                                   "probs_ratio": ppo.probs_ratio_stat / ppo.tot_stats,
+                                                   "advantage": ppo.advantage_stat / ppo.tot_stats,
+                                                   "policy_loss": ppo.policy_loss_stat / ppo.tot_stats,
+                                                   "value_loss": ppo.value_loss_stat / ppo.tot_stats,
+                                                   "entropy_loss": ppo.entropy_loss_stat / ppo.tot_stats,
+                                                   "total_loss": ppo.loss_stat / ppo.tot_stats} if ppo.tot_stats != 0
+                                                  else {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,
                                                    "learn": learn_timer,
                                                    "train": training_timer})
+        ppo.empy_stats()
 
     return env.env.accumulated_normalized_score, \
            env.env.accumulated_completion, \

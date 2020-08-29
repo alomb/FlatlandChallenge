@@ -2,17 +2,31 @@ import random
 
 import numpy as np
 import torch
+try:
+    import wandb
+    use_wandb = True
+except ImportError as e:
+    print("Install wandb and login to load TensorBoard logs.")
+    use_wandb = False
+
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnvActions
 
 from src.common.action_skipping_masking import find_decision_cells, get_action_masking
-from src.common.flatland_random_railenv import FlatlandRailEnv
+from src.common.flatland_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.d3qn.policy import D3QNPolicy
 
 
 def train_multiple_agents(env_params, train_params):
+    if use_wandb:
+        wandb.init(project="flatland-challenge-lorem-ipsum-dolor-sit-amet",
+                   entity="lomb",
+                   tags="d3qn",
+                   config={**vars(train_params), **vars(env_params)},
+                   sync_tensorboard=True)
+
     # Environment parameters
     seed = env_params.seed
 
@@ -54,6 +68,9 @@ def train_multiple_agents(env_params, train_params):
 
     # Double Dueling DQN policy
     policy = D3QNPolicy(env.state_size, action_size, train_params)
+
+    if use_wandb:
+        wandb.watch(policy.qnetwork_local)
 
     # Timers
     training_timer = Timer()
@@ -175,8 +192,7 @@ def train_multiple_agents(env_params, train_params):
         training_timer.end()
 
         if train_params.print_stats:
-            tensorboard_logger.update_tensorboard(episode,
-                                                  env.env,
+            tensorboard_logger.update_tensorboard(env.env,
                                                   {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,

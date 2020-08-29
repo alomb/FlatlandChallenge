@@ -1,16 +1,18 @@
+
 from argparse import Namespace
+from datetime import datetime
 
 from flatland.envs.malfunction_generators import MalfunctionParameters
 
 from src.psppo.eval_psppo import eval_policy
 from src.psppo.ps_ppo_flatland import train_multiple_agents
 
-if __name__ == "__main__":
-    myseed = 14
 
-    # namefile = datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-    namefile = "psppo_naive"
-    print("Filename: {}".format(namefile))
+def train():
+    seed = 14
+
+    namefile = "psppo_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    print("Running {}".format(namefile))
 
     environment_parameters = {
         "n_agents": 15,
@@ -80,10 +82,10 @@ if __name__ == "__main__":
         # Training setup
         # ============================
         "n_episodes": 10000,
-        "horizon": 4096,
+        "horizon": 512,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 512,
+        "batch_size": 32,
         "batch_mode": "shuffle",
 
         # ============================
@@ -111,9 +113,9 @@ if __name__ == "__main__":
         "use_gpu": False,
         "render": True,
         "print_stats": True,
-        "save_model_path": "checkpoint.pt",
-        "load_model_path": "checkpoint.pt",
-        "tensorboard_path": "log/",
+        "save_model_path": namefile + ".pt",
+        "load_model_path": namefile + ".pt",
+        "tensorboard_path": "log_" + namefile + "/",
 
         # ============================
         # Action Masking / Skipping
@@ -140,7 +142,12 @@ if __name__ == "__main__":
     %load_ext tensorboard
     % tensorboard --logdir "/content/drive/My Drive/Colab Notebooks/logs_todo"
     """
+
     if training_parameters["evaluation_mode"]:
         eval_policy(Namespace(**environment_parameters), Namespace(**training_parameters))
     else:
         train_multiple_agents(Namespace(**environment_parameters), Namespace(**training_parameters))
+
+
+if __name__ == "__main__":
+    train()
