@@ -111,7 +111,7 @@ def train():
         "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
-        "render": True,
+        "render": False,
         "print_stats": True,
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
