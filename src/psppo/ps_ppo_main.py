@@ -13,19 +13,19 @@ if __name__ == "__main__":
     print("Filename: {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
-        "x_dim": 16 * 3,
-        "y_dim": 9 * 3,
-        "n_cities": 5,
-        "max_rails_between_cities": 2,
-        "max_rails_in_city": 3,
+        "n_agents": 15,
+        "x_dim": 30,
+        "y_dim": 30,
+        "n_cities": 3,
+        "max_rails_between_cities": 7,
+        "max_rails_in_city": 7,
         "seed": myseed,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0,
+            malfunction_rate=0.0001,
             min_duration=15,
             max_duration=50),
         # Speeds
@@ -41,12 +41,12 @@ if __name__ == "__main__":
         "custom_observations": False,
 
         "reward_shaping": True,
-        "stop_penalty": -0.0,
+        "stop_penalty": -1/15,
         "invalid_action_penalty": -0.0,
-        "deadlock_penalty": -3.0,
+        "deadlock_penalty": -15.0,
         # 1.0 for skipping
-        "shortest_path_penalty_coefficient": 1.33,
-        "done_bonus": 0.33,
+        "shortest_path_penalty_coefficient": 1 + 1/15,
+        "done_bonus": 1/15,
     }
 
     training_parameters = {
@@ -107,9 +107,9 @@ if __name__ == "__main__":
         # Save and evaluate interval
         "checkpoint_interval": 75,
         "evaluation_mode": False,
-        "eval_episodes": 3,
-        "use_gpu": True,
-        "render": False,
+        "eval_episodes": 25,
+        "use_gpu": False,
+        "render": True,
         "print_stats": True,
         "save_model_path": "checkpoint.pt",
         "load_model_path": "checkpoint.pt",

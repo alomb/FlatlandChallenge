@@ -96,8 +96,6 @@ def eval_policy(env_params, train_params):
             if train_params.render:
                 env.env.show_render()
 
-            print(info['deadlocks'])
-
             if done['__all__']:
                 break
 
