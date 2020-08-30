@@ -29,10 +29,10 @@
 \bibliographystyle{plainnat}
 
 \hypersetup{
-  colorlinks   = true,
-  urlcolor     = red,
-  linkcolor    = black,
-  citecolor    = blue
+  colorlinks=true,
+  urlcolor=red,
+  linkcolor=black,
+  citecolor=blue
 }
 
 % Code style
@@ -107,7 +107,7 @@ Artificial Intelligence}}
 \vspace{31mm}
 
 \begin{center}
-Academic Year {2019/2020}
+Academic Year {2019-2020}
 \end{center}
 
 \end{titlepage}
@@ -342,7 +342,7 @@ Learning in multiagent settings is fundamentally more difficult than the single-
 
 Below follow some problems that may affect the Flatland Challenge.
 
-\subsubsection{Non-Stationarity}~\newline
+\subsubsection{Non-Stationarity}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{papoudakis2019dealing}}]
 In Markov games, the state transition function $T$ and the reward function of each agent $r_i$ depend on the actions of all agents.
@@ -374,7 +374,7 @@ Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neur
 A popular alternative approach to MARL is \textbf{Independent Learning}, in which each agent independently learns its own policy, treating other agents as part of the environment.
 While this method avoid some scalability problems and has been successfully used in practice it introduces a non-stationary environment from the point of view of each agent.
 
-\subsubsection{Partial observability}~\newline
+\subsubsection{Partial observability}
 As mentioned, in the single-agent scenario this type of problem is usually modelled with a POMDP\@.
 \textbf{Deep Recurrent Q-Networks (DRQN)} proposed using recurrent neural networks, in particular, Long Short-Term Memory (LSTMs) cells in DQN, to introduce a memory capability.
 An extension of DRQN for multi-agent environments is \textbf{Deep Distributed Recurrent Q-network (DDRQN)}~\citep{Nguyen_2020}.
@@ -382,7 +382,7 @@ Another technique to deal with partial observability is \textbf{Deep Recurrent P
 Methods to address partial observability in Markov Games usually involve communication (RIAL and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
 Alternatively to the Markov Game, the Dec-POMDP can be used to model this type of scenario in a more classical \textbf{centralized learning for decentralized execution} fashion or in a more modern \textbf{decentralized learning for decentralized execution} way.
 
-\subsubsection{Scalability}~\newline
+\subsubsection{Scalability}
 To handle non-stationarity, each individual agent may need to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@~\citep{zhang2019multiagent}.
 Many methods have been proposed to tackle this problem, one of them is the extension of \textbf{Curriculum Learning} for a multi-agent scenario.
 
@@ -394,11 +394,11 @@ These considerations led to the development of different training schemes such a
 The former has become a standard as simulators are usually involved in MARL training, there are different types of communications between agents and the central controller such as centralized learning, concurrent learning and parameter sharing\citep{Nguyen_2020}.
 Usually decentralized settings may allow some sort of communication to address the non-convergence issue typical of the independent learning, this strategy is also referred as \textbf{decentralized setting with networked agents}.
 
-\subsubsection{Multi-agent credit assignment}~\newline
+\subsubsection{Multi-agent credit assignment}
 % TODO
 
-\chapter{Algorithms}\label{ch:algorithms}
-\addcontentsline{toc}{chapter}{Algorithms}
+\chapter{Original work}\label{ch:original-work}
+\addcontentsline{toc}{chapter}{Original work}
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 
@@ -408,7 +408,7 @@ This section provides some details on how observations and actions have been mod
 
 \subsection{Observations}\label{subsec:observations}
 
-Flatland environment provides three basic observations to get started: \textbf{Global}, \textbf{Local Grid}, \textbf{Local Tree}. 
+Flatland environment provides three basic observations to get started: \textbf{Global}, \textbf{Local Grid}, \textbf{Local Tree}.
 Due to the greater scalability we have done the experiments mostly using \textbf{Local Tree} as it depends on some parameters which are independent of the size of the grid and the number of agents.
 For the latter the observation vector is composed of 4 sequential parts, corresponding to data from the up to 4 possible movements in a \textbf{RailEnv}.
 The possibile movements are sorted relative to the current orientation of the agent, rather than NESW as for the transitions.
@@ -562,7 +562,7 @@ Neural networks are trained using Adam optimizer.
 References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
 % TODO: target network
 
-\subsubsection{Training setup}
+\subsubsection{Training setup}\label{subsubsec:training-setup}
 
 The training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents.
 In particular in the first part each agent interact with the environment gathering some experience, called also trajectory.
@@ -663,6 +663,7 @@ During this period it is possible that the agent converges to a wrong policy.
 Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the logits corresponding to the invalid actions.
 This is usually accomplished by replacing the logits of the actions to be masked by a large negative number like $-1 \cdot 10^8$.
 This operation actually change the gradient calculation for the actor network's parameters, in particular gradients of the masked logits become zero, but still maintains differentiability as the masking leaves unchanged values (identity function) or introduces constants.
+% TODO: Skipping
 
 \subsection{Testing}\label{subsec:testing}
 
@@ -709,25 +710,72 @@ PS-PPO hyperparameters
 	\end{itemize}
 \end{itemize}
 
-
 %TODO: horizon and batch, shuffle not shuffled, reward shaping, masking, skipping, allow no op
 
 \section{D3QN}\label{sec:d3qn}
 
+\textbf{Deep Q Networks (DQN)} have been proposed as the union of Deep Learning with Q-Learning to deal with complex and high dimensional environments such as video games and robotics.
+In this setting the neural network plays as a predictor from states to Q values, substituting a less scalable table of values.
+From the initial work~\citep{dqn} many supplements have been proposed to improve different parts of the original algorithm.
+\textbf{Dueling Double Deep Q Networks (D3QN)} represents a combination of many of them.
+A very wide overview of the main techniques applied to DQN can be found in~\citep{human-level}.
+
 \subsection{Algorithm}\label{subsec:algorithm2}
+
+The first D of D3QN stands for Dueling, an idea proposed in~\citep{dueling} which splits the neural network in two parts, one which computes an estimate of the values as usual and another the advantage of each action to understand which states are valuable without exploring the outcomes of each possible action.
+For example in the Flatland environment agents does not perform actions which substantially influence the environment, as many of them are moving forward.
+In this case, the idea is to increase the training phase and allow the controller to detect and learn how to act in critical positions such as switches.
+At the end, advantages and values are combined to obtain Q values.
+The second D stands for Double, which refers to the idea of using two separate neural networks during training, one, called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
+% TODO: finish
+\\
+\\
+The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.
+The following part will continue describing a soft adaptation to multi-agent scenario which relies mostly on the classical implementation while~\ref{subsubsec:fingerprints} describes more specific tricks.
 
 \subsection{Implementation}\label{subsec:implementation2}
 
-
 \subsubsection{Network architecture}
+
+%TODO value-adv aggregator, eps decay
 
 \subsubsection{Training setup}
 
-\subsubsection{Memory}
+In each episode the agents decides an action whenever they are ready to perform an action, namely they are not already moving from a cell to another, this may also include agents in deadlock which are involuntarily accumulating movements they will never perform, and are not arrived to destination.
+Agents that not decide an action perform a DO\_NOTHING action.
+Actions are stored and used to step the environment, trajectories are saved in the memory.
+When an agent decide the action has also th possibility to start the policy training which occurs whenever the memory has reached a certain size and every interval of episodes.
+Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:memory}.
+
+\subsubsection{Memory}\label{subsubsec:memory}
+
+As mentioned in~\ref{subsubsec:training-setup} one of the most important aspect to consider in a DRL algorithm is the nature of the input given to learn policies or value functions.
+Value based methods, such as D3QN, use experience more easily, allowing agents to collect it and reuse it in future learning iterations, this technique is called \textbf{Experience Replay (ER)}.
+Samples of batches are drawn from the pool uniformly.
+This approach introduce two main benefits: data is reused (sample efficiency) and correlations between randomly sampled steps is lower than using online data.
+
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{human-level}}]
+we used a biologically inspired mechanism termed experience replay that randomizes over the data, thereby removing correlations in the observation sequence and smoothing over changes in the data distribution.\\
+\[\dots\]\\
+In the future, it will be important to explore the potential use of biasing the content of experience replay towards salient events, a phenomenon that characterizes empirically observed hippocampal replay, and relates to the notion of "prioritized sweeping" in reinforcement learning.
+\end{quoting}
+
+\textbf{Prioritized Experience Replay (PER)} introduced in~\citep{prioritized}, extends the uniform ER by learning to replay memories where the real reward significantly diverges from the expected reward, letting the agent adjust itself in response to developing incorrect assumptions.
+PER implementation can be described in three parts:
+\begin{itemize}
+	\item The \textbf{SumTree} data structure.
+SumTrees are binary trees where each parent node contains the sum of its children.
+In this context the tree is used to store data and related priorities inside the leaves while the other nodes are involved in updating more efficiently priorities to speed up samplings and insertions.
+	\item The part associated to insertion of new data.
+Before inserting new data, an initial priority must be computed and for each new transition a prediction of the Q value must be computed and compared with the estimation both based on the current value estimator.
+A larger difference between the two values, called \textbf{Temporal Difference Error (TD Error)} suggests that more exploration must be done to improve the predictor.
+TD Errors and an hyperparamater $\alpha$ are used to compute the probability of each sample.
+	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
+\end{itemize}
 
 \subsubsection{Action masking and action skipping}\label{subsubsec:action-masking-ppo2}
 
-\subsubsection{}
+\subsubsection{Fingerprints}\label{subsubsec:fingerprints}
 
 \subsection{Testing}\label{subsec:testing2}
 
@@ -735,7 +783,7 @@ PS-PPO hyperparameters
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{bengio_curiculum}}]
 The basic idea is to start small, learn easier aspects of the task or easier subtasks, and then gradually increase the difficulty level.\\
-\dots\\
+\[\dots\]\\
 Deep learning methods attempt to learn feature hierarchies.
 Features at higher levels are formed by the composition of lower level features.
 Automatically learning multiple levels of abstraction may allow a system to induce complex functions mapping the input to the output directly from data, without depending heavily on human-crafted features.
@@ -767,6 +815,9 @@ The problem of generating environment is not easy too because parameters must be
 One alternative approach is to manually describe ranges of coherent parameter values or levels of difficulty that allows an adaptive and automatic process of task sequencing.
 
 \subsection{Testing}\label{subsec:testing3}
+
+\chapter{Conclusions and future works}
+% TODO
 
 \newpage
 ~\nocite{*}
