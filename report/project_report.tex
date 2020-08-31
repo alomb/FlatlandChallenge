@@ -406,7 +406,24 @@ We developed the following work using Python and Pytorch.
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
 \subsection{Metrics}
-%TODO: Wrappers stats and metrics
+We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
+
+\begin{itemize}
+\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainible, computed as the product between the number of agents and the maximum number of steps in the episode. In the worst case, infact, all agents do not reach their destination, therefore for each step they get a negative reward. 
+\begin{equation}{score \over {max\_steps \cdot n\_agents}}\end{equation}
+\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point. 
+\begin{equation}{\sum {normalized\_score} \over N}\end{equation}
+\item \textbf{completion\_percentage} is the percentage of agents who reached their destination in the episode.
+\begin{equation}{100 \cdot {tasks\_finished \over n\_agents}}\end{equation}
+\item \textbf{accumulated\_completion} is the mean of \textbf{completion\_percentage} obtained up to that point.
+\begin{equation}{\sum {completion\_percentage} \over N}\end{equation}
+\item \textbf{deadlocks\_percentage} is the percentage of deadlocks that occured in the episode.
+\begin{equation}{100 \cdot {n\_deadlocks \over n\_agents}}\end{equation}
+\item \textbf{accumulated\_deadlocks} is the mean of \textbf{deadlocks\_percentage} obtained up to that point.
+\begin{equation}{\sum {deadlocks\_percentage} \over N}\end{equation}
+\end{itemize}
+
+The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
 
 \subsection{Evaluation}
 %TODO: wandb
@@ -445,6 +462,14 @@ An unusable switch is a switch where the agent does not have any choice of path,
 \item [7:]Minimum remaining travel distance from this node to the agent’s target given the direction of the agent if this path is chosen
 \item [8:]Agent in the same direction found on path to node
 \item [9:]Agent in the opposite direction on path to node
+\end{enumerate}
+
+\textbf{TreeObsForRailEnv} depends on three hyperparameters:
+
+\begin{enumerate}
+\item [1.] \textbf{observation\_tree\_depth} represents the depth of the observation tree.
+\item [2.] \textbf{observation\_radius} is used in the normalization phase.
+\item [3.] \textbf{observation\_max\_path\_depth} is the shortest-path predictions for agents in the environment.
 \end{enumerate}
 
 \subsection{Actions}\label{subsec:actions}
