@@ -21,7 +21,7 @@
 \usepackage{quoting}
 \usepackage{newlfont}
 \usepackage{color}
-\usepackage{geometry}
+\usepackage[a4paper, total={6.2in, 8in}]{geometry}
 \usepackage{algorithm2e}
 \usepackage{titletoc}
 \usepackage{listings}
@@ -288,7 +288,7 @@ Currently it is possible to say that rewards are always full step excluding the 
 
 This section provides an overview of some useful works and theory behind MARL that we consider useful to suggest approaches or solutions to the Flatland Challenge.
 
-\section*{Theoretical background}\label{sec:marl-theoretical-background}
+\section{Theoretical background}\label{sec:marl-theoretical-background}
 
 \subsection{Introduction}\label{subsec:introduction}
 
@@ -401,6 +401,15 @@ Usually decentralized settings may allow some sort of communication to address t
 \addcontentsline{toc}{chapter}{Original work}
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
+We developed the following work using Python and Pytorch.
+
+\section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
+
+\subsection{Metrics}
+%TODO: Wrappers stats and metrics
+
+\subsection{Evaluation}
+%TODO: wandb
 
 \section{Observations, actions and rewards}\label{sec:observations-and-actions}
 
@@ -411,7 +420,7 @@ This section provides some details on how observations and actions have been mod
 Flatland environment provides three basic observations to get started: \textbf{Global}, \textbf{Local Grid}, \textbf{Local Tree}.
 Due to the greater scalability we have done the experiments mostly using \textbf{Local Tree} as it depends on some parameters which are independent of the size of the grid and the number of agents.
 For the latter the observation vector is composed of 4 sequential parts, corresponding to data from the up to 4 possible movements in a \textbf{RailEnv}.
-The possibile movements are sorted relative to the current orientation of the agent, rather than NESW as for the transitions.
+The possible movements are sorted relative to the current orientation of the agent, rather than NESW as for the transitions.
 The order is \textbf{left}, \textbf{forward}, \textbf{right}, \textbf{back}.
 Each branch data is organized as:
 
@@ -430,8 +439,9 @@ Each node information is composed of 9 features:
 \item [2:]If another agent’s target is detected, the distance in number of cells from the current agent position is stored.
 \item [3:]If another agent is detected, the distance in number of cells from the current agent position is stored.
 \item [4:]Possible conflict detected (This only works when we use a predictor and will not be important in this tutorial)
-\item [5:]If an unusable switch (for the agent) is detected we store the distance. An unusable switch is a switch where the agent does not have any choice of path, but other agents coming from
-\item [6:]This feature stores the distance (in number of cells) to the next node (e.g. switch or target or dead-end)
+\item [5:]If an unusable switch (for the agent) is detected we store the distance.
+An unusable switch is a switch where the agent does not have any choice of path, but other agents coming from
+\item [6:]This feature stores the distance (in number of cells) to the next node (e.g.\ switch or target or dead-end)
 \item [7:]Minimum remaining travel distance from this node to the agent’s target given the direction of the agent if this path is chosen
 \item [8:]Agent in the same direction found on path to node
 \item [9:]Agent in the opposite direction on path to node
@@ -445,8 +455,14 @@ It has already mentioned the ambiguity of the actions MOVE\_LEFT and MOVE\_RIGHT
 We observed that this phenomenon is very common due to the presence of long straight paths where the agent is allowed only to stop or move forward and concluded that even stopping in the middle of the rail does not have much sense because agents still stop when other agents block their way due to deadlocks, different speeds or malfunctions.
 For this reason we considered the possibility to force agents to only decide and learn in switches, where multiple actions are allowed and agents may learn to give way to other agents, avoid deadlocks, reach the target and more.
 This considerations lead to skipping a lot of choices during learning and deploy \textbf{Action Masking} to avoid illegal actions.
-Actions masking is described in details in the respective implementations~\ref{subsubsec:action-masking-ppo}.
-% TODO complete refs to implementations
+Some studies~\citep{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
+As mentioned in~\ref{subsec:rewards2} a very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them.
+During this period it is possible that the agent converges to a wrong policy.
+Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the network outcomes corresponding to the invalid actions.
+This is usually accomplished by replacing the values of the actions to be masked by a large negative number like $-1 \cdot 10^8$.
+This operation actually change the gradient calculation for the actor network's parameters, in particular gradients of the masked logits become zero, but still maintains differentiability as the masking leaves unchanged values (identity function) or introduces constants.
+% TODO: action skipping, pytorch impl and tests
+
 ~\ref{subsec:rewards2} analyze an alternative approach to action masking based on rewards.
 
 \subsection{Rewards}\label{subsec:rewards2}
@@ -477,6 +493,7 @@ Naturally, people started breeding venomous snakes.
 Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong.
 Anyway  we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system.
 In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
+% TODO: Uniform reward for agent with different speed
 
 \begin{itemize}
 	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, which is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
@@ -502,11 +519,15 @@ According to the description given above, the reward will be calculated as follo
 \begin{displaymath}{reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-2)= -3}\end{displaymath}
 
 \section{PS-PPO}\label{sec:ps-ppo}
-\subsection{Algorithm}\label{subsec:algorithm}
+
 The algorithm is inspired by the work~\citep{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
 In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
+% TODO: their communication (id agent)
 They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent techniques suffer from the non-stationarity of the multi-agents environments and the lack of communication.
 Parameter sharing represents an ideal trade off to tackle the major challenges of multi-agent systems and provide a scalable framework.
+
+\subsection{Algorithm}\label{subsec:algorithm}
+
 The authors suggest as a policy gradient algorithm the \textbf{Trust Region Policy Optimization (TRPO)} while in this work we present an alternative version based on \textbf{Proximal Policy Optimization (PPO)}.
 We will not cover here all the details and the state of the art of the mentioned algorithms in single-agent setting, but they can be found in the references~\citep{trpo} and~\citep{ppo}.
 The basic principle of Policy Gradient methods relies on the concept of gradient ascent to follow policies with the steepest increase in rewards.
@@ -516,19 +537,20 @@ Theoretically, TRPO can guarantee a policy improvement as long as it optimizes t
 PPO was conceived to improve the policy-based techniques by introducing an algorithm that attains the data efficiency and reliable performance of TRPO, while using only first-order optimization, as one of the most remarkable drawback of TRPO is its complexity.
 PPO relies on clipped probability ratios, which forms a pessimistic estimate of the performance of the policy, and data sampled from applying for several time steps the policy to obtain a so called trajectory.
 Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
+% TODO: our communication (uniform id agent)
 
 \subsection{Implementation}\label{subsec:implementation}
 
 This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\citep{ppo_implementation_1}~\citep{ppo_implementation_2} to be crucial for the overall algorithm performance.
 In particular they found significantly beneficial to initialize the policy network so that the action distribution has zero mean, a low standard deviation and is independent from the observation.
 Our studies follow the path of these helpful outcomes taking into account that our action and observation spaces are discrete and not continuous and that our environment is multi-agent.
-The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo_baselines} as mentioned in this article~\citep{ppo-32-implementations-details}.
+The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo_baselines} as mentioned in the article~\citep{ppo-32-implementations-details}.
 
 \subsubsection{Network architecture}
 
-PPO belongs to the family of actor-critic algorithms, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
+PPO belongs to the family of \textbf{actor-critic algorithms}, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
 Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
-This is because the norm of gradients flowing back from the actor gradients and the critic gradients are at completely different scales which are often hard to calibrate.
+This is because the norm of gradients flowing back from the actor gradients and the critic gradients may be at completely different scales causing difficulties during calibration.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
 Neural networks' weights are initialized using orthogonal initialization while biases are initially set to zero.
 % TODO: network generation pytorch
@@ -538,10 +560,11 @@ Interestingly, the initial policy appears to have a surprisingly high impact on 
 The key recipe appears is to initialize the policy at the beginning of training so that the action distribution is centered around 0 regardless of the observation and has a rather small standard deviation.
 This can be achieved by initializing the policy MLP with smaller weights in the last layer so that the initial action distribution is almost independent of the observation and by introducing an offset in the standard deviation of actions.
 \end{quoting}
+
 From the quote is possible to observe the importance of network weights initialization especially in the last layer of the policy network.
-It is important to specify that in their case the action distributions (Gaussian) are continuous and are centered on 0 because action spaces are normalized between -1 and 1.
+It is important to specify that in their case the action distributions (Gaussians) are continuous and are centered on 0 because action spaces are normalized between -1 and 1.
 On the other hand, Flatland's action space is discrete and we modelled it with a Categorical Distribution, a generalization of a Bernoulli distribution for a categorical random variable.
-By rescaling the last policy layer's weights of the policy network with $100\times$ smaller values the action distribution is more balanced between all possible actions for the first iterations, leading to more initial stability and improving exploration.
+By rescaling the last policy layer's weights of the policy network with $100\times$ smaller values the action distribution is more balanced between all possible actions for the first iterations, leading to better initial stability and improving exploration.
 
 \begin{lstlisting}[label={lst:psppo-net-init}]
 def weights_init(m):
@@ -566,23 +589,25 @@ References explore more alternatives and approaches involving the optimizer and 
 
 The training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents.
 In particular in the first part each agent interact with the environment gathering some experience, called also trajectory.
-Each agent's trajectory includes for each time step the related observation and the action performed, rewards and information about the termination of the problem are joined from each agent. %TODO revise
+Each agent's trajectory includes for each time step the related observation and the action performed, originally rewards and information about the termination of the problem of each agent were joined together to form uniques values, but after some tests we realized that this was not correct and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
+During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
+Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
+As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.%TODO conclude and ref tests
 \\
 \\
-Trajectories' lengths depend on the chosen horizon, deciding how much experience should an agent collect before updating the policy is crucial.
+Trajectories' lengths particularly depend on the chosen horizon, deciding how much experience should an agent collect before updating the policy is crucial.
 It is important to consider that PPO is an on-policy algorithm, every time experience has been collected and used to train the policy new experience must be gathered and the old is thrown away.
 This behaviour is strictly related to a common RL feature called \textbf{sample efficiency}.
 Off-policy algorithms such as DQN are more sample efficient because can store huge quantities of information and use them more easily and efficiently.
-We hypothesize that horizon must depend on the specific environment, and the implications in Flatland are even deeper as the environment can drastically change its complexity.
-After some experiments we observed that higher values of horizon tends to perform better and we have found similar comments on other works, including arguments on implications of the value to assign to the decaying factor used to calculate the advantage~\ref{subsubsec:advantage-estimation}.
-\\
+We hypothesize that horizon must depend on the specific environment, and the implications in Flatland are even deeper as the environment can drastically change its complexity. % TODO: horizon depends on action skipping too (should decrease)
+After some experiments we observed that higher values of horizon tends to perform better and we have found similar comments on other works, including arguments on implications of the value to assign to the decaying factor used to calculate the advantage~\ref{subsubsec:advantage-estimation}.\\
 \\
 One of the greatest advantage of PPO, thanks to PPO's simpler objective, over the other policy-based algorithms is the possibility to perform multiple epochs on the collected data.
 The classical approach is to repeat for a certain number of epochs the training on the same mini-batches obtained preserving the temporal order of the individual transitions inside the overall experience.
 But this approach usually leads to another typical problem of policy gradient methods: if chunks of experiences are small and are temporally ordered, learning uses similar samples of data causing instability as may occur large updates with gradients pointing to the same direction.
 To avoid this problem data can be shuffled in different ways.
 Trajectories can be shuffled to change the order in which mini-batches are used in each epoch or transitions can be shuffled precomputing the advantages at the beginning of the iteration (OpenAI Baseline's style) or recomputing them at the beginning of each epoch.
-%TODO finish our approach
+We decided to follow the OpenAI Baseline's implementation, leading to higher diversity of data in each mini-batch but a less updated advantage, but to leave also the option to avoid any type of shuffling, observing better performance in the first case.
 For each agent the learning phase is repeated in each epoch using batches of length according to the size of batches set as an hyperparameter.
 Increasing batch size should increase the speed of learning while adjusting the horizon has a great impact on the final result.
 
@@ -593,14 +618,9 @@ Always use observation normalization and check if value function normalization i
 Gradient clipping might slightly help but is of secondary importance.
 \end{quoting}
 
-We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss,
-
-% TODO: value function normalization (C66)
-
+We normalize advantages in each mini-batch by subtracting their mean and dividing by their standard deviation for the policy loss.
 Obviously as it represents a core part of the PPO algorithm the surrogate objective function is clipped using the hyperparameter epsilon.
 The references mention also the usage of a clipping function for the value function loss (as present in the original PPO implementation) with poor results.
-\\
-\\
 Gradient clipping has been adopted in many neural networks, especially recurrent neural networks to avoid gradient explosion by rescaling it when greater than the hyperparameter "max\_grad\_norm" which is also the norm of the new gradient vector.
 \begin{lstlisting}[label={lst:gradient-clipping}]
 if self.max_grad_norm is not None:
@@ -653,17 +673,10 @@ The value loss is computed as a squared error loss. % TODO check
 	\item Entropy computed from the action categorical distribution to ensure sufficient exploration.
 \end{itemize}
 
-In our implementation these three elements are added together and used to compute the gradients with the Pytorch function \textit{backward()} and optimize the networks.
-The value loss and the entropy in the sum are multiplied by their respective coefficients. %TODO: comments on coefficients and loss values
+In our implementation these three elements are added together and used to compute the gradients with the Pytorch function \textit{backward()} and then optimize the networks.
+The value loss and the entropy in the sum are multiplied by their respective coefficients.
+%TODO: comments on coefficients and loss values
 
-\subsubsection{Action masking and action skipping}\label{subsubsec:action-masking-ppo}
-Some studies~\citep{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
-As mentioned in~\ref{subsec:rewards2} a very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them.
-During this period it is possible that the agent converges to a wrong policy.
-Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the logits corresponding to the invalid actions.
-This is usually accomplished by replacing the logits of the actions to be masked by a large negative number like $-1 \cdot 10^8$.
-This operation actually change the gradient calculation for the actor network's parameters, in particular gradients of the masked logits become zero, but still maintains differentiability as the masking leaves unchanged values (identity function) or introduces constants.
-% TODO: Skipping
 
 \subsection{Testing}\label{subsec:testing}
 
@@ -710,7 +723,7 @@ PS-PPO hyperparameters
 	\end{itemize}
 \end{itemize}
 
-%TODO: horizon and batch, shuffle not shuffled, reward shaping, masking, skipping, allow no op
+%TODO: horizon and batch, reward shaping, masking, skipping, allow no op
 
 \section{D3QN}\label{sec:d3qn}
 
@@ -735,6 +748,8 @@ The following part will continue describing a soft adaptation to multi-agent sce
 
 \subsection{Implementation}\label{subsec:implementation2}
 
+This section describes the most remarkable details of the algorithm implementation.
+
 \subsubsection{Network architecture}
 
 %TODO value-adv aggregator, eps decay
@@ -746,6 +761,7 @@ Agents that not decide an action perform a DO\_NOTHING action.
 Actions are stored and used to step the environment, trajectories are saved in the memory.
 When an agent decide the action has also th possibility to start the policy training which occurs whenever the memory has reached a certain size and every interval of episodes.
 Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:memory}.
+%TODO: check
 
 \subsubsection{Memory}\label{subsubsec:memory}
 
@@ -772,8 +788,6 @@ A larger difference between the two values, called \textbf{Temporal Difference E
 TD Errors and an hyperparamater $\alpha$ are used to compute the probability of each sample.
 	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
 \end{itemize}
-
-\subsubsection{Action masking and action skipping}\label{subsubsec:action-masking-ppo2}
 
 \subsubsection{Fingerprints}\label{subsubsec:fingerprints}
 
