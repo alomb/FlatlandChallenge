@@ -18,8 +18,12 @@ class D3QNPolicy(Policy):
     """
 
     def __init__(self, state_size, action_size, parameters):
+        """
+        :param state_size: The number of attributes of each state.
+        :param action_size: The number of available actions.
+        :param parameters: The set of parameters which affect the train phase.
+        """
         self.evaluation_mode = parameters.evaluation_mode
-
         self.state_size = state_size
         self.action_size = action_size
         self.double_dqn = parameters.double_dqn
@@ -60,12 +64,13 @@ class D3QNPolicy(Policy):
 
     def act(self, state, action_mask, eps=0.):
         """
+        The function used to predict optimal actions from the current Q value estimation.
+        The action can be chosen randomly depending on the eps parameter.
 
         :param state: the state to act on
         :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
         :param eps: the epsilon-greedy factor to influence the exploration-exploitation trade-off
-        :return:
-
+        :return: the chosen action
 
         """
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -74,8 +79,9 @@ class D3QNPolicy(Policy):
 
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
-
             action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+
+            # Action values excluded by the action masking filter are set at -1e+8
             action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
 
         self.qnetwork_local.train()
@@ -93,6 +99,12 @@ class D3QNPolicy(Policy):
         """
         Perform a step if the evaluation mode is off, updating the memory and updating the networks if the agent has
         already self.update_every steps
+
+        :param state: the state where the action has been performed
+        :param action: the performed action
+        :param reward: the obtained reward
+        :param next_state: the state that followed the action
+        :param done: information about terminal states
         """
         assert not self.evaluation_mode, "Policy has been initialized for evaluation only."
 
@@ -114,7 +126,8 @@ class D3QNPolicy(Policy):
 
                 new_val = reward + self.gamma * target_val * (1 - done)
 
-                error = abs(new_val - old_val).item()
+            # TD-errors are used as prioritization mechanism to determine which batch to extract in the learning phase
+            error = abs(new_val - old_val).item()
 
             self.memory.add(state, action, reward, next_state, done, error)
 
@@ -126,6 +139,9 @@ class D3QNPolicy(Policy):
                 self._learn()
 
     def _learn(self):
+        """
+        The code related to the loss computation and the local network training
+        """
         if type(self.memory) is UniformExperienceReplay:
             experiences = self.memory.sample()
             indexes = None

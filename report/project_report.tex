@@ -25,6 +25,7 @@
 \usepackage{algorithm2e}
 \usepackage{titletoc}
 \usepackage{listings}
+\usepackage{algorithmic}
 
 \bibliographystyle{plainnat}
 
@@ -189,37 +190,7 @@ If it's possible turn the agent right, changing its direction, otherwise if agen
 A penalty will be added.
 Stop the agent in the current occupied cell.
 \end{itemize}
-
-\begin{algorithm}[H]
-	\uIf{agent is in DONE or in DONE\_REMOVED ($1^{\text{th}}$ case)}{
-		no reward is computed\\
-		\Return{}
-	}
-	\uIf{agent is in READY\_TO\_DEPART ($2^{\text{th}}$ case)}{
-		if the provided action is a MOVE\_* type and the initial cell is free the agent become ACTIVE and is initialized\\
-		reward is computed\\
-		\Return{}
-	}
-	\uIf{agent is in malfunction (($3^{\text{th}}$ case))}{
-		reward is computed\\
-		\Return{}
-	}
-	\uIf{agent is at the beginning of a cell}{
-		update agent.moving considering the observations above depending on the different action types.\\
-		\uIf{agent.moving}{
-			the wanted action validity is first checked and if it is valid (considering also the possibility to backup from an invalid MOVE\_RIGHT or MOVE\_LEFT to a valid MOVE\_FORWARD) action is stored otherwise agent.moving becomes False and penalties are added, in this process agent.moving and agent.speed\_data['transition\_action\_on\_cellexit'] are updated
-		}
-	}
-
-	\eIf{agent.moving ($4^{\text{th}}$ case)}{
-		Updates the percentage of completion then if it is completely arrived on the next cell, before updating the position, the direction and clears the completion percentage it checks whether the new cell is free. Until the cell remains occupied in the future executions the agent will repeat this process.\\
-		reward is computed
-	}{
-		reward is computed
-	}
- 	\caption{The \textit{\_step\_agent} algorithm}\label{alg:flatland-agent-loop}
-\end{algorithm}
-\noindent
+The pseudocode of the agent step function can be found in the appendix~\ref{alg:flatland-agent-loop}.
 \\
 \\
 Some useful questions:
@@ -413,6 +384,11 @@ We developed the following work using Python and Pytorch.
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
 \subsection{Metrics}\label{subsec:metrics}
+
+In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode.
+Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performed in polynomial time, however an estimate of the occurrence of these events is valuable information both for performance analysis described in the metrics and for Rewards Shaping described in~\ref{subsec:rewards2}.
+The algorithm proposed is not complete: situations detected as deadlocks are truly deadlocks, but it is also possible that some particular deadlocks are not recognized at all.
+The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}.
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
 \begin{itemize}
@@ -433,7 +409,7 @@ In the worst case, all agents do not reach their destination, therefore for each
 
 The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
 
-%TODO: tensorboard, more words on wrappers in general and deadlock detections
+%TODO: tensorboard, more words on wrappers in general
 
 \subsection{Evaluation and platforms}\label{subsec:evaluation-and-platforms}
 
@@ -946,8 +922,81 @@ One alternative approach is to manually describe ranges of coherent parameter va
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 % TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv
 
+\newpage
+
 \appendix
 \renewcommand\thefigure{F.\arabic{figure}}
+
+\section*{Algorithms}
+
+\begin{algorithm}[H]
+	\uIf{agent is in DONE or in DONE\_REMOVED ($1^{\text{th}}$ case)}{
+		no reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is in READY\_TO\_DEPART ($2^{\text{th}}$ case)}{
+		if the provided action is a MOVE\_* type and the initial cell is free the agent become ACTIVE and is initialized\\
+		reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is in malfunction (($3^{\text{th}}$ case))}{
+		reward is computed\\
+		\Return{}
+	}
+	\uIf{agent is at the beginning of a cell}{
+		update agent.moving considering the observations above depending on the different action types.\\
+		\uIf{agent.moving}{
+			the wanted action validity is first checked and if it is valid (considering also the possibility to backup from an invalid MOVE\_RIGHT or MOVE\_LEFT to a valid MOVE\_FORWARD) action is stored otherwise agent.moving becomes False and penalties are added, in this process agent.moving and agent.speed\_data['transition\_action\_on\_cellexit'] are updated
+		}
+	}
+
+	\eIf{agent.moving ($4^{\text{th}}$ case)}{
+		Updates the percentage of completion then if it is completely arrived on the next cell, before updating the position, the direction and clears the completion percentage it checks whether the new cell is free. Until the cell remains occupied in the future executions the agent will repeat this process.\\
+		reward is computed
+	}{
+		reward is computed
+	}
+ 	\caption{The \textit{\_step\_agent} algorithm}\label{alg:flatland-agent-loop}
+\end{algorithm}
+\noindent
+\begin{algorithm}[H]
+\SetKwFunction{FCheckDeadlocks}{CheckDeadlocks}
+
+\For{$agent$ in range($n\_agents$)}{
+	\uIf{agent is ACTIVE and not(deadlocks[agent])}{
+		$deadlocks[agent]$ = CheckDeadlocks(agent)
+	}
+}
+
+\SetKwProg{Fn}{Function}{:}{\KwRet}
+\Fn{\FCheckDeadlocks{$agent$}}{
+	    $agent\_2 = check\_next\_pos(agent)$ \\
+	    if agent is active it is checked whether the cell he will occupy, taking into account his direction, there is another agent. \\
+	    If its direction is not valid, i.e. if the cell it is facing is not part of the railway, $check\_next\_pos$ searches in space for possible transitions. \\
+            \uIf{$agent\_2$ is $None$}{
+ 		\KwRet\ False; \\
+		if there is no agent in the cell he will take care then $agent$ is not in deadlock.
+	    }
+	    \uIf{$deadlocks[agent\_2]$}{
+		\KwRet\ True; \\
+		if agent\_2 was already deadlocked agent is deadlocked too.
+	    }
+	    \uElse{
+		 $deadlocks[agent\_2]$ = CheckDeadlocks(agent\_2) \\
+		 If agent\_2 is not deadlocked until the current step, it is checked if it is deadlocked.
+	    }
+	    \If{$deadlocks[agent\_2]$}{
+		\KwRet\ True \\
+		if in the current step agent\_2's deadlock is detected then $agent$ is also in deadlock
+            }
+
+	    \KwRet\ False
+}
+\caption{The \textit{deadlocks\_detection} algorithm}\label{alg:deadlocks}
+\end{algorithm}
+
+\newpage
+
 \section*{Figures}
 \setcounter{figure}{0}
 
@@ -979,8 +1028,6 @@ One alternative approach is to manually describe ranges of coherent parameter va
 \label{fig:d3qn_per_graph}
 \end{figure}
 
-
-\newpage
 ~\nocite{*}
 \bibliography{bibliography}
 
