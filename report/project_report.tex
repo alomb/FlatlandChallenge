@@ -25,6 +25,7 @@
 \usepackage{algorithm2e}
 \usepackage{titletoc}
 \usepackage{listings}
+\usepackage{algorithmic}
 
 \bibliographystyle{plainnat}
 
@@ -403,9 +404,51 @@ Usually decentralized settings may allow some sort of communication to address t
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 We developed the following work using Python and Pytorch.
 
+\section{Deadlocks}
+
+In Flatland the deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode. 
+Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performormed in polynomial time, however an estimate of the occurence of these events is valuable information both for performance analysis described in~\ref{subsec:metrics} and for Rewards Shaping described in ~\ref{subsec:rewards2}.
+The algorithm proposed is not complete: if a situation is detected as a deadlock, it is really a deadlock, but it is also possible that a deadlock is not recognized as a deadlock at all.
+
+\begin{algorithm}[H]
+\SetKwFunction{FCheckDeadlocks}{CheckDeadlocks}
+
+\For{$agent$ in range($n\_agents$)}{
+	\uIf{agent is ACTIVE and not(deadlocks[agent])}{
+		$deadlocks[agent]$ = CheckDeadlocks(agent)
+	}
+}
+
+\SetKwProg{Fn}{Function}{:}{\KwRet}
+\Fn{\FCheckDeadlocks{$agent$}}{
+	    $agent\_2 = check\_next\_pos(agent)$ \\ 
+	    if agent is active it is checked whether the cell he will occupy, taking into account his direction, there is another agent. \\
+	    If its direction is not valid, i.e. if the cell it is facing is not part of the railway, $check\_next\_pos$ searches in space for possible transitions. \\
+            \uIf{$agent\_2$ is $None$}{
+ 		\KwRet\ False; \\
+		if there is no agent in the cell he will take care then $agent$ is not in deadlock.
+	    }
+	    \uIf{$deadlocks[agent\_2]$}{
+		\KwRet\ True; \\
+		if agent\_2 was already deadlocked agent is deadlocked too. 
+	    }
+	    \uElse{
+		 $deadlocks[agent\_2]$ = CheckDeadlocks(agent\_2) \\
+		 If agent\_2 is not deadlocked until the current step, it is checked if it is deadlocked.
+	    }
+	    \If{$deadlocks[agent\_2]$}{
+		\KwRet\ True \\
+		if in the current step agent\_2's deadlock is detected then $agent$ is also in deadlock
+            }
+
+	    \KwRet\ False
+}
+\caption{The \textit{deadlocks\_detection} algorithm}
+\end{algorithm}
+
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
-\subsection{Metrics}
+\subsection{Metrics}\label{subsec:metrics}
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
 \begin{itemize}
