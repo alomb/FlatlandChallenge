@@ -790,6 +790,8 @@ Hidden layers can be set shared between the two flows or separated.
 Finally, two neural networks are declared following the above description.
 The two networks work in synergy providing respectively the local and the target of the Double DQN strategy.
 The local is updated with gradient descents and used to predict the best action and the Q value of the previous state, while the target receives the best action and computes the Q value of the following state.
+The local network is used also to collect trajectories following the the Q values approximations and exploiting the acquired knowledge about the environment, while with a certain probability $\epsilon$ it is forced to choose a random action (masked if action masking is active) to affect exploration.
+This strategy is called \textbf{$\epsilon$-Greedy}, it allows the agents to explore more at the beginning and exploit better after a while, decaying the probability to randomly explore the environment during the training.
 The final loss used to optimize the local network is the mean squared error of the discounted Q value of the successive state summed with the reward with the Q value of the current state.
 The target network's weights are updated using \textbf{soft updates}, which can be described with the following formula:
 \begin{equation}
@@ -806,6 +808,7 @@ Actions are stored and used to step the environment, trajectories are saved in t
 When an agent decides the action has also the possibility to start the policy training which occurs whenever the memory has reached a certain size and every time an interval of episodes has been completed.
 Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:experience-replay}.
 %TODO: check
+After each episode the $\epsilon$ value of the $\epsilon$-greedy is decayed with a fixed factor until it reaches a final value set in the hyperparameters.
 
 \subsubsection{Experience Replay}\label{subsubsec:experience-replay}
 

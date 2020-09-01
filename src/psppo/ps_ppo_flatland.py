@@ -221,6 +221,7 @@ def train_multiple_agents(env_params, train_params):
                                                    "reset": reset_timer,
                                                    "learn": learn_timer,
                                                    "train": training_timer})
+            ppo.reset_stats()
 
     return env.env.accumulated_normalized_score, \
            env.env.accumulated_completion, \
