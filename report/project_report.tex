@@ -120,12 +120,15 @@ Academic Year {2019-2020}
 \setcounter{page}{1}
 
 \chapter*{Introduction}
+The Flatland challenge aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
+The following work is related to the second edition of this challenge started in Summer 2020.
+In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
 
 \chapter{Flatland environment}\label{ch:flatland-environment}
 \addcontentsline{toc}{chapter}{Flatland}
 
 In order to conceive a solution for this challenge we need to fully understand the environment, how does it work and how do some subtle details influence behind the scenes what we can only perceive through observations and rewards.
-The following results have been evaluated on the Python package flatland-rl version 2.1.10.
+The following results have been evaluated on the Python package \href{https://pypi.org/project/flatland-rl/}{flatland-rl version 2.1.10}.
 
 \section*{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
 
@@ -293,7 +296,7 @@ This section provides an overview of some useful works and theory behind MARL th
 
 \subsection{Introduction}\label{subsec:introduction}
 
-\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{MARL_definition}}]
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{MARL-definition}}]
 Specifically, MARL addresses the sequential decision-making problem of multiple autonomous agents that operate in a common environment, each of which aims to optimize its own long-term return by interacting with the environment and other agents.
 \end{quoting}
 
@@ -306,7 +309,7 @@ MARL algorithms can be divided into three groups~\citep{zhang2019multiagent}:
 \end{itemize}
 
 We consider the Flatland Challenge a fully cooperative environment since each agent apparently compete to reach faster its destination and gain rails portions but the problem must consider the common time minimization goal.
-There exist two closely related theoretical frameworks for MARL~\citep{zhang2019multiagent}:
+There exist a few of closely related theoretical frameworks for MARL~\citep{zhang2019multiagent}:
 
 \begin{itemize}
 	\item \textbf{Markov/Stochastic Game}.
@@ -326,7 +329,7 @@ In the Flatland environment a state is surely represented by the positions and o
 Flatland environment allows to personalize how agents perceive the world implementing custom observations.
 
 The involvement of Deep Learning to tackle the problem of MARL defines a new specific subject called \textbf{Multi-agent Deep Reinforcement Learning (MADRL)}.
-~\citep{Hernandez_Leal_2019} presents four categories of recent MADRL works:
+~\citep{Hernandez-Leal-2019} presents four categories of recent MADRL works:
 \begin{itemize}
 	\item \textbf{Analysis of emergent behaviors}, in general, they do not propose learning algorithms, their main focus is to analyze and evaluate DRL algorithms in a multi-agent environment.
 	\item \textbf{Learning communication}, they study communications techniques to share information.
@@ -337,7 +340,7 @@ The involvement of Deep Learning to tackle the problem of MARL defines a new spe
 \subsection{Challenges}\label{subsec:challenges}
 
 MARL frameworks inevitably adds many challenging problems on the single-agent scenario.
-\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{Hernandez_Leal_2019}}]
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{Hernandez-Leal-2019}}]
 Learning in multiagent settings is fundamentally more difficult than the single-agent case due to the presence of multiagent pathologies, e.g., the moving target problem (non-stationarity), curse of dimensionality, multiagent credit assignment, global exploration, and relative overgeneralization.
 \end{quoting}
 
@@ -355,14 +358,14 @@ Single-agent RL procedures which commonly assume stationarity of these functions
 In a single-agent environment, an agent is concerning only the outcome of its own actions.
 In a multi-agent scenario, an agent observes not only the outcomes of its own action but also the behavior of other agents.
 Agents may interact with each other and learn concurrently leading to a continuous reshape of the environment and to non-stationarity~\citep{zhang2019multiagent}.
-For example the classical DQN does not provide working solutions, some derivations have been proposed to deal with this problem such as \textbf{Deep Repeated Update Q-network (DRUQN)}~\citep{castaneda}, \textbf{Deep Loosely Coupled Q-network (DLCQN)}~\citep{castaneda} and \textbf{ multi-agent concurrent DQN}.
-Other techniques to adapt classical experience replay to multi-agent environment have been proposed such as \textbf{Hysteretic-DQN (HDQN)} and \textbf{Lenient-DQN (LDQN)}~\citep{Nguyen_2020}.
+For example the classical DQN does not provide working solutions, some derivations have been proposed to deal with this problem such as \textbf{Deep Repeated Update Q-network (DRUQN)}, \textbf{Deep Loosely Coupled Q-network (DLCQN)} and \textbf{ multi-agent concurrent DQN}~\citep{castaneda}.
+Other techniques to adapt classical experience replay to multi-agent environment have been proposed such as \textbf{Hysteretic-DQN (HDQN)} and \textbf{Lenient-DQN (LDQN)}~\citep{Nguyen-2020}.
 
 There are different ways to tackle the non-stationary problem, as illustrated by~\citep{papoudakis2019dealing}.
 \begin{itemize}
 	\item \textbf{Centralized Critic Architecture} based on an actor-critic algorithm.
 The critics' training is centralized and has access to the observations and actions of all agents, while the actors' training is decentralized.
-An example is the \textbf{Multi-Agent Deep Deterministic Policy Gradient (MADDPG)} algorithm.
+An example in the continuous space is the \textbf{Multi-Agent Deep Deterministic Policy Gradient (MADDPG)} algorithm.
 In MADDPG each agent uses a centralized critic and a decentralized actor.
 Since the training of each agent depends on the observations and actions of all the other agents, each agent perceives the environment as stationary.
 	\item \textbf{Decentralized Learning} Techniques using self-play.
@@ -373,30 +376,34 @@ Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neur
 \end{itemize}
 
 A popular alternative approach to MARL is \textbf{Independent Learning}, in which each agent independently learns its own policy, treating other agents as part of the environment.
-While this method avoid some scalability problems and has been successfully used in practice it introduces a non-stationary environment from the point of view of each agent.
+While this method avoid some scalability problems and has been successfully used in practice even if it introduces a non-stationary environment from the point of view of each agent.
 
 \subsubsection{Partial observability}
+
 As mentioned, in the single-agent scenario this type of problem is usually modelled with a POMDP\@.
 \textbf{Deep Recurrent Q-Networks (DRQN)} proposed using recurrent neural networks, in particular, Long Short-Term Memory (LSTMs) cells in DQN, to introduce a memory capability.
-An extension of DRQN for multi-agent environments is \textbf{Deep Distributed Recurrent Q-network (DDRQN)}~\citep{Nguyen_2020}.
+An extension of DRQN for multi-agent environments is \textbf{Deep Distributed Recurrent Q-network (DDRQN)}~\citep{Nguyen-2020}.
 Another technique to deal with partial observability is \textbf{Deep Recurrent Policy Inference Q-network (DRPIQN)} learned by adapting network’s attention to policy features and their own Q-values at various stages of the training process.
 Methods to address partial observability in Markov Games usually involve communication (RIAL and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
 Alternatively to the Markov Game, the Dec-POMDP can be used to model this type of scenario in a more classical \textbf{centralized learning for decentralized execution} fashion or in a more modern \textbf{decentralized learning for decentralized execution} way.
 
 \subsubsection{Scalability}
+
 To handle non-stationarity, each individual agent may need to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@~\citep{zhang2019multiagent}.
 Many methods have been proposed to tackle this problem, one of them is the extension of \textbf{Curriculum Learning} for a multi-agent scenario.
 
-\subsubsection{Information Structures and Training Schemes}~\newline
+\subsubsection{Information Structures and Training Schemes}
 In the single-agent case is easier to understand what information is visible to the agent.
 In Markov games is sufficient to observe the current state, while on extensive-form games agents may need to recall the history of past decisions.
-In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by by individual agents~\citep{Nguyen_2020}~\citep{zhang2019multiagent}.
+In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by by individual agents~\citep{Nguyen-2020}~\citep{zhang2019multiagent}.
 These considerations led to the development of different training schemes such as centralized learning for decentralized execution, which originated from the works on the Dec-POMDP setting and has been widely adopted in recent MADRL works, and \textbf{fully decentralized}.
-The former has become a standard as simulators are usually involved in MARL training, there are different types of communications between agents and the central controller such as centralized learning, concurrent learning and parameter sharing\citep{Nguyen_2020}.
+The former has become a standard as simulators are usually involved in MARL training, there are different types of communications between agents and the central controller such as centralized learning, concurrent learning and parameter sharing\citep{Nguyen-2020}.
 Usually decentralized settings may allow some sort of communication to address the non-convergence issue typical of the independent learning, this strategy is also referred as \textbf{decentralized setting with networked agents}.
 
-\subsubsection{Multi-agent credit assignment}
-% TODO
+\subsubsection{Multi-agent credit assignment}\label{subsubsec:multi-agent-credit-assignment}
+In cooperative multi-agent scenarios, it is common to use either local rewards, unique for each agent, or global rewards, which represent the entire group’s performance.
+The multi-agent credit assignment refers to the problem of how each agent should contribute to design a global reward, as usually it is easier to obtain than local.
+In the Flatland environment agents are already provided with an individual score, so intuitively both approaches are free to be analyzed.
 
 \chapter{Original work}\label{ch:original-work}
 \addcontentsline{toc}{chapter}{Original work}
@@ -452,26 +459,39 @@ The algorithm proposed is not complete: if a situation is detected as a deadlock
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
 \begin{itemize}
-\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainible, computed as the product between the number of agents and the maximum number of steps in the episode. In the worst case, infact, all agents do not reach their destination, therefore for each step they get a negative reward. 
-\begin{equation}{score \over {max\_steps \cdot n\_agents}}\end{equation}
-\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point. 
-\begin{equation}{\sum {normalized\_score} \over N}\end{equation}
+\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainable, computed as the product between the number of agents and the maximum number of steps in the episode.
+In the worst case, all agents do not reach their destination, therefore for each step they get a negative reward.
+\begin{equation}{\frac{score}{max\_steps \cdot n\_agents}}\label{eq:score}\end{equation}
+\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point.
+\begin{equation}{\frac{\sum{normalized\_score}}{N}}\label{eq:score_acc}\end{equation}
 \item \textbf{completion\_percentage} is the percentage of agents who reached their destination in the episode.
-\begin{equation}{100 \cdot {tasks\_finished \over n\_agents}}\end{equation}
+\begin{equation}{100 \cdot {\frac{tasks\_finished}{n\_agents}}}\label{eq:compl_perc}\end{equation}
 \item \textbf{accumulated\_completion} is the mean of \textbf{completion\_percentage} obtained up to that point.
-\begin{equation}{\sum {completion\_percentage} \over N}\end{equation}
+\begin{equation}{\frac{\sum{completion\_percentage}}{N}}\label{eq:compl_acc}\end{equation}
 \item \textbf{deadlocks\_percentage} is the percentage of deadlocks that occured in the episode.
-\begin{equation}{100 \cdot {n\_deadlocks \over n\_agents}}\end{equation}
+\begin{equation}{100 \cdot {\frac{n\_deadlocks}{n\_agents}}}\label{eq:deads_perc}\end{equation}
 \item \textbf{accumulated\_deadlocks} is the mean of \textbf{deadlocks\_percentage} obtained up to that point.
-\begin{equation}{\sum {deadlocks\_percentage} \over N}\end{equation}
+\begin{equation}{\frac{\sum {deadlocks\_percentage}}{N}}\label{eq:deads_acc}\end{equation}
 \end{itemize}
 
 The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
 
-\subsection{Evaluation}
-%TODO: wandb
+%TODO: tensorboard, more words on wrappers in general and deadlock detections
 
-\section{Observations, actions and rewards}\label{sec:observations-and-actions}
+\subsection{Evaluation and platforms}\label{subsec:evaluation-and-platforms}
+
+As we did not have at our disposal a powerful and dedicated machine to run our experiments, we faced a lot of difficulties in carrying on experiments, especially in complex environments where the simulation becomes computationally expensive.
+This is not a new situation as reported in~\citep{Hernandez-Leal-2019} in DRL training involves dozens of CPUs and millions of frames during entire days of continuous learning.
+We trained and tested our code mainly on Google Colaboratory, leveraging the possibility to run many concurrent instances and the high number of available threads in CPU runtime type, as we observed that major bottlenecks are in the Flatland code.
+Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size.\\% TODO: test environments
+\\
+In order to evaluate different algorithms combinations of hyperparameters and strategies we need a tool to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
+We found such a tool in \href{https://www.wandb.com/}{Weights \& Biases}.
+Subscribing to a free account provides an effective and very intuitive way of monitoring a Deep Learning project.
+Weights \& Biases is used by OpenAI and other leading companies, it supports many platforms and can be integrated rapidly in the project, for instance we managed to connect it to our previous Tensorboard logging and to immediately start testing.
+Additionally to a rich customizable interface to plot graph it also allows to perform hyperparameter tunings, called Sweeps.
+
+\section{Observations, actions and rewards}\label{sec:observations,-actions-and-rewards}
 
 This section provides some details on how observations and actions have been modeled in the various implementations.
 
@@ -523,7 +543,7 @@ It has already mentioned the ambiguity of the actions MOVE\_LEFT and MOVE\_RIGHT
 We observed that this phenomenon is very common due to the presence of long straight paths where the agent is allowed only to stop or move forward and concluded that even stopping in the middle of the rail does not have much sense because agents still stop when other agents block their way due to deadlocks, different speeds or malfunctions.
 For this reason we considered the possibility to force agents to only decide and learn in switches, where multiple actions are allowed and agents may learn to give way to other agents, avoid deadlocks, reach the target and more.
 This considerations lead to skipping a lot of choices during learning and deploy \textbf{Action Masking} to avoid illegal actions.
-Some studies~\citep{ppo_action_masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
+Some studies~\citep{ppo-action-masking} have proposed to deploy action masking to avoid the selection of multiple actions when they are not necessary, for example in the game Dota 2 the full action space is of 1,837,080 dimensions \href{https://cdn.openai.com/dota-2.pdf}{OpenAI Dota2}.
 As mentioned in~\ref{subsec:rewards2} a very common strategy to address invalid actions is applying negative rewards, but this also requires the agent to explore the actions and understand how to map actions to the possibility of applying them.
 During this period it is possible that the agent converges to a wrong policy.
 Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the network outcomes corresponding to the invalid actions.
@@ -547,7 +567,7 @@ Agents must basically learn two behaviors:
 	\item Reach their destination in the shortest time possible.
 	\item Avoid collisions with other agents.
 \end{itemize}
-This is not neccessarily the order.
+This is not necessarily the order.
 Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance.
 According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards.
 In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}.
@@ -588,9 +608,10 @@ According to the description given above, the reward will be calculated as follo
 
 \section{PS-PPO}\label{sec:ps-ppo}
 
-The algorithm is inspired by the work~\citep{ps-ppo_paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
+The algorithm is inspired by the work~\citep{ps-ppo-paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
 In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
-% TODO: their communication (id agent)
+To allow agent's specialization the observations of the agents are extended with their unique ids.
+By inserting the agent's id, the network has the capability to distinguish the agent from the others and influence its behaviour, if we imagine a team of cooperative robots performing a specific task, this can improve the coordination between them as everyone specialize on a different role.
 They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent techniques suffer from the non-stationarity of the multi-agents environments and the lack of communication.
 Parameter sharing represents an ideal trade off to tackle the major challenges of multi-agent systems and provide a scalable framework.
 
@@ -605,25 +626,28 @@ Theoretically, TRPO can guarantee a policy improvement as long as it optimizes t
 PPO was conceived to improve the policy-based techniques by introducing an algorithm that attains the data efficiency and reliable performance of TRPO, while using only first-order optimization, as one of the most remarkable drawback of TRPO is its complexity.
 PPO relies on clipped probability ratios, which forms a pessimistic estimate of the performance of the policy, and data sampled from applying for several time steps the policy to obtain a so called trajectory.
 Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
-% TODO: our communication (uniform id agent)
+Due to the high flexibility of the Flatland environment we decided to change also the agent personalization.
+Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate, which are only specific of a certain generated environment, we formulated a function to transform agent's features to id.
+During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour.
 
 \subsection{Implementation}\label{subsec:implementation}
 
-This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\citep{ppo_implementation_1}~\citep{ppo_implementation_2} to be crucial for the overall algorithm performance.
+This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\citep{ppo-implementation-1}~\citep{ppo-implementation-2} to be crucial for the overall algorithm performance.
 In particular they found significantly beneficial to initialize the policy network so that the action distribution has zero mean, a low standard deviation and is independent from the observation.
 Our studies follow the path of these helpful outcomes taking into account that our action and observation spaces are discrete and not continuous and that our environment is multi-agent.
-The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo_baselines} as mentioned in the article~\citep{ppo-32-implementations-details}.
+The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo-baselines} as mentioned in the article~\citep{ppo-32-implementations-details}.
 
 \subsubsection{Network architecture}
 
 PPO belongs to the family of \textbf{actor-critic algorithms}, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
+% TODO: picture difference one to the other
 Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
 This is because the norm of gradients flowing back from the actor gradients and the critic gradients may be at completely different scales causing difficulties during calibration.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
 Neural networks' weights are initialized using orthogonal initialization while biases are initially set to zero.
 % TODO: network generation pytorch
 
-\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo_implementation_2}}]
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo-implementation-2}}]
 Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
 The key recipe appears is to initialize the policy at the beginning of training so that the action distribution is centered around 0 regardless of the observation and has a rather small standard deviation.
 This can be achieved by initializing the policy MLP with smaller weights in the last layer so that the initial action distribution is almost independent of the observation and by introducing an offset in the standard deviation of actions.
@@ -657,7 +681,7 @@ References explore more alternatives and approaches involving the optimizer and 
 
 The training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents.
 In particular in the first part each agent interact with the environment gathering some experience, called also trajectory.
-Each agent's trajectory includes for each time step the related observation and the action performed, originally rewards and information about the termination of the problem of each agent were joined together to form uniques values, but after some tests we realized that this was not correct and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
+Each agent's trajectory includes for each time step the related observation and the action performed, originally rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsubsec:multi-agent-credit-assignment}), but after some tests we realized that was not optimal and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
 During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
 Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
 As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.%TODO conclude and ref tests
@@ -681,7 +705,7 @@ Increasing batch size should increase the speed of learning while adjusting the 
 
 \subsubsection{Normalization and clipping}
 
-\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo_implementation_2}}]
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo-implementation-2}}]
 Always use observation normalization and check if value function normalization improves performance.
 Gradient clipping might slightly help but is of secondary importance.
 \end{quoting}
@@ -748,7 +772,7 @@ The value loss and the entropy in the sum are multiplied by their respective coe
 
 \subsection{Testing}\label{subsec:testing}
 
-PS-PPO hyperparameters
+PS-PPO hyperparameters legend:
 \begin{itemize}
 	\item Network Architecture
 	\begin{itemize}
@@ -791,7 +815,7 @@ PS-PPO hyperparameters
 	\end{itemize}
 \end{itemize}
 
-%TODO: horizon and batch, reward shaping, masking, skipping, allow no op
+%TODO: evaluation mode, horizon and batch, reward shaping, masking, skipping, allow no op
 
 \section{D3QN}\label{sec:d3qn}
 
@@ -808,11 +832,10 @@ For example in the Flatland environment agents does not perform actions which su
 In this case, the idea is to increase the training phase and allow the controller to detect and learn how to act in critical positions such as switches.
 At the end, advantages and values are combined to obtain Q values.
 The second D stands for Double, which refers to the idea of using two separate neural networks during training, one, called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
-% TODO: finish
-\\
-\\
+Double DQN have been recently proposed in multi-agent context in the algorithm \textbf{Weighted Double Deep Q-network (WDDQN)} presented in the work~\citep{weighted-ddqn}.
+Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:memory}.
 The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.
-The following part will continue describing a soft adaptation to multi-agent scenario which relies mostly on the classical implementation while~\ref{subsubsec:fingerprints} describes more specific tricks.
+The following part will continue describing a soft adaptation to multi-agent scenario which relies mostly on the classical implementation while~\ref{subsubsec:fingerprints} describes more specific tricks. %TODO expand soft adaptation
 
 \subsection{Implementation}\label{subsec:implementation2}
 
@@ -831,7 +854,7 @@ When an agent decide the action has also th possibility to start the policy trai
 Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:memory}.
 %TODO: check
 
-\subsubsection{Memory}\label{subsubsec:memory}
+\subsubsection{Experience Replay}\label{subsubsec:memory}
 
 As mentioned in~\ref{subsubsec:training-setup} one of the most important aspect to consider in a DRL algorithm is the nature of the input given to learn policies or value functions.
 Value based methods, such as D3QN, use experience more easily, allowing agents to collect it and reuse it in future learning iterations, this technique is called \textbf{Experience Replay (ER)}.
@@ -853,17 +876,61 @@ In this context the tree is used to store data and related priorities inside the
 	\item The part associated to insertion of new data.
 Before inserting new data, an initial priority must be computed and for each new transition a prediction of the Q value must be computed and compared with the estimation both based on the current value estimator.
 A larger difference between the two values, called \textbf{Temporal Difference Error (TD Error)} suggests that more exploration must be done to improve the predictor.
-TD Errors and an hyperparamater $\alpha$ are used to compute the probability of each sample.
+TD Errors and an hyperparameter $\alpha$ are used to compute the probability of each sample.
 	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
 \end{itemize}
 
 \subsubsection{Fingerprints}\label{subsubsec:fingerprints}
 
+A condition for the ER to be useful is that the environment should not change over time because this makes past experiences irrelevant
+or even harmful~\citep{Hernandez-Leal-2019}.
+This could be a problem when many agents are concurrently changing and learning in the same environment, due to non-stationarity.
+To overcome this problem many methods have been proposed mainly based in associating additional information to the memory's samples to help disambiguation, similarly to we have done in PS-PPO\@.
+Other algorithms that have been already cited, are LDQN, based on leniency of state-action pairs, and WDDQN, which introduces a Lenient Reward Network to approximate lenient rewards.
+Other methods rely on expanded experience buffers such as Concurrent Experience Replay Trajectories (CERTS).
+A work almost completely focused on dealing with this problem is~\citep{fingerprints}.
+% TODO: finish
+
 \subsection{Testing}\label{subsec:testing2}
+
+D3QN hyperparameters legend:
+\begin{itemize}
+	\item Network Architecture
+	\begin{itemize}
+		\item "double\_dqn": True
+		\item "shared": False
+		\item "hidden\_size": 256
+		\item "hidden\_layers": 2
+		\item "learning\_rate": 0.52e-4
+		\item "gamma": 0.99
+		\item "tau": 1e-3
+	\end{itemize}
+	\item Training setup
+	\begin{itemize}
+		\item "n\_episodes": 2500
+        \item "eps\_decay": 0.99
+        \item "eps\_start": 1.0
+        \item "eps\_end": 0.01
+		\item "batch\_size": 32
+		\item "buffer\_min\_size": 0
+		\item "update\_every": 8
+	\end{itemize}
+	\item Memory
+	\begin{itemize}
+		\item "buffer\_size": int(1e6)
+		\item "memory\_type": "per" ("uer" or "per")
+	\end{itemize}
+	\item Action Masking and Skipping
+	\begin{itemize}
+		\item "action\_masking": False
+		\item "allow\_no\_op": True
+		\item "action\_skipping": False
+	\end{itemize}
+\end{itemize}
 
 \section{Curriculum Learning}\label{sec:curriculum-learning}
 
-\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{bengio_curiculum}}]
+\begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{bengio-curiculum}}]
 The basic idea is to start small, learn easier aspects of the task or easier subtasks, and then gradually increase the difficulty level.\\
 \[\dots\]\\
 Deep learning methods attempt to learn feature hierarchies.
@@ -898,8 +965,8 @@ One alternative approach is to manually describe ranges of coherent parameter va
 
 \subsection{Testing}\label{subsec:testing3}
 
-\chapter{Conclusions and future works}
-% TODO
+\chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
+% TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv
 
 \newpage
 ~\nocite{*}
