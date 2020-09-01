@@ -100,20 +100,21 @@ class D3QNPolicy(Policy):
         if type(self.memory) is UniformExperienceReplay:
             self.memory.add(state, action, reward, next_state, done)
         else:
-            old_val = self.qnetwork_local(torch.tensor(state, dtype=torch.float32).to(self.device))[action]
+            with torch.no_grad():
+                old_val = self.qnetwork_local(torch.tensor(state, dtype=torch.float32).to(self.device))[action]
 
-            next_state_tensor = torch.tensor(next_state, dtype=torch.float32).to(self.device)
+                next_state_tensor = torch.tensor(next_state, dtype=torch.float32).to(self.device)
 
-            if self.double_dqn:
-                # Access at [1] because max returns values and indices, here indices correspond to actions
-                q_best_action = self.qnetwork_local(next_state_tensor).max(0)[1]
-                target_val = self.qnetwork_target(next_state_tensor)[q_best_action]
-            else:
-                target_val = self.qnetwork_target(next_state_tensor).max(0)[0]
+                if self.double_dqn:
+                    # Access at [1] because max returns values and indices, here indices correspond to actions
+                    q_best_action = self.qnetwork_local(next_state_tensor).max(0)[1]
+                    target_val = self.qnetwork_target(next_state_tensor)[q_best_action]
+                else:
+                    target_val = self.qnetwork_target(next_state_tensor).max(0)[0]
 
-            new_val = reward + self.gamma * target_val * (1 - done)
+                new_val = reward + self.gamma * target_val * (1 - done)
 
-            error = abs(new_val - old_val).item()
+                error = abs(new_val - old_val).item()
 
             self.memory.add(state, action, reward, next_state, done, error)
 
@@ -140,7 +141,7 @@ class D3QNPolicy(Policy):
         if self.double_dqn:
             # Access at [1] because max returns values and indices, here indices correspond to actions
             q_best_action = self.qnetwork_local(next_states).max(1)[1]
-            q_targets_next = self.qnetwork_target(next_states).gather(1, q_best_action.unsqueeze(-1))
+            q_targets_next = self.qnetwork_target(next_states).detach().gather(1, q_best_action.unsqueeze(-1))
         else:
             q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(-1)
 

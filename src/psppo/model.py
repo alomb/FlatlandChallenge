@@ -4,7 +4,6 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-import numpy as np
 
 
 class PsPPO(nn.Module):
@@ -37,6 +36,7 @@ class PsPPO(nn.Module):
         else:
             if train_params.critic_mlp_depth <= 1:
                 raise Exception("Shared networks must have depth greater than 1")
+            # Shallow layers copy
             actor_layers = critic_layers.copy()
             actor_layers.popitem()
             actor_layers["actor_output_layer"] = nn.Linear(train_params.critic_mlp_width, action_size)
@@ -45,7 +45,7 @@ class PsPPO(nn.Module):
         # Network orthogonal initialization
         def weights_init(m):
             if isinstance(m, nn.Linear):
-                torch.nn.init.orthogonal_(m.weight, np.sqrt(2))
+                torch.nn.init.orthogonal_(m.weight, nn.init.calculate_gain(self.activation.lower()))
                 torch.nn.init.zeros_(m.bias)
 
         with torch.no_grad():
@@ -61,7 +61,7 @@ class PsPPO(nn.Module):
 
         if train_params.load_model_path is not None:
             loading = self.load(train_params.load_model_path)
-        if self.evaluation_mode and not(loading):
+        if self.evaluation_mode and not loading:
             sys.exit()
 
     def _build_network(self, is_actor, nn_depth, nn_width):

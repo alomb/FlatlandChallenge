@@ -119,7 +119,7 @@ Academic Year {2019-2020}
 \setcounter{page}{1}
 
 \chapter*{Introduction}
-The Flatland challenge aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
+The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
 The following work is related to the second edition of this challenge started in Summer 2020.
 In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
 
@@ -570,11 +570,12 @@ In their work they explore the task of learning cooperative tasks in partially o
 To allow agent's specialization the observations of the agents are extended with their unique ids.
 By inserting the agent's id, the network has the capability to distinguish the agent from the others and influence its behaviour, if we imagine a team of cooperative robots performing a specific task, this can improve the coordination between them as everyone specialize on a different role.
 They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent techniques suffer from the non-stationarity of the multi-agents environments and the lack of communication.
-Parameter sharing represents an ideal trade off to tackle the major challenges of multi-agent systems and provide a scalable framework.
+Parameter sharing and centralized learning for decentralized execution represents an ideal trade off to tackle the major challenges of multi-agent systems and provide a scalable framework.
 
 \subsection{Algorithm}\label{subsec:algorithm}
 
 The authors suggest as a policy gradient algorithm the \textbf{Trust Region Policy Optimization (TRPO)} while in this work we present an alternative version based on \textbf{Proximal Policy Optimization (PPO)}.
+The combination of PPO and parameter sharing results in the name \textbf{Parameter-Sharing Proximal Policy Optimization (PS-PPO)}.
 We will not cover here all the details and the state of the art of the mentioned algorithms in single-agent setting, but they can be found in the references~\citep{trpo} and~\citep{ppo}.
 The basic principle of Policy Gradient methods relies on the concept of gradient ascent to follow policies with the steepest increase in rewards.
 However, this simple setting may lead the algorithm to get overconfidence and make bad moves that ruin almost irreversibly the progress of the training.
@@ -585,7 +586,7 @@ PPO relies on clipped probability ratios, which forms a pessimistic estimate of 
 Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
 Due to the high flexibility of the Flatland environment we decided to change also the agent personalization.
 Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate, which are only specific of a certain generated environment, we formulated a function to transform agent's features to id.
-During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour.
+During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour based on speed profiles and malfunction stochasticity.
 
 \subsection{Implementation}\label{subsec:implementation}
 
@@ -597,12 +598,15 @@ The majority of the following details are not even mentioned in the original PPO
 \subsubsection{Network architecture}
 
 PPO belongs to the family of \textbf{actor-critic algorithms}, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
-% TODO: picture difference one to the other
 Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
 This is because the norm of gradients flowing back from the actor gradients and the critic gradients may be at completely different scales causing difficulties during calibration.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
-Neural networks' weights are initialized using orthogonal initialization while biases are initially set to zero.
-% TODO: network generation pytorch
+Fully connected neural networks are generated procedurally given the sizes and the activation function, enabling fast personalization.
+Networks layers, from the \textit{class torch.nn.Linear}, are initially inserted in an OrderedDict, which remembers the order that keys were first inserted, specifying also layers' names.
+At the end, the dictionary is passed to the constructor of the class \textit{torch.nn.Sequential} to generate the network.
+If the weights are shared the actor network reuses the same first and hidden layers of the critic that has been already built and substitutes the last one, called head, with its own, which has a different output size.
+The difference between the shared and the not shared configuration can be observed in the figures~\ref{fig:psppo_separated_graph_commented} and~\ref{fig:psppo_shared_graph_commented}.
+Neural networks' weights are initialized using orthogonal initialization, using the function \textit{torch.nn.init.orthogonal\_(tensor, gain=1)} with the gain/scaling factor calculated with \textit{torch.nn.init.calculate\_gain(nonlinearity, param=None)}, while biases are initially set to zero.
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo-implementation-2}}]
 Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
@@ -617,9 +621,9 @@ By rescaling the last policy layer's weights of the policy network with $100\tim
 
 \begin{lstlisting}[label={lst:psppo-net-init}]
 def weights_init(m):
-if isinstance(m, nn.Linear):
-	torch.nn.init.orthogonal_(m.weight, np.sqrt(2))
-	torch.nn.init.zeros_(m.bias)
+	if isinstance(m, nn.Linear):
+		torch.nn.init.orthogonal_(m.weight, nn.init.calculate_gain(self.activation.lower()))
+		torch.nn.init.zeros_(m.bias)
 
 with torch.no_grad():
 	self.critic_network.apply(weights_init)
@@ -632,7 +636,9 @@ with torch.no_grad():
 
 Neural networks are trained using Adam optimizer.
 References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
-% TODO: target network
+As PPO computes the divergence between the new and the old policies, experiences are collected using the old policy while advantages are computed from the new policy, two neural networks are used, in particular two \textit{torch.nn.Module} are declared.
+The old one is not updated with gradient descents, it simply copies the weights of the new policy after each termination of the training sessions.
+This should suggests that the difference between the two policies tends to increase augmenting the training session duration but should be controlled by the trust region.
 
 \subsubsection{Training setup}\label{subsubsec:training-setup}
 
@@ -780,7 +786,7 @@ PS-PPO hyperparameters legend:
 In this setting the neural network plays as a predictor from states to Q values, substituting a less scalable table of values.
 From the initial work~\citep{dqn} many supplements have been proposed to improve different parts of the original algorithm.
 \textbf{Dueling Double Deep Q Networks (D3QN)} represents a combination of many of them.
-A very wide overview of the main techniques applied to DQN can be found in~\citep{human-level}.
+A very wide overview of the main techniques applied to DQN can be found in~\citep{rainbow}.
 
 \subsection{Algorithm}\label{subsec:algorithm2}
 
@@ -790,9 +796,10 @@ In this case, the idea is to increase the training phase and allow the controlle
 At the end, advantages and values are combined to obtain Q values.
 The second D stands for Double, which refers to the idea of using two separate neural networks during training, one, called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
 Double DQN have been recently proposed in multi-agent context in the algorithm \textbf{Weighted Double Deep Q-network (WDDQN)} presented in the work~\citep{weighted-ddqn}.
-Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:memory}.
+Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:experience-replay}.
 The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.
-The following part will continue describing a soft adaptation to multi-agent scenario which relies mostly on the classical implementation while~\ref{subsubsec:fingerprints} describes more specific tricks. %TODO expand soft adaptation
+The following part will continue describing a soft adaptation to multi-agent scenario inspired by the~\href{https://gitlab.aicrowd.com/flatland/flatland-examples}{Flatland's baselines} which relies mostly on the classical single-agent implementation while~\ref{subsubsec:fingerprints} describes more specific tricks.
+We consider the former strategy an "analysis of emergent behaviors" study, as the adaptations to multi-agent setting are minimal and there are low theoretical guarantees even if performances show empirical good results.
 
 \subsection{Implementation}\label{subsec:implementation2}
 
@@ -800,18 +807,31 @@ This section describes the most remarkable details of the algorithm implementati
 
 \subsubsection{Network architecture}
 
-%TODO value-adv aggregator, eps decay
+Similarly to PS-PPO also D3QN allows customization on layers depth and width.
+The layers form a fully connected neural network.
+As D3QN has a dueling component the network structure is heavily bounded on this choice, after some hidden layers, involved in encoding the agent's observation, the network terminates in two branches, one responsible for the action's advantage and the other for the state's value prediction, the results are aggregated summing the two outcomes and subtracting the mean of the advantage.
+Hidden layers can be set shared between the two flows or separated.
+Finally, two neural networks are declared following the above description.
+The two networks work in synergy providing respectively the local and the target of the Double DQN strategy.
+The local is updated with gradient descents and used to predict the best action and the Q value of the previous state, while the target receives the best action and computes the Q value of the following state.
+The final loss used to optimize the local network is the mean squared error of the discounted Q value of the successive state summed with the reward with the Q value of the current state.
+The target network's weights are updated using \textbf{soft updates}, which can be described with the following formula:
+\begin{equation}
+	\theta^{-} = \theta \tau + \theta^{-}(1 - \tau)\label{eq:soft-update}
+\end{equation}
+where $\theta^{-}$ are the target's weights, $\theta$ the local network's weights and $\tau$ an hyperparameter usually set to a very small number as this update is performed at each mini-batch gradient descent.
+Network graphs can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
 
 \subsubsection{Training setup}
 
-In each episode the agents decides an action whenever they are ready to perform an action, namely they are not already moving from a cell to another, this may also include agents in deadlock which are involuntarily accumulating movements they will never perform, and are not arrived to destination.
+In each episode the agents decide an action whenever they are ready to perform an action, namely they are not already moving from a cell to another, this may also include agents in deadlock which are involuntarily accumulating movements they will never perform, and are not arrived to destination.
 Agents that not decide an action perform a DO\_NOTHING action.
 Actions are stored and used to step the environment, trajectories are saved in the memory.
-When an agent decide the action has also th possibility to start the policy training which occurs whenever the memory has reached a certain size and every interval of episodes.
-Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:memory}.
+When an agent decides the action has also the possibility to start the policy training which occurs whenever the memory has reached a certain size and every time an interval of episodes has been completed.
+Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:experience-replay}.
 %TODO: check
 
-\subsubsection{Experience Replay}\label{subsubsec:memory}
+\subsubsection{Experience Replay}\label{subsubsec:experience-replay}
 
 As mentioned in~\ref{subsubsec:training-setup} one of the most important aspect to consider in a DRL algorithm is the nature of the input given to learn policies or value functions.
 Value based methods, such as D3QN, use experience more easily, allowing agents to collect it and reuse it in future learning iterations, this technique is called \textbf{Experience Replay (ER)}.
@@ -836,6 +856,7 @@ A larger difference between the two values, called \textbf{Temporal Difference E
 TD Errors and an hyperparameter $\alpha$ are used to compute the probability of each sample.
 	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
 \end{itemize}
+The consequences on the computational graph of the different methods can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
 
 \subsubsection{Fingerprints}\label{subsubsec:fingerprints}
 
@@ -924,6 +945,40 @@ One alternative approach is to manually describe ranges of coherent parameter va
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 % TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv
+
+\appendix
+\renewcommand\thefigure{F.\arabic{figure}}
+\section*{Figures}
+\setcounter{figure}{0}
+
+\begin{figure}
+\caption{An example of execution graph with actor and critic separated}
+\centering
+\includegraphics[width=0.46\textwidth]{resources/psppo_separated_graph_commented.png}
+\label{fig:psppo_separated_graph_commented}
+\end{figure}
+
+\begin{figure}
+\caption{An example of execution graph with actor and critic with shared layers}
+\centering
+\includegraphics[width=0.5\textwidth]{resources/psppo_shared_graph_commented.png}
+\label{fig:psppo_shared_graph_commented}
+\end{figure}
+
+\begin{figure}
+\caption{An example of execution graph with uniform experience replay}
+\centering
+\includegraphics[width=0.74\textwidth]{resources/d3qn_uer_graph.png}
+\label{fig:d3qn_uer_graph}
+\end{figure}
+
+\begin{figure}
+\caption{An example of execution graph with prioritized experience replay}
+\centering
+\includegraphics[width=0.74\textwidth]{resources/d3qn_per_graph.png}
+\label{fig:d3qn_per_graph}
+\end{figure}
+
 
 \newpage
 ~\nocite{*}
