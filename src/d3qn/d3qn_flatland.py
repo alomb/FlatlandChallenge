@@ -11,7 +11,6 @@ except ImportError as e:
 
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnvActions
 
 from src.common.action_skipping_masking import find_decision_cells, get_action_masking
 from src.common.flatland_railenv import FlatlandRailEnv
@@ -122,13 +121,9 @@ def train_multiple_agents(env_params, train_params):
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # Action skipping if the agent is in not in a decision cell
-                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells:
-                    action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the second case)
-                elif info['action_required'][agent]:
+                if info['action_required'][agent]:
                     # If an action is required, the actor predicts an action
                     agents_in_action.add(agent)
                     action_dict[agent] = policy.act(obs[agent], action_mask=action_mask, eps=eps_start)
@@ -169,7 +164,7 @@ def train_multiple_agents(env_params, train_params):
             if train_params.render:
                 env.env.show_render()
 
-            if done['__all__']:
+            if done["__all__"]:
                 break
 
         # Epsilon decay
@@ -188,11 +183,16 @@ def train_multiple_agents(env_params, train_params):
 
         if train_params.print_stats:
             tensorboard_logger.update_tensorboard(env.env,
-                                                  {},
+                                                  {"loss": policy.get_stat("loss"),
+                                                   "q_expected": policy.get_stat("q_expected"),
+                                                   "q_targets": policy.get_stat("q_targets"),
+                                                   "eps": eps_start}
+                                                  if policy.are_stats_ready() else {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,
                                                    "learn": learn_timer,
                                                    "train": training_timer})
+        policy.reset_stats()
 
     return env.env.accumulated_normalized_score, \
            env.env.accumulated_completion, \

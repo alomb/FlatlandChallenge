@@ -209,20 +209,18 @@ def train_multiple_agents(env_params, train_params):
         # Update Tensorboard statistics
         if train_params.print_stats:
             tensorboard_logger.update_tensorboard(env.env,
-                                                  {"state_estimated_value": ppo.state_estimated_value_stat /
-                                                                            ppo.tot_stats,
-                                                   "probs_ratio": ppo.probs_ratio_stat / ppo.tot_stats,
-                                                   "advantage": ppo.advantage_stat / ppo.tot_stats,
-                                                   "policy_loss": ppo.policy_loss_stat / ppo.tot_stats,
-                                                   "value_loss": ppo.value_loss_stat / ppo.tot_stats,
-                                                   "entropy_loss": ppo.entropy_loss_stat / ppo.tot_stats,
-                                                   "total_loss": ppo.loss_stat / ppo.tot_stats} if ppo.tot_stats != 0
+                                                  {"state_estimated_value": ppo.get_stat("state_estimated_value"),
+                                                   "probs_ratio": ppo.get_stat("probs_ratio"),
+                                                   "advantage": ppo.get_stat("advantage"),
+                                                   "policy_loss": ppo.get_stat("policy_loss"),
+                                                   "value_loss": ppo.get_stat("value_loss"),
+                                                   "entropy_loss": ppo.get_stat("entropy_loss"),
+                                                   "total_loss": ppo.get_stat("total_loss")} if ppo.are_stats_ready()
                                                   else {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,
                                                    "learn": learn_timer,
                                                    "train": training_timer})
-        ppo.empy_stats()
 
     return env.env.accumulated_normalized_score, \
            env.env.accumulated_completion, \

@@ -23,6 +23,8 @@ class D3QNPolicy(Policy):
         :param action_size: The number of available actions.
         :param parameters: The set of parameters which affect the train phase.
         """
+        super(D3QNPolicy, self).__init__()
+
         self.evaluation_mode = parameters.evaluation_mode
         self.state_size = state_size
         self.action_size = action_size
@@ -60,7 +62,6 @@ class D3QNPolicy(Policy):
                 raise Exception("Unknown experience replay \"{}\"".format(parameters.memory_type))
 
             self.t_step = 0
-            self.loss = 0.0
 
     def act(self, state, action_mask, eps=0.):
         """
@@ -166,7 +167,7 @@ class D3QNPolicy(Policy):
 
         if type(self.memory) is UniformExperienceReplay:
             # Compute loss
-            self.loss = F.mse_loss(q_expected, q_targets)
+            loss = F.mse_loss(q_expected, q_targets)
         else:
             errors = torch.abs(q_expected - q_targets).data.numpy()
 
@@ -176,20 +177,26 @@ class D3QNPolicy(Policy):
                 self.memory.update(index, errors[i])
 
             # Compute loss
-            self.loss = (torch.tensor(is_weights, dtype=torch.float32).to(self.device) *
+            loss = (torch.tensor(is_weights, dtype=torch.float32).to(self.device) *
                          F.mse_loss(q_expected, q_targets)).mean()
 
         # Minimize the loss
         self.optimizer.zero_grad()
-        self.loss.backward()
+        loss.backward()
         self.optimizer.step()
+
+        # Update training stats
+        with torch.no_grad():
+            self.update_stat("loss", loss)
+            self.update_stat("q_expected", q_expected.mean())
+            self.update_stat("q_targets", q_targets.mean())
 
         # To show graph
         """
         from datetime import datetime
         from torchviz import make_dot
         now = datetime.now()
-        make_dot(self.loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
+        make_dot(loss).render("attached" + now.strftime("%H-%M-%S"), format="png")
         exit()
         """
 

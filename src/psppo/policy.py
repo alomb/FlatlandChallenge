@@ -41,16 +41,6 @@ class PsPPOPolicy(Policy):
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
 
-        with torch.no_grad():
-            self.state_estimated_value_stat = 0
-            self.probs_ratio_stat = 0
-            self.advantage_stat = 0
-            self.policy_loss_stat = 0
-            self.value_loss_stat = 0
-            self.entropy_loss_stat = 0
-            self.loss_stat = 0
-            self.tot_stats = 0
-
         self.memory = Memory(n_agents)
 
         if train_params.advantage_estimator.lower() == "gae":
@@ -204,15 +194,15 @@ class PsPPOPolicy(Policy):
 
                 optimizer.step()
 
+                # Update training stats
                 with torch.no_grad():
-                    self.state_estimated_value_stat += state_estimated_value.mean()
-                    self.probs_ratio_stat += probs_ratio.mean()
-                    self.advantage_stat += advantage.mean()
-                    self.policy_loss_stat += policy_loss
-                    self.value_loss_stat += vlc * value_loss
-                    self.entropy_loss_stat += ec * dist_entropy.mean()
-                    self.loss_stat += loss
-                    self.tot_stats += 1
+                    self.update_stat("state_estimated_value", state_estimated_value.mean())
+                    self.update_stat("probs_ratio", probs_ratio.mean())
+                    self.update_stat("advantage", advantage.mean())
+                    self.update_stat("policy_loss", policy_loss)
+                    self.update_stat("value_loss", vlc * value_loss)
+                    self.update_stat("entropy_loss", ec * dist_entropy.mean())
+                    self.update_stat("total_loss", loss)
 
                 # To show graph
                 """
@@ -314,14 +304,3 @@ class PsPPOPolicy(Policy):
 
     def load(self, filename):
         self.policy.load(filename)
-
-    def empy_stats(self):
-        with torch.no_grad():
-            self.state_estimated_value_stat = 0
-            self.probs_ratio_stat = 0
-            self.advantage_stat = 0
-            self.policy_loss_stat = 0
-            self.value_loss_stat = 0
-            self.entropy_loss_stat = 0
-            self.loss_stat = 0
-            self.tot_stats = 0
