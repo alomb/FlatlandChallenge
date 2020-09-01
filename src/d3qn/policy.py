@@ -18,8 +18,13 @@ class D3QNPolicy(Policy):
     """
 
     def __init__(self, state_size, action_size, parameters):
+        """
+        Args:
+            state_size: The number of attributes of each state.
+            action_size: The number of available actions.
+            parameters: The set of parameters which affect the train phase.
+        """
         self.evaluation_mode = parameters.evaluation_mode
-
         self.state_size = state_size
         self.action_size = action_size
         self.double_dqn = parameters.double_dqn
@@ -74,8 +79,9 @@ class D3QNPolicy(Policy):
 
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
-
             action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
+
+            # Action values excluded by the action masking filter are set at -1e+8
             action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
 
         self.qnetwork_local.train()
@@ -113,6 +119,7 @@ class D3QNPolicy(Policy):
 
             new_val = reward + self.gamma * target_val * (1 - done)
 
+            # TD-errors are used as prioritization mechanism to determine which batch to extract in the learning phase
             error = abs(new_val - old_val).item()
 
             self.memory.add(state, action, reward, next_state, done, error)

@@ -12,6 +12,14 @@ class DuelingQNetwork(nn.Module):
     """
 
     def __init__(self, state_size, action_size, parameters, evaluation_mode):
+        """
+        Args:
+            state_size: The number of attributes of each state. It affects the size of the input of the nn.
+            action_size: The number of available actions. It affects the size of the output of the nn.
+            parameters: The set of parameters which affect the architecture of the nn.
+            evaluation_mode: False/True for training/evaluation mode.
+        """
+
         super(DuelingQNetwork, self).__init__()
         self.shared = parameters.shared
         self.base_modules = nn.ModuleList([])
@@ -39,9 +47,18 @@ class DuelingQNetwork(nn.Module):
         if parameters.load_model_path is not None:
             loading = self.load(parameters.load_model_path)
         if evaluation_mode and not(loading):
+            # If the network is called in evaluation mode but there is no a model to load the execution is terminated
             sys.exit()
 
     def forward(self, x):
+        """
+
+        Args:
+            x: input to the nn.
+
+        Returns: set of Q-values the same size as action_size.
+
+        """
         val = x
         adv = x
 
