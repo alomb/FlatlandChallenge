@@ -2,6 +2,8 @@ import random
 
 import numpy as np
 import torch
+from flatland.envs.rail_env import RailEnvActions
+
 try:
     import wandb
     use_wandb = True
@@ -144,7 +146,7 @@ def train_multiple_agents(env_params, train_params):
                 taken and thus relevant information is present, otherwise, for example when action is skipped or an 
                 agent is moving from a cell to another, the agent is ignored.
                 """
-                if agent in agents_in_action or done[agent]:
+                if agent in agents_in_action or (done[agent] and train_params.type == 1):
                     learn_timer.start()
                     policy.step(agent_prev_obs[agent], agent_prev_action[agent], all_rewards[agent], obs[agent],
                                 done[agent])
@@ -154,7 +156,7 @@ def train_multiple_agents(env_params, train_params):
 
                     # Agent shouldn't be in action_dict in order to print correctly the action's stats
                     if agent not in action_dict:
-                        agent_prev_action[agent] = 0
+                        agent_prev_action[agent] = int(RailEnvActions.DO_NOTHING)
                     else:
                         agent_prev_action[agent] = action_dict[agent]
 

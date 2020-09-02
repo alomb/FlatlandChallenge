@@ -14,26 +14,26 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
+        "n_agents": 5,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
-        "seed": seed,
+        "seed": None,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0,
+            malfunction_rate=0.005,
             min_duration=15,
             max_duration=50),
         # Speeds
         "speed_profiles": {
-            1.: 1.0,
-            1. / 2.: 0.0,
-            1. / 3.: 0.0,
+            1.: 0.5,
+            1. / 2.: 0.25,
+            1. / 3.: 0.25,
             1. / 4.: 0.0},
 
         # ============================
@@ -59,6 +59,7 @@ def train():
         "hidden_size": 256,
         "hidden_layers": 2,
         "update_every": 8,
+        "type": 1,
 
         # epsilon greedy decay regulators
         "eps_decay": 0.99,
@@ -74,7 +75,7 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 2500,
+        "n_episodes": 600,
         "batch_size": 32,
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
@@ -91,7 +92,7 @@ def train():
         # ============================
         # Optimization and rendering
         # ============================
-        "checkpoint_interval": 75,
+        "checkpoint_interval": 100,
         "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
@@ -105,7 +106,7 @@ def train():
         # Action Masking / Skipping
         # ============================
         "action_masking": True,
-        "allow_no_op": True,
+        "allow_no_op": False,
         "action_skipping": False,
     }
 

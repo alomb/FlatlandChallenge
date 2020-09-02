@@ -132,7 +132,7 @@ class D3QNPolicy(Policy):
 
             self.memory.add(state, action, reward, next_state, done, error)
 
-        # Learn every UPDATE_EVERY time steps.
+        # Learn every UPDATE_EVERY times the memory is updated.
         self.t_step = (self.t_step + 1) % self.update_every
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
