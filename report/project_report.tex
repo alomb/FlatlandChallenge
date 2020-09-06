@@ -18,14 +18,15 @@
 \usepackage{bookmark}
 \usepackage{float}
 \usepackage{epigraph}
-\usepackage{quoting}
+\usepackage{quoting} % to create citations
 \usepackage{newlfont}
 \usepackage{color}
 \usepackage[a4paper, total={6.2in, 8in}]{geometry}
-\usepackage{algorithm2e}
+\usepackage{algorithm2e} % pseudocode
+\usepackage{algorithmic} % pseudocode
 \usepackage{titletoc}
-\usepackage{listings}
-\usepackage{algorithmic}
+\usepackage{listings} % code
+\usepackage{seqsplit} % split long lines
 
 \bibliographystyle{plainnat}
 
@@ -379,7 +380,7 @@ In the Flatland environment agents are already provided with an individual score
 \addcontentsline{toc}{chapter}{Original work}
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
-We developed the following work using Python and Pytorch.
+We developed the following work using Python and PyTorch.
 
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
@@ -482,7 +483,7 @@ During this period it is possible that the agent converges to a wrong policy.
 Invalid action masking helps to avoid sampling invalid actions by ``masking out'' the network outcomes corresponding to the invalid actions.
 This is usually accomplished by replacing the values of the actions to be masked by a large negative number like $-1 \cdot 10^8$.
 This operation actually change the gradient calculation for the actor network's parameters, in particular gradients of the masked logits become zero, but still maintains differentiability as the masking leaves unchanged values (identity function) or introduces constants.
-% TODO: action skipping, pytorch impl and tests
+% TODO: action skipping, PyTorch impl and tests
 
 ~\ref{subsec:rewards2} analyze an alternative approach to action masking based on rewards.
 
@@ -551,16 +552,18 @@ Parameter sharing and centralized learning for decentralized execution represent
 \subsection{Algorithm}\label{subsec:algorithm}
 
 The authors suggest as a policy gradient algorithm the \textbf{Trust Region Policy Optimization (TRPO)} while in this work we present an alternative version based on \textbf{Proximal Policy Optimization (PPO)}.
+The Proximal Policy Optimization (PPO) is a model-free, online, on-policy, policy gradient reinforcement learning method.
+This algorithm is a type of policy gradient training that alternates between sampling data through environmental interaction and optimizing a clipped surrogate objective function using stochastic gradient descent.
+The clipped surrogate objective function improves training stability by limiting the size of the policy change at each step.
 The combination of PPO and parameter sharing results in the name \textbf{Parameter-Sharing Proximal Policy Optimization (PS-PPO)}.
-We will not cover here all the details and the state of the art of the mentioned algorithms in single-agent setting, but they can be found in the references~\citep{trpo} and~\citep{ppo}.
+The following lines briefly summarize the motivation and the idea behind the single-agent algorithms mentioned above, more formal and detailed explanations can be found in the references~\citep{trpo} and~\citep{ppo}.
 The basic principle of Policy Gradient methods relies on the concept of gradient ascent to follow policies with the steepest increase in rewards.
 However, this simple setting may lead the algorithm to get overconfidence and make bad moves that ruin almost irreversibly the progress of the training.
-TRPO has been proposed to solve this issue by introducing the concept of guaranteed monotonic improvement.
+TRPO has been proposed to solve this issue by introducing the concept of \textbf{guaranteed monotonic improvement}.
 Theoretically, TRPO can guarantee a policy improvement as long as it optimizes the local approximation within a trusted region, creating at each update a better policy.
 PPO was conceived to improve the policy-based techniques by introducing an algorithm that attains the data efficiency and reliable performance of TRPO, while using only first-order optimization, as one of the most remarkable drawback of TRPO is its complexity.
-PPO relies on clipped probability ratios, which forms a pessimistic estimate of the performance of the policy, and data sampled from applying for several time steps the policy to obtain a so called trajectory.
-Trajectories are finally used to optimize the policies in multiple epochs of mini-batch updates.
-Due to the high flexibility of the Flatland environment we decided to change also the agent personalization.
+To attain this PPO relies on clipped probability ratios, which form a pessimistic estimate of the performance of the policy.
+Returning to the multi-agent setting, due to the high flexibility of the Flatland environment, we decided to change also the agent personalization.
 Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate, which are only specific of a certain generated environment, we formulated a function to transform agent's features to id.
 During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour based on speed profiles and malfunction stochasticity.
 
@@ -573,7 +576,8 @@ The majority of the following details are not even mentioned in the original PPO
 
 \subsubsection{Network architecture}
 
-PPO belongs to the family of \textbf{actor-critic algorithms}, it requires the design of two different neural networks: the critic, which estimates the value function used as a baseline, and the actor, which updates the policy distribution in the direction suggested by the critic.
+PPO has been widely implemented in an \textbf{actor-critic} style.
+The actor (or parallel actors) takes observations and outputs the probabilities of taking each action in the action space when the agent is in the given state, on the other hand, the critic takes the observations and outputs the corresponding expectation of the discounted long-term reward, called also state value.
 Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
 This is because the norm of gradients flowing back from the actor gradients and the critic gradients may be at completely different scales causing difficulties during calibration.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
@@ -610,17 +614,23 @@ with torch.no_grad():
 	list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
 \end{lstlisting}
 
-Neural networks are trained using Adam optimizer.
+Neural networks are trained using an Adam optimizer.
+% TODO: PyTorch module details
 References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
 As PPO computes the divergence between the new and the old policies, experiences are collected using the old policy while advantages are computed from the new policy, two neural networks are used, in particular two \textit{torch.nn.Module} are declared.
-The old one is not updated with gradient descents, it simply copies the weights of the new policy after each termination of the training sessions.
+The old one is not updated with gradient descents, it simply copies the weights of the new policy after each the training session termination.
 This should suggests that the difference between the two policies tends to increase augmenting the training session duration but should be controlled by the trust region.
 
 \subsubsection{Training setup}\label{subsubsec:training-setup}
 
-The training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents.
+The single-agent PPO training setup can be briefly summarized as an interaction with the environment for multiple steps, using the current policy, followed by a mini-batch update of the actor and critic over multiple epochs.
+The multi-agent training setup is similar to the single-agent one but introduces more complexity to deal with multiple agents and trajectories.
 In particular in the first part each agent interact with the environment gathering some experience, called also trajectory.
-Each agent's trajectory includes for each time step the related observation and the action performed, originally rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsubsec:multi-agent-credit-assignment}), but after some tests we realized that was not optimal and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
+A trajectory is a sequence of states, actions performed in the first state, rewards obtained and following states.
+Additional information are stored too, as flags to distinguish terminal states and logarithms of the probability mass function evaluated at the chosen actions, used as the old policy in the probability ratio.
+Each agent has its own trajectory, when an agent finishes its task it stops collecting new experience until a new episode is generated, otherwise it continues to store new information, in both cases the agent stops collecting when it has reached a certain amount which is used for training and then discarded.
+Practically the multi-agent scenario does not influence much how externally agents interact independently with the environment, but introduces the possibility to learn cooperatively on the same policy.
+Originally, rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsubsec:multi-agent-credit-assignment}), but after some tests we realized that was not beneficial and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
 During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
 Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
 As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.%TODO conclude and ref tests
@@ -633,7 +643,7 @@ Off-policy algorithms such as DQN are more sample efficient because can store hu
 We hypothesize that horizon must depend on the specific environment, and the implications in Flatland are even deeper as the environment can drastically change its complexity. % TODO: horizon depends on action skipping too (should decrease)
 After some experiments we observed that higher values of horizon tends to perform better and we have found similar comments on other works, including arguments on implications of the value to assign to the decaying factor used to calculate the advantage~\ref{subsubsec:advantage-estimation}.\\
 \\
-One of the greatest advantage of PPO, thanks to PPO's simpler objective, over the other policy-based algorithms is the possibility to perform multiple epochs on the collected data.
+One of the greatest advantage of PPO, thanks to its simpler objective, over the other policy-based algorithms is the possibility to perform multiple epochs on the collected data.
 The classical approach is to repeat for a certain number of epochs the training on the same mini-batches obtained preserving the temporal order of the individual transitions inside the overall experience.
 But this approach usually leads to another typical problem of policy gradient methods: if chunks of experiences are small and are temporally ordered, learning uses similar samples of data causing instability as may occur large updates with gradients pointing to the same direction.
 To avoid this problem data can be shuffled in different ways.
@@ -704,7 +714,7 @@ The value loss is computed as a squared error loss, many implementations multipl
 	\item Entropy computed from the action categorical distribution to ensure sufficient exploration.
 \end{itemize}
 
-In our implementation these three elements are added together and used to compute the gradients with the Pytorch function \textit{backward()} and then optimize the networks.
+In our implementation these three elements are added together and used to compute the gradients with the PyTorch function \textit{backward()} and then optimize the networks.
 The value loss and the entropy in the sum are multiplied by their respective coefficients.
 %TODO: comments on coefficients and loss values
 
@@ -727,23 +737,23 @@ PS-PPO hyperparameters legend:
 	\end{itemize}
 	\item Training setup
 	\begin{itemize}
-		\item "n\_episodes": number of episodes.
+		\item "n\_episodes": number of training episodes.
 		\item "horizon": learning trajectory size, common values are $512, 1024, 2048, 4096$.
-		\item "epochs": learning epochs.
+		\item "epochs": number of training epochs.
 		\item "batch\_size": number of samples in each batch, common values are $64, 128, 256$.
 		\item "batch\_mode": "shuffle" to shuffle the memory after advantage computation, "normal" to create batches of ordered data.
 	\end{itemize}
 	\item Policy and advantage
 	\begin{itemize}
 		\item "advantage\_estimator": advantage computation, "gae" to use Generalized Advantage Estimation, "n-steps" to use N-steps.
-		\item "lmbda": Generalized Advantage Estimation hyperparameter, usually set to $0.95$.
+		\item "lmbda": GAE hyperparameter to control the bias–variance trade-off, usually set to $0.95$.
 		\item "entropy\_coefficient": coefficient multiplied to the entropy loss.
 		\item "value\_loss\_coefficient": coefficient multiplied to the value loss.
 	\end{itemize}
 	\item Normalization and clipping
 	\begin{itemize}
 		\item "discount\_factor": or $\gamma$, common values are $0.95, 0.97, 0.99, 0.999$.
-		\item "max\_grad\_norm": gradient clipping maximum $0.5$.
+		\item "max\_grad\_norm": gradient clipping maximum norm, commonly set to $0.5$.
 		\item "eps\_clip": PPO objective clipping $\epsilon$ hyperparameter, a common value is $0.25$.
 	\end{itemize}
 	\item Action Masking and Skipping
@@ -937,12 +947,11 @@ One alternative approach is to manually describe ranges of coherent parameter va
 \subsection{Testing}\label{subsec:testing3}
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
-% TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv
+% TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv, shuffling order
 
 \newpage
 
 \appendix
-\renewcommand\thefigure{F.\arabic{figure}}
 
 \section*{Algorithms}
 
@@ -1014,6 +1023,56 @@ One alternative approach is to manually describe ranges of coherent parameter va
 
 \newpage
 
+\section{PyTorch}\label{sec:pytorch}
+This section provides a very briefly overview in FAQ format of PyTorch functionalities and references to more detailed external materials.
+
+\paragraph{What is PyTorch?}\label{par:what-is-pytorch}
+PyTorch is an open source machine learning library based on the Torch library.
+As deep learning building blocks are tensors also PyTorch fundamental class is \textit{torch.Tensor}.
+Tensors are data structures that can be placed in the GPU and can be used to track linear algebra operations whenever they have the \textit{requires\_grad} property set to True.
+This property is propagated through operations to resulting tensors.
+When a tensor is generated from the user, for example the input of a neural network, it does not reference a PyTorch \textit{torch.autograd.Function} that created the tensor (the \textit{grad\_fn property is set to None}) and is called \textbf{leaf}.
+
+\paragraph{How does differentiation work?}\label{par:what-is-autograd}
+Another core component of PyTorch is \textbf{Autograd}, which allows automatic differentiation by recording all the operations performed and replaying them backward to compute the gradients.
+Gradients are computed invoking the function \textit{backward()} from a starting point, which must be a scalar value like the mean of the tensor containing the computed batch loss.
+Gradients are accumulated, thus before computing new gradients the older are usually zeroed, for example when optimizers are used this is accomplished with the function \textit{zero\_grad()}.
+Each time the gradients are computed memory buffers created during the forward step are freed preventing the possibility to repeat other backtracks.
+To allow multiple backtracks the option \textit{retain\_graph} must be set True.
+It is possible to generate graphical representations of the gradients computations with the function \textit{make\_dot(variable)} of the \href{https://github.com/szagoruyko/pytorchviz}{PyTorchViz} package.
+These representations are acyclic graphs that encode a complete history of the computation called \textbf{Computational graphs}, which are computed calling \textit{nn.Module.forward()}.
+Blue boxes are tensors involved in gradient computation such as neural network's weights, biases and inputs, while gray and green boxes both represent recorded operations in which gradients have been involved, the color green is used to underline the starting point or root of the tree.
+Additionally to setting \textit{requires\_grad} it is possible to exclude parts from the Autograd tracking temporarily enclosing code portions within a \textit{with torch.no\_grad()} block or more permanently detaching tensors from the current graph with the \textit{detach()} method.
+
+\paragraph{What is the difference from PyTorch to TensorFlow/Keras?}\label{par:what-is-the-difference-from-pytorch-to-tensorflow/keras?}
+While TensorFlow provides both a low level and high level API, Keras is mainly an high level API and PyTorch a low level one.
+PyTorch usually allows much more flexibility but it is also less intuitive and user-friendly than the other libraries.
+Probably the most important difference between PyTorch and TensorFlow is the way they define computational graphs.
+While Tensorflow creates statics graphs, PyTorch deploys \textbf{dynamics graphs}.
+Practically this means that in PyTorch it is possible to define/manipulate graphs on the fly rather than following two separate and ordered steps: definition and execution.
+Therefore PyTorch neural networks can be easily executed and examined.
+
+\paragraph{How to integrate CUDA?}\label{par:how-to-integrate-cuda?}
+To check whether CUDA is available the method \textit{torch.cuda.is\\\_available()} can be called.
+To move a Tensor from the CPU to the GPU the method \textit{to(device)} can be used passing as device the text \textit{'cuda:0'}.
+It is also possible to assign the device in the definition passing a string to the argument \textit{device}.
+
+\paragraph{How to build a neural network?}\label{par:how-to-build-a-neural-network?}
+Neural networks are supported by the package \textit{torch.nn}.
+Custom neural networks are built inheriting the PyTorch \textit{nn.Module} class, it is also possible to combine them as they are seen as functions, for instance the class \textit{nn.Sequential} used in the various Actor-Critic implementations for both parts are declared inside an extension of \textit{nn.Module}.
+When a class extends \textit{nn.Module} it should implement the function \textit{forward()} to describe how the different components and layers of the network work together, giving a lot of flexibility.
+\textbf{Parameters} are Tensor subclasses, that are automatically assigned as network parameters (they will appear in \textit{parameters()} iterator) when used with \textit{Module}s.
+The package \textit{torch.nn} provides also the implementation of many layers such as Convolutional, Recurrent and Fully Connected.
+
+\paragraph{How to train a neural network?}\label{par:how-to-train-a-neural-network?}
+Neural networks can be trained using state of the art optimization algorithms already implemented and available inside the package \textit{torch.optim}, such as RMSProp and Adam.
+Optimizers have a common interface and store inside their state to allow a transparent usage.
+Usually they are initialized passing the parameters to optimize, such as neural network's weights and biases.
+\\
+\\
+Additional materials, can be found in the \href{https://pytorch.org/resources/}{official site} or in the following blogs and articles \href{https://blog.paperspace.com/pytorch-101-understanding-graphs-and-automatic-differentiation/}{PyTorch 101, Part 1: Understanding Graphs, Automatic Differentiation and Autograd} and \href{https://towardsdatascience.com/understanding-pytorch-with-an-example-a-step-by-step-tutorial-81fc5f8c4e8e}{Understanding PyTorch with an example: a step-by-step tutorial}.
+
+\renewcommand\thefigure{F.\arabic{figure}}
 \section*{Figures}
 \setcounter{figure}{0}
 

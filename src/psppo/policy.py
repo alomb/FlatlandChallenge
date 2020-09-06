@@ -223,7 +223,8 @@ class PsPPOPolicy(Policy):
         :param state: the observed state
         :param action: the performed action
         :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
-        :return: the logarithm of action probability, the value predicted by the critic, the distribution entropy
+        :return: the logarithm of action probability evaluated in the actions, the value predicted by the critic, the
+        distribution entropy
         """
 
         action_logits = self.policy.actor_network(state[:-1])
