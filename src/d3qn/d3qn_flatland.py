@@ -8,8 +8,7 @@ try:
     import wandb
     use_wandb = True
 except ImportError as e:
-    print("Install wandb and login to load TensorBoard logs.")
-    use_wandb = False
+    raise ImportError("Install wandb and login to load TensorBoard logs.")
 
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
@@ -18,6 +17,23 @@ from src.common.action_skipping_masking import find_decision_cells, get_action_m
 from src.common.flatland_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.d3qn.policy import D3QNPolicy
+
+
+def add_fingerprints(obs, num_agents, eps, step):
+    """
+
+    :param obs: The observation to modify
+    :param num_agents: Total number of agents
+    :param eps: the current exploration rate
+    :param step: the current step
+    :return: the observations with fingerprints
+    """
+
+    for a in range(num_agents):
+        if obs[a] is not None:
+            obs[a] = np.append(obs[a], [eps, step])
+
+    return obs
 
 
 def train_multiple_agents(env_params, train_params):
@@ -68,7 +84,12 @@ def train_multiple_agents(env_params, train_params):
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
     # Double Dueling DQN policy
-    policy = D3QNPolicy(env.state_size, action_size, train_params)
+    if train_params.fingerprints:
+        # With fingerprints
+        policy = D3QNPolicy(env.state_size + 2, action_size, train_params)
+    else:
+        # Without fingerprints
+        policy = D3QNPolicy(env.state_size, action_size, train_params)
 
     if use_wandb:
         wandb.watch(policy.qnetwork_local)
@@ -92,6 +113,8 @@ def train_multiple_agents(env_params, train_params):
     agent_prev_obs = [None] * env_params.n_agents
     agent_prev_action = [2] * env_params.n_agents
 
+    timestep = 0
+
     for episode in range(train_params.n_episodes + 1):
         # Reset timers
         step_timer.reset()
@@ -101,6 +124,8 @@ def train_multiple_agents(env_params, train_params):
         # Reset environment
         reset_timer.start()
         obs, info = env.reset()
+        if train_params.fingerprints:
+            obs = add_fingerprints(obs, env_params.n_agents, eps_start, timestep)
 
         decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
@@ -125,7 +150,7 @@ def train_multiple_agents(env_params, train_params):
                 # Fill action dict
                 # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the second case)
-                if info['action_required'][agent]:
+                if info["action_required"][agent]:
                     # If an action is required, the actor predicts an action
                     agents_in_action.add(agent)
                     action_dict[agent] = policy.act(obs[agent], action_mask=action_mask, eps=eps_start)
@@ -138,6 +163,8 @@ def train_multiple_agents(env_params, train_params):
             # Environment step
             step_timer.start()
             next_obs, all_rewards, done, info = env.step(action_dict)
+            if train_params.fingerprints:
+                next_obs = add_fingerprints(next_obs, env_params.n_agents, eps_start, timestep)
             step_timer.end()
 
             for agent in range(env_params.n_agents):
@@ -165,6 +192,8 @@ def train_multiple_agents(env_params, train_params):
 
             if train_params.render:
                 env.env.show_render()
+
+            timestep += 1
 
             if done["__all__"]:
                 break

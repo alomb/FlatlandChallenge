@@ -79,6 +79,7 @@ def train():
         "batch_size": 32,
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
+        "fingerprints": True,
 
         # ============================
         # Memory

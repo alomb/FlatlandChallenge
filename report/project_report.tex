@@ -827,7 +827,7 @@ Actions are stored and used to step the environment, trajectories are saved in t
 When an agent decides the action has also the possibility to start the policy training which occurs whenever the memory has reached a certain size and every time an interval of episodes has been completed.
 Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:experience-replay}.
 %TODO: check
-After each episode the $\epsilon$ value of the $\epsilon$-greedy is decayed with a fixed factor until it reaches a final value set in the hyperparameters.
+After each episode the exploration rate $\epsilon$ of the $\epsilon$-greedy is decayed with a fixed factor until it reaches a final value set in the hyperparameters.
 
 \subsubsection{Experience Replay}\label{subsubsec:experience-replay}
 
@@ -858,14 +858,23 @@ The consequences on the computational graph of the different methods can be seen
 
 \subsubsection{Fingerprints}\label{subsubsec:fingerprints}
 
-A condition for the ER to be useful is that the environment should not change over time because this makes past experiences irrelevant
+A condition for ER to be useful is that the environment should not change over time because this makes past experiences irrelevant
 or even harmful~\citep{Hernandez-Leal-2019}.
 This could be a problem when many agents are concurrently changing and learning in the same environment, due to non-stationarity.
-To overcome this problem many methods have been proposed mainly based in associating additional information to the memory's samples to help disambiguation, similarly to we have done in PS-PPO\@.
+To overcome this problem many methods have been proposed mainly based in associating additional information to the memory's samples to help disambiguation, similarly to what we have done in PS-PPO\@.
 Other algorithms that have been already cited, are LDQN, based on leniency of state-action pairs, and WDDQN, which introduces a Lenient Reward Network to approximate lenient rewards.
 Other methods rely on expanded experience buffers such as Concurrent Experience Replay Trajectories (CERTS).
 A work almost completely focused on dealing with this problem is~\citep{fingerprints}.
-% TODO: finish
+In their work Foerster et al.~propose two methods to overcome non-stationarity:
+\begin{itemize}
+	\item Importance sampling, experience tuples are augmented with the probability of taking the joint action according to the policies at that time.
+Sampling of experiences is influenced by the difference between the old and the new environments.
+	\item Fingerprints, experience tuples are marked with a temporal countersign, called fingerprint.
+This additional information helps agent to better understand in which moment samples have been saved from the environment and understand the policies of the other agents, without sharing them directly, which is much more costly.
+An ideal fingerprint is formed by the training step and the $\epsilon$ exploration rate, as it anneals during time.
+\end{itemize}
+
+We applied fingerprints % TODO
 
 \subsection{Testing}\label{subsec:testing2}
 
@@ -889,7 +898,7 @@ A common value is $1e-3$
 		\item "n\_episodes": number of training episodes.
         \item "eps\_decay": the multiplicative factor used to update the random choice probability of the $\epsilon-greedy$ strategy.
 A common value is $0.99$.
-        \item "eps\_start": the initial $\epsilon$ value, usually $1.0$
+        \item "eps\_start": the initial exploration rate $\epsilon$, usually $1.0$
         \item "eps\_end": the final $\epsilon$ value, usually $0.01$
 		\item "batch\_size": size of the batch of experiences sampled from the memory.
 		\item "buffer\_min\_size": minimum number of samples inside the memory to start learning.
