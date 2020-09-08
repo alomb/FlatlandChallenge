@@ -8,11 +8,12 @@ import torch.nn as nn
 
 class PsPPO(nn.Module):
     """
-    The policy of the PS-PPO algorithm.
+    The neural network for the PS-PPO algorithm.
     """
     def __init__(self,
                  state_size,
                  action_size,
+                 masking_value,
                  train_params):
         """
         :param state_size: The number of attributes of each state
@@ -23,24 +24,35 @@ class PsPPO(nn.Module):
         super(PsPPO, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
+        self.masking_value = masking_value
         self.activation = train_params.activation
         self.softmax = nn.Softmax(dim=-1)
         self.evaluation_mode = train_params.evaluation_mode
+        self.recurrent_linear_size = train_params.linear_size
 
         # Network creation
-        critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
-        self.critic_network = nn.Sequential(critic_layers)
-        if not train_params.shared:
-            self.actor_network = nn.Sequential(self._build_network(True, train_params.actor_mlp_depth,
-                                                                   train_params.actor_mlp_width))
+        if train_params.shared_recurrent:
+            self.is_recurrent = True
+            self.fc = nn.Linear(state_size, train_params.linear_size)
+            self.fc_activation = self._get_activation()
+            self.lstm = nn.LSTM(train_params.linear_size, train_params.hidden_size)
+            self.fc_actor = nn.Linear(train_params.hidden_size, action_size)
+            self.fc_critic = nn.Linear(train_params.hidden_size, 1)
         else:
-            if train_params.critic_mlp_depth <= 1:
-                raise Exception("Shared networks must have depth greater than 1")
-            # Shallow layers copy
-            actor_layers = critic_layers.copy()
-            actor_layers.popitem()
-            actor_layers["actor_output_layer"] = nn.Linear(train_params.critic_mlp_width, action_size)
-            self.actor_network = nn.Sequential(actor_layers)
+            self.is_recurrent = False
+            critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
+            self._critic_network = nn.Sequential(critic_layers)
+            if not train_params.shared:
+                self._actor_network = nn.Sequential(self._build_network(True, train_params.actor_mlp_depth,
+                                                                        train_params.actor_mlp_width))
+            else:
+                if train_params.critic_mlp_depth <= 1:
+                    raise Exception("Shared networks must have depth greater than 1")
+                # Shallow layers copy
+                actor_layers = critic_layers.copy()
+                actor_layers.popitem()
+                actor_layers["actor_output_layer"] = nn.Linear(train_params.critic_mlp_width, action_size)
+                self._actor_network = nn.Sequential(actor_layers)
 
         # Network orthogonal initialization
         def weights_init(m):
@@ -49,12 +61,20 @@ class PsPPO(nn.Module):
                 torch.nn.init.zeros_(m.bias)
 
         with torch.no_grad():
-            self.critic_network.apply(weights_init)
-            self.actor_network.apply(weights_init)
-
             # Last layer's weights rescaling
-            list(self.critic_network.children())[-1].weight.mul_(train_params.last_critic_layer_scaling)
-            list(self.actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
+            if self.is_recurrent:
+                self.fc.apply(weights_init)
+                self.fc_actor.apply(weights_init)
+                self.fc_critic.apply(weights_init)
+
+                self.fc_actor.weight.mul_(train_params.last_critic_layer_scaling)
+                self.fc_critic.weight.mul_(train_params.last_actor_layer_scaling)
+            else:
+                self._critic_network.apply(weights_init)
+                self._actor_network.apply(weights_init)
+
+                list(self._critic_network.children())[-1].weight.mul_(train_params.last_critic_layer_scaling)
+                list(self._actor_network.children())[-1].weight.mul_(train_params.last_actor_layer_scaling)
 
         # Load from file if available
         loading = False
@@ -100,6 +120,51 @@ class PsPPO(nn.Module):
                 network[layer_name + ("_activation(%s)" % self.activation)] = self._get_activation()
 
         return network
+
+    def actor_forward(self, state, action_mask, hidden=None):
+        if self.is_recurrent:
+            x = self._get_activation()(self.fc(state))
+            x = x.view(-1, 1, self.recurrent_linear_size)
+            # lstm_hidden is a tuple containing hidden state (short-term memory) and cell state (long-term memory)
+            x, lstm_hidden = self.lstm(x, hidden)
+            x = self.fc_actor(x)
+            x = x.squeeze()
+            x = torch.where(action_mask, x, self.masking_value)
+
+            prob = self.softmax(x)
+
+            return prob, lstm_hidden
+        else:
+            action_logits = self._actor_network(state)
+
+            action_logits = torch.where(action_mask, action_logits, self.masking_value)
+
+            return self.softmax(action_logits), None
+
+    def critic_forward(self, state, action_mask, hidden=None):
+        if self.is_recurrent:
+            x = self._get_activation()(self.fc(state))
+            x = x.view(-1, 1, self.recurrent_linear_size)
+            # lstm_hidden is a tuple containing  hidden state (short-term memory) and cell state (long-term memory)
+            x, lstm_hidden = self.lstm(x, hidden)
+            # Actor
+            action_probs = self.fc_actor(x)
+            action_probs = action_probs.squeeze()
+            action_probs = torch.where(action_mask, action_probs, self.masking_value)
+            action_probs = self.softmax(action_probs)
+            # Critic
+            value = self.fc_critic(x)
+            value = value.squeeze()
+
+            return action_probs, value
+        else:
+            action_logits = self._actor_network(state)
+
+            # Action masking, default values are True, False are present only if masking is enabled.
+            # If No op is not allowed it is masked even if masking is not active
+            action_logits = torch.where(action_mask, action_logits, self.masking_value)
+
+            return self.softmax(action_logits), self._critic_network(state)
 
     def _get_activation(self):
         if self.activation == "ReLU":

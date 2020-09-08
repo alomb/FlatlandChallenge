@@ -789,7 +789,7 @@ The first D of D3QN stands for Dueling, an idea proposed in~\citep{dueling} whic
 For example in the Flatland environment agents does not perform actions which substantially influence the environment, as many of them are moving forward.
 In this case, the idea is to increase the training phase and allow the controller to detect and learn how to act in critical positions such as switches.
 At the end, advantages and values are combined to obtain Q values.
-The second D stands for Double, which refers to the idea of using two separate neural networks during training, one, called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
+The second D stands for Double, which refers to the idea of using two separate neural networks during training, one called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
 Double DQN have been recently proposed in multi-agent context in the algorithm \textbf{Weighted Double Deep Q-network (WDDQN)} presented in the work~\citep{weighted-ddqn}.
 Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:experience-replay}.
 The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.

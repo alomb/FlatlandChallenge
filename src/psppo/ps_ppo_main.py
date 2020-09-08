@@ -15,7 +15,7 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 5,
+        "n_agents": 2,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -57,7 +57,10 @@ def train():
         # ============================
         # Shared actor-critic layer
         # If shared is True then the considered sizes are taken from the critic
-        "shared": False,
+        "shared": True,
+        "shared_recurrent": True,
+        "linear_size": 128,
+        "hidden_size": 64,
         # Policy network
         "critic_mlp_width": 128,
         "critic_mlp_depth": 3,

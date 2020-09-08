@@ -41,8 +41,6 @@ class PsPPOPolicy(Policy):
         self.value_loss_coefficient = train_params.value_loss_coefficient
         self.entropy_coefficient = train_params.entropy_coefficient
 
-        self.memory = Memory(n_agents)
-
         if train_params.advantage_estimator.lower() == "gae":
             self.gae = True
         elif train_params.advantage_estimator.lower() == "n-steps":
@@ -53,7 +51,15 @@ class PsPPOPolicy(Policy):
         # The policy updated at each learning epoch
         self.policy = PsPPO(state_size,
                             action_size,
+                            torch.tensor(-1e+8).to(self.device),
                             train_params).to(self.device)
+
+        self.is_recurrent = train_params.shared_recurrent
+
+        self.memory = Memory(n_agents, self.is_recurrent)
+
+        self.hidden_dimension = [1, 1, train_params.hidden_size]
+        self.next_hidden = None
 
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=train_params.learning_rate,
                                           eps=train_params.adam_eps)
@@ -62,6 +68,7 @@ class PsPPOPolicy(Policy):
         # It is used also to obtain trajectories.
         self.policy_old = PsPPO(state_size,
                                 action_size,
+                                torch.tensor(-1e+8).to(self.device),
                                 train_params).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -105,6 +112,7 @@ class PsPPOPolicy(Policy):
         ec = self.entropy_coefficient
         vlc = self.value_loss_coefficient
         optimizer = self.optimizer
+        is_recurrent = self.is_recurrent
 
         _ = memory.rewards[a].pop()
         _ = memory.dones[a].pop()
@@ -116,6 +124,8 @@ class PsPPOPolicy(Policy):
 
         # Convert lists to tensors
         old_states = torch.stack(memory.states[a]).to(self.device)
+        if is_recurrent:
+            old_hidden = memory.hidden_states[a]
         old_actions = torch.tensor(memory.actions[a]).to(self.device)
         old_masks = torch.stack(memory.masks[a]).to(self.device)
         old_logs_of_action_prob = torch.tensor(memory.logs_of_action_prob[a]).to(self.device)
@@ -123,6 +133,7 @@ class PsPPOPolicy(Policy):
 
         with torch.no_grad():
             _, state_estimated_value, _ = policy_evaluate(torch.cat((old_states, torch.unsqueeze(last_state, 0))),
+                                                          old_hidden[0] if is_recurrent else None,
                                                           torch.cat((old_actions, torch.unsqueeze(last_action, 0))),
                                                           torch.cat((old_masks, torch.unsqueeze(last_mask, 0))))
 
@@ -153,12 +164,14 @@ class PsPPOPolicy(Policy):
                     log_of_action_prob, state_estimated_value, dist_entropy = \
                         policy_evaluate(
                             torch.cat((old_states[batch_start:batch_end], torch.unsqueeze(last_state, 0))),
+                            old_hidden[batch_start] if is_recurrent else None,
                             torch.cat((old_actions[batch_start:batch_end], torch.unsqueeze(last_action, 0))),
                             torch.cat((old_masks[batch_start:batch_end], torch.unsqueeze(last_mask, 0))))
                 else:
                     # Evaluating old actions and values
                     log_of_action_prob, state_estimated_value, dist_entropy = \
                         policy_evaluate(old_states[batch_start:batch_end + 1],
+                                        old_hidden[batch_start] if is_recurrent else None,
                                         old_actions[batch_start:batch_end + 1],
                                         old_masks[batch_start:batch_end + 1])
 
@@ -216,7 +229,7 @@ class PsPPOPolicy(Policy):
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
-    def _evaluate(self, state, action, action_mask):
+    def _evaluate(self, state, hidden, action, action_mask):
         """
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
 
@@ -227,18 +240,11 @@ class PsPPOPolicy(Policy):
         distribution entropy
         """
 
-        action_logits = self.policy.actor_network(state[:-1])
+        action_probs, value = self.policy.critic_forward(state, action_mask, hidden=hidden)
 
-        # Action masking, default values are True, False are present only if masking is enabled.
-        # If No op is not allowed it is masked even if masking is not active
-        action_logits = torch.where(action_mask[:-1], action_logits, torch.tensor(-1e+8).to(self.device))
+        action_distribution = Categorical(action_probs[:-1])
 
-        action_probs = self.policy.softmax(action_logits)
-
-        action_distribution = Categorical(action_probs)
-
-        return action_distribution.log_prob(action[:-1]), self.policy.critic_network(state), \
-               action_distribution.entropy()
+        return action_distribution.log_prob(action[:-1]), value, action_distribution.entropy()
 
     def act(self, state, action_mask, agent_id=None):
         """
@@ -256,17 +262,21 @@ class PsPPOPolicy(Policy):
         # Transform the state Numpy array to a Torch Tensor
         state = torch.from_numpy(state).float().to(self.device)
 
-        self.policy_old.actor_network.eval()
-
         with torch.no_grad():
-            action_logits = self.policy_old.actor_network(state)
-
+            if self.policy.is_recurrent:
+                if len(self.memory.hidden_states[agent_id]) >= 1:
+                    prev_hidden = self.next_hidden
+                else:
+                    prev_hidden = (torch.zeros(self.hidden_dimension, dtype=torch.float),
+                                        torch.zeros(self.hidden_dimension, dtype=torch.float))
+            else:
+                prev_hidden = None
             action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
-            action_logits = torch.where(action_mask, action_logits, torch.tensor(-1e+8).to(self.device))
+            action_probs, hidden_state = self.policy_old.actor_forward(state, action_mask, hidden=prev_hidden)
 
-            action_probs = self.policy_old.softmax(action_logits)
-
-        self.policy_old.actor_network.train()
+        if prev_hidden is not None:
+            self.memory.hidden_states[agent_id].append(prev_hidden)
+            self.next_hidden = hidden_state
 
         """
         From the paper: "The stochastic policy πθ can be represented by a categorical distribution when the actions of

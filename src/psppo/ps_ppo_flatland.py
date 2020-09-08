@@ -80,10 +80,12 @@ def train_multiple_agents(env_params, train_params):
                       action_size,
                       train_params,
                       env_params.n_agents)
-
+    # TODO:
+    """
     if use_wandb:
         wandb.watch(ppo.policy.actor_network)
         wandb.watch(ppo.policy.critic_network)
+    """
 
     # Timers
     training_timer = Timer()
