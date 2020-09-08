@@ -31,8 +31,8 @@ def get_agent_ids(agents, malfunction_rate):
 
 def train_multiple_agents(env_params, train_params):
     if use_wandb:
-        wandb.init(project="flatland-challenge-lorem-ipsum-dolor-sit-amet",
-                   entity="lomb",
+        wandb.init(project="flatland-challenge-ps-ppo-test",
+                   entity="fiorenzoparascandolo",
                    tags="ps-ppo",
                    config={**vars(train_params), **vars(env_params)},
                    sync_tensorboard=True)
