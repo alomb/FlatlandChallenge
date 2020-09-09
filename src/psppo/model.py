@@ -29,17 +29,16 @@ class PsPPO(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
         self.evaluation_mode = train_params.evaluation_mode
         self.recurrent_linear_size = train_params.linear_size
+        self.is_recurrent = train_params.shared_recurrent
 
         # Network creation
-        if train_params.shared_recurrent:
-            self.is_recurrent = True
+        if self.is_recurrent:
             self.fc = nn.Linear(state_size, train_params.linear_size)
             self.fc_activation = self._get_activation()
             self.lstm = nn.LSTM(train_params.linear_size, train_params.hidden_size)
             self.fc_actor = nn.Linear(train_params.hidden_size, action_size)
             self.fc_critic = nn.Linear(train_params.hidden_size, 1)
         else:
-            self.is_recurrent = False
             critic_layers = self._build_network(False, train_params.critic_mlp_depth, train_params.critic_mlp_width)
             self._critic_network = nn.Sequential(critic_layers)
             if not train_params.shared:
@@ -121,29 +120,49 @@ class PsPPO(nn.Module):
 
         return network
 
-    def actor_forward(self, state, action_mask, hidden=None):
+    def act_forward(self, state, action_mask, hidden=None):
+        """
+        Method called to sample trajectories by the policy.
+
+        :param state: the state to act on
+        :param action_mask: a boolean tensor which indicates that an action should be not sampled
+        :param hidden: the previous step hidden value
+        :return: action probabilities and the hidden state if the architecture is recurrent
+        """
         if self.is_recurrent:
-            x = self._get_activation()(self.fc(state))
+
+            assert hidden is not None, "The network is recurrent but no hidden value has been passed, this should " \
+                                       "not happen!"
+
+            x = self.fc_activation(self.fc(state))
+            # during act the sequence will contain only an element
             x = x.view(-1, 1, self.recurrent_linear_size)
             # lstm_hidden is a tuple containing hidden state (short-term memory) and cell state (long-term memory)
             x, lstm_hidden = self.lstm(x, hidden)
             x = self.fc_actor(x)
             x = x.squeeze()
+            # action masking
             x = torch.where(action_mask, x, self.masking_value)
 
-            prob = self.softmax(x)
-
-            return prob, lstm_hidden
+            return self.softmax(x), lstm_hidden
         else:
             action_logits = self._actor_network(state)
-
+            # action masking
             action_logits = torch.where(action_mask, action_logits, self.masking_value)
 
             return self.softmax(action_logits), None
 
-    def critic_forward(self, state, action_mask, hidden=None):
+    def evaluate_forward(self, state, action_mask, hidden=None):
+        """
+        Method called by the policy to obtain state values estimations usually on a batch of experience.
+
+        :param state: the states to evaluate.
+        :param action_mask: a boolean tensor which indicates that an action should be not sampled
+        :param hidden: the first hidden value to initialize the lstm
+        :return: action probabilities and state value
+        """
         if self.is_recurrent:
-            x = self._get_activation()(self.fc(state))
+            x = self.fc_activation(self.fc(state))
             x = x.view(-1, 1, self.recurrent_linear_size)
             # lstm_hidden is a tuple containing  hidden state (short-term memory) and cell state (long-term memory)
             x, lstm_hidden = self.lstm(x, hidden)
@@ -167,6 +186,10 @@ class PsPPO(nn.Module):
             return self.softmax(action_logits), self._critic_network(state)
 
     def _get_activation(self):
+        """
+
+        :return: the current activation function
+        """
         if self.activation == "ReLU":
             return nn.ReLU()
         elif self.activation == "Tanh":

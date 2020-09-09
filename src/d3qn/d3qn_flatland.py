@@ -127,7 +127,6 @@ def train_multiple_agents(env_params, train_params):
         if train_params.fingerprints:
             obs = add_fingerprints(obs, env_params.n_agents, eps_start, timestep)
 
-        decision_cells = find_decision_cells(env.get_rail_env())
         reset_timer.end()
 
         # Build agent specific observations

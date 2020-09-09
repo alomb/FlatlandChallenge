@@ -181,8 +181,7 @@ class PsPPOPolicy(Policy):
                 batch_advantage = (batch_advantage - torch.mean(batch_advantage)) / (torch.std(batch_advantage) + 1e-10)
 
                 # Find the ratio (pi_theta / pi_theta__old)
-                probs_ratio = torch_exp(
-                    log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end])
+                probs_ratio = torch_exp(log_of_action_prob - old_logs_of_action_prob[batch_start:batch_end])
 
                 # Surrogate losses
                 unclipped_objective = probs_ratio * batch_advantage
@@ -226,6 +225,7 @@ class PsPPOPolicy(Policy):
                 exit()
                 """
 
+
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -240,7 +240,7 @@ class PsPPOPolicy(Policy):
         distribution entropy
         """
 
-        action_probs, value = self.policy.critic_forward(state, action_mask, hidden=hidden)
+        action_probs, value = self.policy.evaluate_forward(state, action_mask, hidden=hidden)
 
         action_distribution = Categorical(action_probs[:-1])
 
@@ -272,7 +272,7 @@ class PsPPOPolicy(Policy):
             else:
                 prev_hidden = None
             action_mask = torch.tensor(action_mask, dtype=torch.bool).to(self.device)
-            action_probs, hidden_state = self.policy_old.actor_forward(state, action_mask, hidden=prev_hidden)
+            action_probs, hidden_state = self.policy_old.act_forward(state, action_mask, hidden=prev_hidden)
 
         if prev_hidden is not None:
             self.memory.hidden_states[agent_id].append(prev_hidden)

@@ -20,21 +20,21 @@ def train():
         "n_cities": 5,
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
-        "seed": None,
+        "seed": seed,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0.005,
+            malfunction_rate=0.0075,
             min_duration=15,
             max_duration=50),
         # Speeds
         "speed_profiles": {
-            1.: 0.5,
+            1.: 0.25,
             1. / 2.: 0.25,
             1. / 3.: 0.25,
-            1. / 4.: 0.0},
+            1. / 4.: 0.25},
 
         # ============================
         # Custom observations&rewards
@@ -55,16 +55,16 @@ def train():
         # Network architecture
         # ============================
         "double_dqn": True,
-        "shared": False,
+        "shared": True,
         "hidden_size": 256,
-        "hidden_layers": 2,
-        "update_every": 8,
+        "hidden_layers": 3,
+        "update_every": 16,
         "type": 1,
 
         # epsilon greedy decay regulators
-        "eps_decay": 0.99,
+        "eps_decay": 0.99739538258046,
         "eps_start": 1.0,
-        "eps_end": 0.01,
+        "eps_end": 0.02,
 
         "learning_rate": 0.52e-4,
         # To compute q targets
@@ -75,8 +75,8 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 600,
-        "batch_size": 32,
+        "n_episodes": 2500,
+        "batch_size": 128,
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
         "fingerprints": True,
@@ -87,7 +87,7 @@ def train():
         # Memory maximum size
         "buffer_size": int(1e6),
         # memory type uer or per
-        "memory_type": "per",
+        "memory_type": "uer",
 
 
         # ============================

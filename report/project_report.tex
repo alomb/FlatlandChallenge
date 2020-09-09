@@ -615,7 +615,6 @@ with torch.no_grad():
 \end{lstlisting}
 
 Neural networks are trained using an Adam optimizer.
-% TODO: PyTorch module details
 References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
 As PPO computes the divergence between the new and the old policies, experiences are collected using the old policy while advantages are computed from the new policy, two neural networks are used, in particular two \textit{torch.nn.Module} are declared.
 The old one is not updated with gradient descents, it simply copies the weights of the new policy after each the training session termination.
