@@ -5,11 +5,9 @@ import torch
 
 try:
     import wandb
-
     use_wandb = True
 except ImportError as e:
-    print("Install wandb and login to load TensorBoard logs.")
-    use_wandb = False
+    raise ImportError("Install wandb and login to load TensorBoard logs.")
 
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
