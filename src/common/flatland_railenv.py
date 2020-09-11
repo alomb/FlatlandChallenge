@@ -33,7 +33,8 @@ class FlatlandRailEnv:
                                        env_params.stop_penalty,
                                        env_params.deadlock_penalty,
                                        env_params.shortest_path_penalty_coefficient,
-                                       env_params.done_bonus)
+                                       env_params.done_bonus,
+                                      env_params.uniform_reward)
         if stats_wrapper:
             self.env = StatsWrapper(self.env,
                                      env_params)

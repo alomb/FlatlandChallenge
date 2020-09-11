@@ -42,6 +42,7 @@ def train():
         "custom_observations": False,
 
         "reward_shaping": False,
+        "uniform_reward": False,
         "stop_penalty": -0.0,
         "invalid_action_penalty": -0.0,
         "deadlock_penalty": -0.0,
