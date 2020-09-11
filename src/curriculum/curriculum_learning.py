@@ -142,14 +142,16 @@ def complex_rail_generator(curriculum) -> RailGenerator:
 
 def curriculum_learning():
     num_levels = 70
+    num_episodes_in_env = 2
+    model_saving_number = 0
 
     """
     curriculum = Manual_Curriculum("curriculum.yml")
     """
 
-    curriculum = Semi_Auto_Curriculum(offset_curriculum_generator(num_levels, {"x_dim": 20,
-                                                                               "y_dim": 20,
-                                                                               "n_agents": 2,
+    curriculum = Semi_Auto_Curriculum(offset_curriculum_generator(num_levels, {"x_dim": 30,
+                                                                               "y_dim": 30,
+                                                                               "n_agents": 1.7,
                                                                                "n_cities": 3,
                                                                                # "n_extra": 3,
                                                                                # "min_dist": 2,
@@ -184,106 +186,12 @@ def curriculum_learning():
             else:
                 malfunction_rate = 0.3
 
-            environment_parameters = {
-                "seed": myseed,
-                "n_agents": curriculum.get("n_agents"),
-                "x_dim": curriculum.get("x_dim"),
-                "y_dim": curriculum.get("y_dim"),
-                "n_cities": curriculum.get("n_cities"),
-                # "n_extra": curriculum.get("n_extra"),
-                # "min_dist": curriculum.get("min_dist"),
-                # "max_dist": curriculum.get("max_dist"),
-                "max_rails_between_cities": curriculum.get("max_rails_between_cities"),
-                "max_rails_in_city": curriculum.get("max_rails_in_city"),
-
-                "observation_tree_depth": 3,
-                "observation_radius": 10,
-                "observation_max_path_depth": 30,
-
-                # Malfunctions
-                "malfunction_parameters": MalfunctionParameters(
-                    malfunction_rate=malfunction_rate,
-                    min_duration=15,
-                    max_duration=50),
-                # Speeds
-                "speed_profiles": speed_profiles,
-
-                # ============================
-                # Custom observations&rewards
-                # ============================
-                "custom_observations": True,
-
-                "stop_penalty": 0.0,
-                "invalid_action_penalty": 0.0,
-                "deadlock_penalty": 0.0,
-                "shortest_path_penalty_coefficient": 1.0,
-                "done_bonus": 0.0,
-            }
-
-            training_parameters = {
-                # ============================
-                # Network architecture
-                # ============================
-                # Shared actor-critic layer
-                # If shared is True then the considered sizes are taken from the critic
-                "shared": False,
-                # Policy network
-                "critic_mlp_width": 256,
-                "critic_mlp_depth": 3,
-                "last_critic_layer_scaling": 0.1,
-                # Actor network
-                "actor_mlp_width": 128,
-                "actor_mlp_depth": 3,
-                "last_actor_layer_scaling": 0.01,
-                "learning_rate": 0.001,
-                "adam_eps": 1e-5,
-                "activation": "Tanh",
-                "lmbda": 0.95,
-                "entropy_coefficient": 0.1,
-                "value_loss_coefficient": 0.001,
-
-                # ============================
-                # Training setup
-                # ===========================
-                "n_episodes": 50,
-                "horizon": 512,
-                "epochs": 2,
-                "batch_size": 64,
-
-                # ==========================
-                # Normalization and clipping
-                # ==========================
-                "discount_factor": 0.99,
-                "max_grad_norm": 0.5,
-                "eps_clip": 0.25,
-
-                # ============================
-                # Advantage estimation
-                # ============================
-                "advantage_estimator": "gae",
-
-                # ============================
-                # Optimization and rendering
-                # ============================
-                "checkpoint_interval": None,
-                "eval_episodes": None,
-                "use_gpu": False,
-                "render": True,
-                "save_model_path": "checkpoint.pt",
-                "load_model_path": "checkpoint.pt",
-                "tensorboard_path": "log/",
-
-                # ============================
-                # Action Masking / Skipping
-                # ============================
-                "action_masking": True,
-                "allow_no_op": False,
-                "action_skipping": True,
-            }
+            print("=" * 100)
+            print("Running the level {}".format(level))
+            print("=" * 100)
 
             try_outs = 0
 
-            print("=" * 100)
             print("{}x{} grid, {} agents, {} cities, {} rails between cities, {} rails in cities, malfunctions rate {} "
                   "and speed {}. Completion threshold of {}".format(curriculum.get("x_dim"),
                                                                     curriculum.get("y_dim"),
@@ -298,11 +206,120 @@ def curriculum_learning():
             completion = 0
 
             while try_outs < 10 and completion < threshold:
+                namefile = "curriculum_{}".format(model_saving_number)
+
+                environment_parameters = {
+                    "n_agents": curriculum.get("n_agents"),
+                    "x_dim": curriculum.get("x_dim"),
+                    "y_dim": curriculum.get("y_dim"),
+                    "n_cities": curriculum.get("n_cities"),
+                    # Old curriculum
+                    # "n_extra": curriculum.get("n_extra"),
+                    # "min_dist": curriculum.get("min_dist"),
+                    # "max_dist": curriculum.get("max_dist"),
+                    "max_rails_between_cities": curriculum.get("max_rails_between_cities"),
+                    "max_rails_in_city": curriculum.get("max_rails_in_city"),
+                    "seed": myseed,
+                    "observation_tree_depth": 2,
+                    "observation_radius": 10,
+                    "observation_max_path_depth": 30,
+
+                    # Malfunctions
+                    "malfunction_parameters": MalfunctionParameters(
+                        malfunction_rate=malfunction_rate,
+                        min_duration=15,
+                        max_duration=50),
+                    # Speeds
+                    "speed_profiles": speed_profiles,
+
+                    # ============================
+                    # Custom observations&rewards
+                    # ============================
+                    "custom_observations": False,
+
+                    "reward_shaping": True,
+                    "uniform_reward": True,
+                    "stop_penalty": -0.0,
+                    "invalid_action_penalty": -0.0,
+                    "deadlock_penalty": -15.0,
+                    # 1.0 for skipping
+                    "shortest_path_penalty_coefficient": 1 + 1 / 15,
+                    "done_bonus": 1 / 15,
+                }
+
+                training_parameters = {
+                    # ============================
+                    # Network architecture
+                    # ============================
+                    # Shared actor-critic layer
+                    # If shared is True then the considered sizes are taken from the critic
+                    "shared": False,
+                    "shared_recurrent": False,
+                    "linear_size": 128,
+                    "hidden_size": 64,
+                    # Policy network
+                    "critic_mlp_width": 128,
+                    "critic_mlp_depth": 3,
+                    "last_critic_layer_scaling": 0.1,
+                    # Actor network
+                    "actor_mlp_width": 128,
+                    "actor_mlp_depth": 3,
+                    "last_actor_layer_scaling": 0.01,
+                    "learning_rate": 0.001,
+                    "adam_eps": 1e-5,
+                    "activation": "Tanh",
+                    "lmbda": 0.95,
+                    "entropy_coefficient": 0.01,
+                    "value_loss_coefficient": 0.001,
+
+                    # ============================
+                    # Training setup
+                    # ============================
+                    "n_episodes": num_episodes_in_env,
+                    "horizon": 512,
+                    "epochs": 8,
+                    "batch_size": 32,
+                    "batch_mode": "shuffle",
+
+                    # ============================
+                    # Normalization and clipping
+                    # ============================
+                    "discount_factor": 0.99,
+                    "max_grad_norm": 0.5,
+                    "eps_clip": 0.2,
+
+                    # ============================
+                    # Advantage estimation
+                    # ============================
+                    "advantage_estimator": "gae",
+
+                    # ============================
+                    # Optimization and rendering
+                    # ============================
+                    "checkpoint_interval": num_episodes_in_env,
+                    "evaluation_mode": False,
+                    "eval_episodes": None,
+                    "use_gpu": False,
+                    "render": True,
+                    "print_stats": True,
+                    "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
+                    "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + "curriculum_{}".format(
+                        model_saving_number - 1) + ".pt",
+                    "tensorboard_path": "log_" + namefile + "/",
+
+                    # ============================
+                    # Action Masking / Skipping
+                    # ============================
+                    "action_masking": True,
+                    "allow_no_op": False
+                }
+
                 print("Level %d try out number % d" % (level, try_outs))
                 # Train
                 _, completions, _, _ = train_multiple_agents(Namespace(**environment_parameters),
                                                              Namespace(**training_parameters))
                 try_outs += 1
+                model_saving_number += 1
                 completion = np.mean(completions)
             print("\n" + "=" * 100)
 
