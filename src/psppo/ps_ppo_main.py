@@ -109,7 +109,7 @@ def train():
 
         # ============================
         # Optimization and rendering
-        # ===========33=================
+        # ============================
         # Save and evaluate interval
         "checkpoint_interval": 75,
         "evaluation_mode": False,
@@ -125,8 +125,7 @@ def train():
         # Action Masking / Skipping
         # ============================
         "action_masking": True,
-        "allow_no_op": False,
-        "action_skipping": False
+        "allow_no_op": False
     }
 
     """

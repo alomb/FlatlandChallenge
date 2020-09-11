@@ -226,7 +226,10 @@ class PsPPO(nn.Module):
             raise Exception("The specified activation function don't exists or is not available")
 
     def save(self, path):
-        torch.save(self.state_dict(), path)
+        try:
+            torch.save(self.state_dict(), path)
+        except FileNotFoundError:
+            print("\nCould not save the model because the desired path doesn't exist.")
 
     def load(self, path):
         if os.path.exists(path):

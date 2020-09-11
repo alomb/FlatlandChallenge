@@ -9,11 +9,10 @@ try:
 except ImportError as e:
     raise ImportError("Install wandb and login to load TensorBoard logs.")
 
-from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 
-from src.common.action_skipping_masking import find_decision_cells, get_action_masking
+from src.common.action_skipping_masking import get_action_masking
 from src.common.flatland_railenv import FlatlandRailEnv
 from src.common.utils import Timer, TensorBoardLogger
 from src.psppo.policy import PsPPOPolicy
@@ -114,8 +113,6 @@ def train_multiple_agents(env_params, train_params):
         done = {a: False for a in range(env_params.n_agents)}
         done["__all__"] = all(done.values())
 
-        decision_cells = find_decision_cells(env.get_rail_env())
-
         agent_ids = get_agent_ids(env.get_rail_env().agents, env_params.malfunction_parameters.malfunction_rate)
         reset_timer.end()
 
@@ -141,16 +138,10 @@ def train_multiple_agents(env_params, train_params):
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # Action skipping if the agent is in not in a decision cell and not in last step.
-                # TODO: action skipping may skips agents arrival and done agent
-                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells \
-                        and not is_last_step:
-                    action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
                 # If agent is moving between two cells or trapped in a deadlock (the latter is caught only
                 # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
                 # agent has reached its destination.
-                elif info["action_required"][agent] or (is_last_step and not done[agent]):
+                if info["action_required"][agent] or (is_last_step and not done[agent]):
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
                                                  action_mask, agent_id=agent)

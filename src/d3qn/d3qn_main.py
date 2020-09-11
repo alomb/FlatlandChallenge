@@ -108,8 +108,7 @@ def train():
         # Action Masking / Skipping
         # ============================
         "action_masking": True,
-        "allow_no_op": False,
-        "action_skipping": False,
+        "allow_no_op": False
     }
 
     if training_parameters["evaluation_mode"]:
