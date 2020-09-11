@@ -57,16 +57,16 @@ class DuelingQNetwork(nn.Module):
         :return set of Q-values the same size as action_size.
 
         """
-        val = x
-        adv = x
 
+        base = x
         for i in range(len(self.base_modules)):
-            val = F.relu(self.base_modules[i](val))
-            adv = F.relu(self.base_modules[i](adv))
+            base = F.relu(self.base_modules[i](base))
 
+        val = base
         for i in range(len(self.value_modules) - 1):
             val = self.value_modules[i](val)
 
+        adv = base
         for i in range(len(self.advantage_modules) - 1):
             adv = self.advantage_modules[i](adv)
 

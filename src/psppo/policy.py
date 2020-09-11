@@ -225,7 +225,6 @@ class PsPPOPolicy(Policy):
                 exit()
                 """
 
-
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 

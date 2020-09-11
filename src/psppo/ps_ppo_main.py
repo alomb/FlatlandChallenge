@@ -21,7 +21,7 @@ def train():
         "n_cities": 5,
         "max_rails_between_cities": 2,
         "max_rails_in_city": 3,
-        "seed": None,
+        "seed": seed,
         "observation_tree_depth": 2,
         "observation_radius": 10,
         "observation_max_path_depth": 30,
@@ -58,7 +58,7 @@ def train():
         # Shared actor-critic layer
         # If shared is True then the considered sizes are taken from the critic
         "shared": True,
-        "shared_recurrent": True,
+        "shared_recurrent": False,
         "linear_size": 128,
         "hidden_size": 64,
         # Policy network

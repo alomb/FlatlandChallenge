@@ -3,7 +3,7 @@ from timeit import default_timer
 import numpy as np
 
 from flatland.envs.rail_env import RailEnvActions
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 
 
 class Timer(object):
