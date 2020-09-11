@@ -142,7 +142,7 @@ def complex_rail_generator(curriculum) -> RailGenerator:
 
 def curriculum_learning():
     num_levels = 70
-    num_episodes_in_env = 2
+    num_episodes_in_env = 20
     model_saving_number = 0
 
     """
