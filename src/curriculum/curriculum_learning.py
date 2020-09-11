@@ -300,7 +300,7 @@ def curriculum_learning():
                     "evaluation_mode": False,
                     "eval_episodes": None,
                     "use_gpu": False,
-                    "render": True,
+                    "render": False,
                     "print_stats": True,
                     "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
                     "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + "curriculum_{}".format(
