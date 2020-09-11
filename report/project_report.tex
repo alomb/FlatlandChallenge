@@ -389,7 +389,9 @@ We developed the following work using Python and PyTorch.
 In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode.
 Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performed in polynomial time, however an estimate of the occurrence of these events is valuable information both for performance analysis described in the metrics and for Rewards Shaping described in~\ref{subsec:rewards2}.
 The algorithm proposed is not complete: situations detected as deadlocks are truly deadlocks, but it is also possible that some particular deadlocks are not recognized at all.
-The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}.
+The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}. 
+We have also implemented some wrappers to flexibly add and/or remove various features in the train/evaluation phase. 
+Going into more details, the implementations of the two proposed approaches share some general features, for the generation of the environment, observations, deadlocks and display performances which are controllable in the main using some hyperparameters.
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
 \begin{itemize}
@@ -409,8 +411,21 @@ In the worst case, all agents do not reach their destination, therefore for each
 \end{itemize}
 
 The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
+We used \textbf{TensorBoard} which provides the visualization and tools needed for experimentation in order to be able to analyze the evolution of both train and performance metrics.
+It was created to understand and optimize machine learning programs by:
 
-%TODO: tensorboard, more words on wrappers in general
+\begin{enumerate}
+\item [1:]Visualizing the graph.
+\item [2:]Writing Summaries to Visualize Learning.
+\end{enumerate}
+
+In particular our \textbf{TensorBoard} logger shows:
+
+\begin{itemize}
+	\item Specific training metrics for PSPPO and D3QN.
+	\item Information on the reset and step time of the environment and on the learning of neural networks.
+	\item The evolution of the metrics to evaluate the algorithm's performances described above.
+\end{itemize}
 
 \subsection{Evaluation and platforms}\label{subsec:evaluation-and-platforms}
 
@@ -530,7 +545,7 @@ Let's consider for example this set of parameters:
 "reward_shaping": True,
 "uniform_reward": False,
 "stop_penalty": -0.0,
-"invalid_action_penalty": -1.0,
+"invalid_action_penalty": -0.2,
 "deadlock_penalty": -3,
 "shortest_path_penalty_coefficient": 1.5,
 "done_bonus": 1.0,
@@ -538,8 +553,24 @@ Let's consider for example this set of parameters:
 
 suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target.
 According to the description given above, the reward will be calculated as follows:
-\begin{displaymath}{reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -1 = -2}\end{displaymath}
-\begin{displaymath}{reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-2)= -3}\end{displaymath}
+\begin{equation*}
+reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -0.2 = -1.2
+\end{equation*}
+\begin{equation*}
+reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-1.2)= -1.8
+\end{equation*}
+\begin{equation*}
+rewards\_shaped = \frac{rewards\_shaped}{|deadlock\_penalty|} = \frac{-1.8}{|-3.0 - 1.0|} = -0.6
+\end{equation*}
+
+At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and textbf{$done\_bonus$} as the biggest reward. In particular:
+
+\begin{itemize}
+	\item If $rewards\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).
+	\item If $rewards\_shaped$ is greater than 1 then it is placed at 1 
+\end{itemize}
+
+In this way we are sure that $rewards\_shaped \in [-1, 1]$.
 
 \section{PS-PPO}\label{sec:ps-ppo}
 

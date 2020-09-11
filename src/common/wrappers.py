@@ -131,7 +131,10 @@ class RewardsWrapper(gym.Wrapper):
         self.stop_penalty = stop_penalty
         self.deadlock_penalty = deadlock_penalty
         self.shortest_path_penalty_coefficient = shortest_path_penalty_coefficient
-        self.done_bonus = done_bonus
+        if done_bonus > 1:
+            self.done_bonus = 1
+        else:
+            self.done_bonus = done_bonus
         self.uniform_reward = uniform_reward
         # Hypothesis: the greatest possible reward in the module is awarded to a deadlocked agent
         self.normalization_factor = abs(self.deadlock_penalty) + 1
@@ -189,8 +192,8 @@ class RewardsWrapper(gym.Wrapper):
                 if "deadlocks" in info and info["deadlocks"][agent]:
                     rewards_shaped[agent] += self.deadlock_penalty
 
-        for agent in range(num_agents):
-            rewards_shaped[agent] /= self.normalization_factor
+        rewards_shaped = {agent: rewards_shaped[agent] / self.normalization_factor if rewards_shaped[agent] < 0
+        else rewards_shaped[agent] for agent in range(num_agents)}
 
         return obs, rewards_shaped, done, info
 
@@ -222,7 +225,7 @@ class RewardsWrapper(gym.Wrapper):
         :return: the penalties based on decided STOPS
         """
         return {a: self.stop_penalty if a in action_dict and action_dict[a] == RailEnvActions.STOP_MOVING
-                else 0.0 for a in range(self.unwrapped.rail_env.get_num_agents())}
+        else 0.0 for a in range(self.unwrapped.rail_env.get_num_agents())}
 
 
 class ActionSkippingWrapper(gym.Wrapper):
