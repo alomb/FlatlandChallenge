@@ -88,6 +88,9 @@ class PsPPOPolicy(Policy):
                         state_estimated_value[t]
                 gaes[t] = future_gae = delta + self.discount_factor * self.lmbda * not_dones[t] * future_gae
                 returns.insert(0, gaes[t] + state_estimated_value[t])
+                # Reinitialization of future_gae at the beginning of a new episode
+                if not_dones[t] == 0:
+                    future_gae = torch.tensor(0.0, dtype=rewards.dtype).to(self.device)
             return torch.tensor(returns).to(self.device)
         else:
             returns = torch.zeros_like(rewards)

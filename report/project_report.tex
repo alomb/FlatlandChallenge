@@ -515,11 +515,11 @@ Naturally, people started breeding venomous snakes.
 Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong.
 Anyway  we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system.
 In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
-% TODO: Uniform reward for agent with different speed
 
 \begin{itemize}
-	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, which is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
+	\item\textbf{$uniform\_reward$}: It is used to consider a cumulative reward for agents who move at speeds other than 1.
 	\item \textbf{$stop\_penalty$}: It is used to penalize more agents who have chosen the STOP\_MOVING action by subtracting the value assigned to the reward computed in the previous step.
+	\item \textbf{$invalid\_action\_penalty$}: It is used to penalize the agents who have chosen an invalid action, which is calculated considering the position and direction of the agent within the environment, subtracting the assigned value to the reward associated with the agent according to the standard Flatland's rewards system.
 	\item \textbf{$deadlock\_penalty$}: It is used to penalize agents in deadlocks by subtracting the value assigned to the reward associated with the agent calculated in the previous step.
 	\item \textbf{$shortest\_path\_penalty\_coefficient$}: It is used to penalize agents who are moving away from their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
 	\item \textbf{$done\_bonus$}: It is used to reward agents who have arrived at their destination by assigning them a positive reward.
@@ -528,6 +528,7 @@ Let's consider for example this set of parameters:
 
 \begin{lstlisting}[label={lst:rewards-params}]
 "reward_shaping": True,
+"uniform_reward": False,
 "stop_penalty": -0.0,
 "invalid_action_penalty": -1.0,
 "deadlock_penalty": -3,

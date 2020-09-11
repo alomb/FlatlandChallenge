@@ -151,7 +151,6 @@ def train_multiple_agents(env_params, train_params):
                 # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
                 # agent has reached its destination.
                 elif info["action_required"][agent] or (is_last_step and not done[agent]):
-
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
                                                  action_mask, agent_id=agent)
