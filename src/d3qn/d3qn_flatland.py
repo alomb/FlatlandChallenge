@@ -6,9 +6,10 @@ from flatland.envs.rail_env import RailEnvActions
 
 try:
     import wandb
-    use_wandb = True
+    use_wandb = False
 except ImportError as e:
-    raise ImportError("Install wandb and login to load TensorBoard logs.")
+    print("wandb is not installed, TensorBoard on specified directory will be used!")
+    use_wandb = False
 
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
@@ -101,7 +102,7 @@ def train_multiple_agents(env_params, train_params):
     learn_timer = Timer()
 
     # TensorBoard writer
-    tensorboard_logger = TensorBoardLogger(wandb.run.dir)
+    tensorboard_logger = TensorBoardLogger(wandb.run.dir if use_wandb else train_params.tensorboard_path)
 
     ####################################################################################################################
     # Training starts
