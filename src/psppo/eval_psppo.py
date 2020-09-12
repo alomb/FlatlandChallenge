@@ -8,14 +8,13 @@ from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnvActions
 
-from src.common.action_skipping_masking import find_decision_cells
+from src.common.action_skipping_masking import find_decision_cells, get_action_masking
 from src.common.flatland_railenv import FlatlandRailEnv
 from src.psppo.policy import PsPPOPolicy
+from src.psppo.ps_ppo_flatland import get_agent_ids
 
 
 def eval_policy(env_params, train_params):
-    # Action counter used for statistics
-    action_dict = dict()
 
     seed = env_params.seed
 
@@ -63,36 +62,36 @@ def eval_policy(env_params, train_params):
 
     for episode_idx in range(n_eval_episodes):
 
-        # Mask initialization
-        action_mask = [[1 * (0 if action == 0 and not train_params.allow_no_op else 1)
-                        for action in range(action_size)] for _ in range(env_params.n_agents)]
+        prev_obs, info = env.reset()
 
-        obs, info = env.reset()
-        decision_cells = find_decision_cells(env.get_rail_env())
+        done = {a: False for a in range(env_params.n_agents)}
+        done["__all__"] = all(done.values())
+
+        agent_ids = get_agent_ids(env.get_rail_env().agents, env_params.malfunction_parameters.malfunction_rate)
 
         for step in range(max_steps):
-            for agent in range(env_params.n_agents):
-                if obs[agent] is not None:
-                    # Action mask modification only if action masking is True
-                    if train_params.action_masking:
-                        for action in range(action_size):
-                            if env.get_rail_env().agents[agent].status != RailAgentStatus.READY_TO_DEPART:
-                                _, cell_valid, _, _, transition_valid = env.get_rail_env()._check_action_on_agent(
-                                    RailEnvActions(action),
-                                    env.get_rail_env().agents[agent])
-                                if not all([cell_valid, transition_valid]):
-                                    action_mask[agent][action] = 0
 
-                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells \
-                        and step != max_steps - 1:
-                    action_dict[agent] = int(RailEnvActions.MOVE_FORWARD)
-                elif info["action_required"][agent]:
-                    action_dict[agent] = ppo.act(np.append(obs[agent], [agent]), action_mask[agent], agent_id=agent)
-                else:
-                    action_dict[agent] = int(RailEnvActions.DO_NOTHING)
+            # Action dictionary to feed to step
+            action_dict = dict()
 
-            obs, all_rewards, done, info = env.step(action_dict)
+            # Flag to control the last step of an episode
+            is_last_step = step == (max_steps - 1)
+
+            for agent in prev_obs:
+
+                # Create action mask
+                action_mask = get_action_masking(env, agent, action_size, train_params)
+
+                if info["action_required"][agent] or (is_last_step and not done[agent]):
+                    # If an action is required, the actor predicts an action and the obs, actions, masks are stored
+                    action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
+                                                 action_mask, agent_id=agent)
+
+            next_obs, rewards, done, info = env.step(action_dict)
+
+            for a in range(env_params.n_agents):
+                if not done[a]:
+                    prev_obs[a] = next_obs[a].copy()
 
             if train_params.render:
                 env.env.show_render()
