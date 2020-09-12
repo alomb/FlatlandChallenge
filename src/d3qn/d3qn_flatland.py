@@ -6,7 +6,7 @@ from flatland.envs.rail_env import RailEnvActions
 
 try:
     import wandb
-    use_wandb = False
+    use_wandb = True
 except ImportError as e:
     print("wandb is not installed, TensorBoard on specified directory will be used!")
     use_wandb = False
