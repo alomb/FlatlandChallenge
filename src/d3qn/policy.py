@@ -1,6 +1,7 @@
 import copy
 import os
 import random
+import sys
 
 import numpy as np
 import torch
@@ -62,6 +63,17 @@ class D3QNPolicy(Policy):
                 raise Exception("Unknown experience replay \"{}\"".format(parameters.memory_type))
 
             self.t_step = 0
+
+        if parameters.evaluation_mode:
+            loading = True
+            self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
+
+            if parameters.load_model_path is not None:
+                loading = self.load(parameters.load_model_path)
+            if not loading:
+                # If the network is called in evaluation mode but there is no a model to load the execution is
+                # terminated
+                sys.exit()
 
     def act(self, state, action_mask, eps=0.):
         """
@@ -218,7 +230,14 @@ class D3QNPolicy(Policy):
         Load networks' params
         :param filename: the path where the params are saved
         """
+        loading = True
         if os.path.exists("local_" + filename):
             self.qnetwork_local.load_state_dict(torch.load("local_" + filename))
+        else:
+            loading = False
         if os.path.exists("target_" + filename):
             self.qnetwork_target.load_state_dict(torch.load("target_" + filename))
+        else:
+            loading = False
+
+        return loading

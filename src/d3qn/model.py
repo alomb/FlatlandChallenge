@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class DuelingQNetwork(nn.Module):
     """
     Dueling Q-network (https://arxiv.org/abs/1511.06581)
@@ -41,14 +40,6 @@ class DuelingQNetwork(nn.Module):
         self.value_modules.append(nn.Linear(parameters.hidden_size, 1))
         self.advantage_modules.append(nn.Linear(parameters.hidden_size, action_size))
 
-        loading = False
-
-        if parameters.load_model_path is not None:
-            loading = self.load(parameters.load_model_path)
-        if evaluation_mode and not loading:
-            # If the network is called in evaluation mode but there is no a model to load the execution is terminated
-            sys.exit()
-
     def forward(self, x):
         """
 
@@ -74,11 +65,3 @@ class DuelingQNetwork(nn.Module):
         adv = self.advantage_modules[-1](adv)
 
         return val + adv - adv.mean()
-
-    def load(self, path):
-        if os.path.exists(path):
-            self.load_state_dict(torch.load(path))
-            return True
-        else:
-            print("Loading file failed. File not found.")
-            return False

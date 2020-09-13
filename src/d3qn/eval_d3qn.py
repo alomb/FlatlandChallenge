@@ -5,10 +5,10 @@ import torch
 
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnvActions
 
-from src.common.action_skipping_masking import find_decision_cells
+from src.common.action_skipping_masking import get_action_masking
 from src.common.flatland_railenv import FlatlandRailEnv
+from src.d3qn.d3qn_flatland import add_fingerprints
 from src.d3qn.policy import D3QNPolicy
 
 
@@ -48,35 +48,64 @@ def eval_policy(env_params, train_params):
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
     # Double Dueling DQN policy
-    policy = D3QNPolicy(env.state_size, action_size, train_params)
+    if train_params.fingerprints:
+        # With fingerprints
+        policy = D3QNPolicy(env.state_size + 2, action_size, train_params)
+    else:
+        # Without fingerprints
+        policy = D3QNPolicy(env.state_size, action_size, train_params)
 
     ####################################################################################################################
 
     print("\nEvaluating {} trains on {}x{} grid for {} episodes.\n"
           .format(env_params.n_agents, env_params.x_dim, env_params.y_dim, train_params.eval_episodes))
 
-    action_dict = dict()
+    agent_prev_obs = [None] * env_params.n_agents
+    agent_prev_action = [2] * env_params.n_agents
+    timestep = 0
+    eps_start = 0
 
     for episode in range(train_params.eval_episodes):
 
         # Reset environment
         obs, info = env.reset()
-        decision_cells = find_decision_cells(env.get_rail_env())
+
+        if train_params.fingerprints:
+            obs = add_fingerprints(obs, env_params.n_agents, eps_start, timestep)
+
+        # Build agent specific observations
+        for agent in range(env_params.n_agents):
+            if obs[agent] is not None:
+                agent_prev_obs[agent] = obs[agent].copy()
 
         for step in range(max_steps):
+            # Action dictionary to feed to step
+            action_dict = dict()
+
+            # Set used to track agents that didn't skipped the action
+            agents_in_action = set()
+
             for agent in range(env_params.n_agents):
-                if train_params.action_skipping and env.get_rail_env().agents[agent].position is not None \
-                        and env.get_rail_env().agents[agent].position not in decision_cells \
-                        and step != max_steps - 1:
-                    action = int(RailEnvActions.MOVE_FORWARD)
-                elif info['action_required'][agent]:
-                    action = policy.act(obs[agent])
-                else:
-                    action = int(RailEnvActions.DO_NOTHING)
-                action_dict.update({agent: action})
+                # Create action mask
+                action_mask = get_action_masking(env, agent, action_size, train_params)
+
+                # Fill action dict
+                # If agent is not arrived, moving between two cells or trapped in a deadlock (the latter is caught only
+                # when the agent is moving in the deadlock triggering the second case)
+                if info["action_required"][agent]:
+                    # If an action is required, the actor predicts an action
+                    agents_in_action.add(agent)
+                    action_dict[agent] = policy.act(obs[agent], action_mask=action_mask, eps=eps_start)
 
             # Environment step
             next_obs, all_rewards, done, info = env.step(action_dict)
+
+            if train_params.fingerprints:
+                next_obs = add_fingerprints(next_obs, env_params.n_agents, eps_start, timestep)
+
+            for agent in range(env_params.n_agents):
+                if next_obs[agent] is not None:
+                    obs[agent] = next_obs[agent]
 
             if train_params.render:
                 env.env.show_render()
