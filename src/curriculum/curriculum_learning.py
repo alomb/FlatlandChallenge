@@ -302,6 +302,9 @@ def curriculum_learning():
                     "use_gpu": False,
                     "render": False,
                     "print_stats": True,
+                    "wandb_project": "flatland-challenge-ps-ppo-curriculum",
+                    "wandb_entity": "lomb",
+                    "wandb_tag": "ps-ppo",
                     "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
                     "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + "curriculum_{}".format(
                         model_saving_number - 1) + ".pt",

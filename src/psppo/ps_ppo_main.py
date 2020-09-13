@@ -108,7 +108,7 @@ def train():
         "advantage_estimator": "gae",
 
         # ============================
-        # Optimization and rendering
+        # Saving and rendering
         # ============================
         # Save and evaluate interval
         "checkpoint_interval": 75,
@@ -117,6 +117,9 @@ def train():
         "use_gpu": False,
         "render": False,
         "print_stats": True,
+        "wandb_project": "flatland-challenge-ps-ppo-test",
+        "wandb_entity": "fiorenzoparascandolo",
+        "wandb_tag": "ps-ppo",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
         "tensorboard_path": "log_" + namefile + "/",
