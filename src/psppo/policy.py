@@ -234,7 +234,6 @@ class PsPPOPolicy(Policy):
     def _evaluate(self, state, hidden, action, action_mask):
         """
         Evaluate the current policy obtaining useful information on the decided action's probability distribution.
-
         :param state: the observed state
         :param action: the performed action
         :param action_mask: a list of 0 and 1 where 0 indicates that the agent should be not sampled
@@ -252,7 +251,6 @@ class PsPPOPolicy(Policy):
         """
         The method used by the agent as its own policy to obtain the action to perform in the given a state and update
         the memory.
-
         :param state: the observed state
         :param action_mask: a list of 0 and 1 where 0 indicates that the index's action should be not sampled
         :param agent_id: the agent handle

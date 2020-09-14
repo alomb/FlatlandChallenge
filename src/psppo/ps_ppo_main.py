@@ -1,4 +1,3 @@
-
 from argparse import Namespace
 from datetime import datetime
 
@@ -142,7 +141,6 @@ def train():
     # Mount Drive on Colab
     from google.colab import drive
     drive.mount("/content/drive", force_remount=True)
-
     # Show Tensorboard on Colab
     import tensorflow
     %load_ext tensorboard

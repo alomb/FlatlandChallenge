@@ -805,6 +805,61 @@ To choose between different hyperparameter values we run a grid search using Wei
 \caption{A graph representing the different combinations and outcomes of the grid search.}
 \label{fig:psppo_sweep}
 \end{figure}
+\newpage
+Considering the optimal hyperparameters found with the grid search we carried out a test to compare the performances with and without Rewards Shaping.
+We used an environment with malfunctions and different agent speeds, specifically using the following parameters:
+
+\begin{lstlisting}[label={lst:psppo-net-init}]
+environment_parameters = {
+	"n_agents": 5,
+        "x_dim": 16 * 3,
+        "y_dim": 9 * 3,
+        "n_cities": 5,
+        "max_rails_between_cities": 2,
+        "max_rails_in_city": 3,
+        "seed": seed,
+        "observation_tree_depth": 2,
+        "observation_radius": 10,
+        "observation_max_path_depth": 30,
+        "malfunction_parameters": MalfunctionParameters(
+            malfunction_rate=0.0075,
+            min_duration=15,
+            max_duration=50),
+        "speed_profiles": {
+            1.: 0.25,
+            1. / 2.: 0.25,
+            1. / 3.: 0.25,
+            1. / 4.: 0.25},
+}
+\end{lstlisting}
+
+Therefore the tests were replicated with seeds: 14, 50, 80, 130, 200 and the final result, for each metric, obtained by making an average.
+According to the criteria described in ~\ref{subsec:rewards2} we have chosen the following parameters for testing with Rewards Shaping:
+
+\begin{lstlisting}[label={lst:psppo-net-init}]
+environment_parameters = {
+        "reward_shaping": True,
+        "uniform_reward": True,
+        "stop_penalty": -1/n_agents,
+        "invalid_action_penalty": -0.0,
+        "deadlock_penalty": -n_agents,
+        "shortest_path_penalty_coefficient": 1 + 1/n_agents,
+        "done_bonus": 1/n_agents,
+}
+\end{lstlisting}
+
+The basic idea is that deadlocks are more catastrophic, in terms of performances, as the number of agents increases given their irreversible nature.
+They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
+We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
+So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}      \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
+The plots clearly show that RewardsShaping has a positive impact on performance. 
+Apparently the only metrics where the no RewardsShaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics. \\
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/deadlocks}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_deadlocks}
 
 \section{D3QN}\label{sec:d3qn}
 

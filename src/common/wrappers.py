@@ -192,7 +192,7 @@ class RewardsWrapper(gym.Wrapper):
                 if "deadlocks" in info and info["deadlocks"][agent]:
                     rewards_shaped[agent] += self.deadlock_penalty
 
-        rewards_shaped = {agent: rewards_shaped[agent] / self.normalization_factor if rewards_shaped[agent] < 0
+        rewards_shaped = {agent: (rewards_shaped[agent] / self.normalization_factor) + 0.01 if rewards_shaped[agent] < 0
         else rewards_shaped[agent] for agent in range(num_agents)}
 
         return obs, rewards_shaped, done, info
