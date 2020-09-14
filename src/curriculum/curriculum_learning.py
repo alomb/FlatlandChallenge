@@ -294,7 +294,7 @@ def curriculum_learning():
                     "advantage_estimator": "gae",
 
                     # ============================
-                    # Optimization and rendering
+                    # Saving and rendering
                     # ============================
                     "checkpoint_interval": num_episodes_in_env,
                     "evaluation_mode": False,

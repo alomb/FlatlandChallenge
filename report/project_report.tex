@@ -16,7 +16,7 @@
 \usepackage{hyperref} % hyperlink
 \usepackage[utf8]{inputenc}
 \usepackage{bookmark}
-\usepackage{float}
+\usepackage{float} % to fix images in the document flow
 \usepackage{epigraph}
 \usepackage{quoting} % to create citations
 \usepackage{newlfont}
@@ -746,7 +746,9 @@ The value loss is computed as a squared error loss, many implementations multipl
 
 In our implementation these three elements are added together and used to compute the gradients with the PyTorch function \textit{backward()} and then optimize the networks.
 The value loss and the entropy in the sum are multiplied by their respective coefficients.
-%TODO: comments on coefficients and loss values
+The value coefficient is used to weight the value loss and usually has a value between 0.5 and 1.
+The entropy coefficient is a regularizer which helps preventing premature convergence of one action probability dominating the policy and usually assumes values between 0 and 0.01.
+A policy has maximum entropy when all policies are equally likely and minimum when the one action probability of the policy is dominant.
 
 \subsection{Testing}\label{subsec:testing}
 
@@ -797,7 +799,7 @@ PS-PPO hyperparameters legend:
 
 To choose between different hyperparameter values we run a grid search using Weights \& Biases Sweeps, we noticed a performance improving with the clipping hyperparameter $\epsilon$ equal to $0.3$ which is greater than the usual $0.25$ as suggested in~\citep{ppo-implementation-2}: \textit{"Start with the clipping threshold set to 0.25 but also try lower and higher values if possible."}
 
-\begin{figure}
+\begin{figure}[H]
 \centering
 \includegraphics[width=1.0\textwidth]{resources/psppo_sweep.png}
 \caption{A graph representing the different combinations and outcomes of the grid search.}
@@ -848,14 +850,14 @@ The target network's weights are updated using \textbf{soft updates}, which can 
 where $\theta^{-}$ are the target's weights, $\theta$ the local network's weights and $\tau$ an hyperparameter usually set to a very small number as this update is performed at each mini-batch gradient descent.
 Network graphs can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
 
-\subsubsection{Training setup}
+\subsubsection{Training setup}\label{subsubsec:training-setup2}
 
 In each episode the agents decide an action whenever they are ready to perform an action, namely they are not already moving from a cell to another, this may also include agents in deadlock which are involuntarily accumulating movements they will never perform, and are not arrived to destination.
 Agents that not decide an action perform a DO\_NOTHING action.
-Actions are stored and used to step the environment, trajectories are saved in the memory.
-When an agent decides the action has also the possibility to start the policy training which occurs whenever the memory has reached a certain size and every time an interval of episodes has been completed.
+Agents which have decided an action save in the experience replay the resulting transitions to form trajectories.
+The algorithm here provides a variant (the type 1) to also include transitions of agents arrived at their destination.
+When an agent's memory has reached both a minimum fixed size and the batch size, every interval of steps it is filled with a certain amount of transitions it is used to train the agent.
 Neural networks are updated with sampled batches of transitions stored in the memory, the different mechanisms of sampling and types of memories are described in~\ref{subsubsec:experience-replay}.
-%TODO: check
 After each episode the exploration rate $\epsilon$ of the $\epsilon$-greedy is decayed with a fixed factor until it reaches a final value set in the hyperparameters.
 
 \subsubsection{Experience Replay}\label{subsubsec:experience-replay}
@@ -903,7 +905,7 @@ This additional information helps agent to better understand in which moment sam
 An ideal fingerprint is formed by the training step and the $\epsilon$ exploration rate, as it anneals during time.
 \end{itemize}
 
-We applied fingerprints % TODO
+We applied fingerprints expanding the state without observing substantial improvements~\ref{par:d3qn_er_fp_ps}.
 
 \subsection{Testing}\label{subsec:testing2}
 
@@ -947,6 +949,26 @@ When overflows occur the oldest data is replaced with the new.
 	\end{itemize}
 \end{itemize}
 
+\paragraph{Grid search}\label{par:d3qn_grid_search}
+~\newline
+\href{https://app.wandb.ai/fiorenzoparascandolo/flatland-challenge-d3qn}{Sweep page}.\\
+
+We performed a grid search to compare different values on random environments to prevent biases induced by seeds.
+Obviously the score represents the right parameter to maximize in the search, but we also consider very important the completion as the score is more difficult to interpret.
+The search confirmed that double dqn brings better results, and revealed that smaller batch sizes, shorter and shared neural networks, tend to perform better.
+Obviously higher learning rates push the model to converge faster, so in these tests we managed to understand better the limits.
+The "update\_every" parameter influenced the two metrics differently, high values (32) cause score to increase while low values (16) improved the completion.
+The search didn't help to choose between larger (256) or thinner (128) networks.
+The "type 1" variant described in~\ref{subsubsec:training-setup2} definitely performed better, demonstrating that including in memory experience collected from arrived agents is better.
+
+\paragraph{Experience replay, fingerprints and sharing}\label{par:d3qn_er_fp_ps}
+~\newline
+\href{https://app.wandb.ai/lomb/flatland-challenge-d3qn-er}{Project page}.\\
+
+After a preliminary grid search we performed a series of training tests to evaluate specific implementation details such as the type of experience replay, the usage of fingerprints and sharing networks.
+Unfortunately adding fingerprints significantly worsen the performances while using Prioritized Experience Replay slightly improves the run without fingerprints and remarkably improve the metrics of those with fingerprints.
+Sharing networks' parameters performed better also with these new configurations.
+
 \section{Curriculum Learning}\label{sec:curriculum-learning}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{bengio-curiculum}}]
@@ -977,12 +999,15 @@ The semi-automatic allows the user to specify hyperparameters to influence the e
 Differently from the manual the semi-automatic is evaluated lazily using Python generators.
 An important question when designing a curricula is determining the stopping criteria.
 Typically training is stopped when performance on the task or set of samples has converged, but another option is to train on each task for a level number of episodes or epochs.
-We decided to measure the completion performance and allow levels to be repeated for a finite number of times unless a certain completion threshold is not overcome.
+We decided to measure the completion performance and allow levels to be repeated for a finite number of times unless a certain completion threshold has not overcome.
 Defining multiple tasks in Flatland is not easy, we hypothesized tasks such as "reaching the goal", "avoiding deadlocks" and "optimizing the path" which can be respectively measured in therms of percentage of completions, number of deadlocks and normalized score.
 The problem of generating environment is not easy too because parameters must be tuned to generate environments with feasible solutions and a coherent generation, as instance the number of agents must be lower than the number of cities or the size of the map can influence the maximum number of cities, rails between and within cities.
 One alternative approach is to manually describe ranges of coherent parameter values or levels of difficulty that allows an adaptive and automatic process of task sequencing.
 
 \subsection{Testing}\label{subsec:testing3}
+\href{https://app.wandb.ai/lomb/flatland-challenge-ps-ppo-curriculum?workspace=user-lomb}{Project page}.\\
+
+% TODO
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 % TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv, shuffling order, skipping

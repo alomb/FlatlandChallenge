@@ -170,8 +170,8 @@ def train_multiple_agents(env_params, train_params):
             for agent in range(env_params.n_agents):
                 """
                 Update memory and try to perform a learning step only when the agent has finished or when an action was 
-                taken and thus relevant information is present, otherwise, for example when action is skipped or an 
-                agent is moving from a cell to another, the agent is ignored.
+                taken and thus relevant information is present, otherwise, for example when an agent is moving from a
+                cell to another, the agent is ignored.
                 """
                 if agent in agents_in_action or (done[agent] and train_params.type == 1):
                     learn_timer.start()
