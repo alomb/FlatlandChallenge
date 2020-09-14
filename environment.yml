@@ -29,6 +29,6 @@ dependencies:
     # To read config files
     - pyyaml
     # Weights and Biases
-    - wandb
+    - wandb==0.9.5
     # To keep the env clean
     - pip-autoremove

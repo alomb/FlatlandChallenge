@@ -92,7 +92,7 @@ def train():
 
 
         # ============================
-        # Optimization and rendering
+        # Saving and rendering
         # ============================
         "checkpoint_interval": 100,
         "evaluation_mode": False,
@@ -100,6 +100,9 @@ def train():
         "use_gpu": False,
         "render": False,
         "print_stats": True,
+        "wandb_project": "flatland-challenge-d3qn-er",
+        "wandb_entity": "lomb",
+        "wandb_tag": "d3qn",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
         "tensorboard_path": "log_" + namefile + "/",
