@@ -1,21 +1,17 @@
-import os
-import sys
-
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 class DuelingQNetwork(nn.Module):
     """
     Dueling Q-network (https://arxiv.org/abs/1511.06581)
     """
 
-    def __init__(self, state_size, action_size, parameters, evaluation_mode):
+    def __init__(self, state_size, action_size, parameters):
         """
         :param state_size: The number of attributes of each state. It affects the size of the input of the nn.
         :param action_size: The number of available actions. It affects the size of the output of the nn.
         :param parameters: The set of parameters which affect the architecture of the nn.
-        :param evaluation_mode: False/True for training/evaluation mode.
         """
 
         super(DuelingQNetwork, self).__init__()

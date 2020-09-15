@@ -124,6 +124,7 @@ Academic Year {2019-2020}
 The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
 The following work is related to the second edition of this challenge started in Summer 2020.
 In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
+In this work we propose and describe the implementation of some Deep Reinforcement Learning solutions, leveraging the most recent outcomes in this vibrant and exciting field.
 
 \chapter{Flatland environment}\label{ch:flatland-environment}
 \addcontentsline{toc}{chapter}{Flatland}
@@ -381,6 +382,7 @@ In the Flatland environment agents are already provided with an individual score
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 We developed the following work using Python and PyTorch.
+A brief introduction to PyTorch can be found in the appendix~\ref{}.
 
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
@@ -609,15 +611,30 @@ The majority of the following details are not even mentioned in the original PPO
 
 PPO has been widely implemented in an \textbf{actor-critic} style.
 The actor (or parallel actors) takes observations and outputs the probabilities of taking each action in the action space when the agent is in the given state, on the other hand, the critic takes the observations and outputs the corresponding expectation of the discounted long-term reward, called also state value.
-Some actor-critic implementations make parts of the actor and critic networks shared to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
+Some actor-critic implementations make parts of the actor and critic networks \textbf{shared} to decrease computational costs while others prefer to avoid this because it makes harder training and tuning of hyperparameters.
 This is because the norm of gradients flowing back from the actor gradients and the critic gradients may be at completely different scales causing difficulties during calibration.
 First and last layers sizes are bound to the observation and action dimensions, while hidden layers may have a different one, cited studies have discovered that in many environments a wider value MLP network is better and Tanh activation functions are more preferred than ReLU\@.
 Fully connected neural networks are generated procedurally given the sizes and the activation function, enabling fast personalization.
-Networks layers, from the \textit{class torch.nn.Linear}, are initially inserted in an OrderedDict, which remembers the order that keys were first inserted, specifying also layers' names.
+Networks layers, from the class \textit{torch.nn.Linear}, are initially inserted in an OrderedDict, which remembers the order that keys were first inserted, specifying also layers' names.
 At the end, the dictionary is passed to the constructor of the class \textit{torch.nn.Sequential} to generate the network.
 If the weights are shared the actor network reuses the same first and hidden layers of the critic that has been already built and substitutes the last one, called head, with its own, which has a different output size.
 The difference between the shared and the not shared configuration can be observed in the figures~\ref{fig:psppo_separated_graph_commented} and~\ref{fig:psppo_shared_graph_commented}.
-Neural networks' weights are initialized using orthogonal initialization, using the function \textit{torch.nn.init.orthogonal\_(tensor, gain=1)} with the gain/scaling factor calculated with \textit{torch.nn.init.calculate\_gain(nonlinearity, param=None)}, while biases are initially set to zero.
+There is also the possibility to set the shared portion of the network as a recurrent neural network using a \textbf{Long Short-Term Memory (LSTM)}.
+The core component of the recurrent model is given by the class \textit{torch.nn.LSTM}.
+The class constructor's takes as input the sizes of the input and of the hidden and additionally the number of layers.
+The network can be used in two ways:
+\begin{itemize}
+	\item When the old policy is used to collect transitions, every time the hidden state (short-term memory) and the cell state (long-term memory) obtained in the previous step is feed (as a tuple) to the LSTM cell in the current step to obtain new outputs and hidden values.
+Hidden states and cell states are stored in the memory to allow this operation.
+	\item When the trajectory is used to update the policy sequences of transitions are directly passed to the network and except from the first hidden state and cell state, the others produced at each call are managed the PyTorch library.
+\end{itemize}
+Therefore, the input of the LSTM is a 3D tensor containing in its first dimension the sequences (the temporal feature), in the second, the batches and in the last the features.
+As we externally divide the trajectory in batches we do not use the batch dimension but in the first case we pass a single transition while in the second the entire batch.
+Rather than assigning for each batch the initial hidden values to zero the values stored in the memory are used.
+The output tensor contains for each element of the sequence the value obtained from the output gate and the last hidden values.
+The LSTM is used in a many-to-one style as all the sequence outputs are sequentially combined together to obtain a final output.
+A representation of a recurrent network can be found in the figure~\ref{fig:psppo_shared_recurrent_graph} while a detailed example of LSTM here~\href{https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/}{FLOYDHUB Blog post}.
+Neural networks' weights are initialized using \textbf{orthogonal initialization}, using the function \textit{torch.nn.init.orthogonal\_(tensor, gain=1)} with the gain/scaling factor calculated with \textit{torch.nn.init.calculate\_gain(nonlinearity, param=None)}, while biases are initially set to zero.
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{ppo-implementation-2}}]
 Interestingly, the initial policy appears to have a surprisingly high impact on the training performance.
@@ -757,14 +774,14 @@ PS-PPO hyperparameters legend:
 	\item Network Architecture
 	\begin{itemize}
 		\item "shared": True to allow actor and critic to share initial and hidden layers.
-		\item "critic\_mlp\_width": the number of nodes in critic's hidden layers.
-		\item "critic\_mlp\_depth": the number of layers of the critic network,
+		\item "critic\_mlp\_width": the number of nodes in critic's hidden layers (input and output included).
+		\item "critic\_mlp\_depth": the number of layers of the critic network (input and output included).
 		\item "last\_critic\_layer\_scaling": a scaling factor applied at the initialization on the last critic's layer.
 		\item "actor\_mlp\_width": the number of nodes in actor's hidden layers.
-		\item "actor\_mlp\_depth": the number of layers of the actor network,
+		\item "actor\_mlp\_depth": the number of layers of the actor network.
 		\item "last\_actor\_layer\_scaling": a scaling factor applied at the initialization on the last actor's layer.
 		\item "learning\_rate": Adam optimizer learning rate, as $0.001$.
-		\item "adam\_eps": Adam $\epsilon$ value, as $1e-5$
+		\item "adam\_eps": Adam $\epsilon$ value, as $1e-5$.
 		\item "activation": activation function, "Tanh" to choose hyperbolic tangent, "ReLU" to choose Rectified Linear Unit.
 	\end{itemize}
 	\item Training setup
@@ -795,11 +812,9 @@ PS-PPO hyperparameters legend:
 	\end{itemize}
 \end{itemize}
 
-%TODO: evaluation mode, horizon and batch, reward shaping, masking, allow no op
-
 To choose between different hyperparameter values we run a grid search using Weights \& Biases Sweeps, we noticed a performance improving with the clipping hyperparameter $\epsilon$ equal to $0.3$ which is greater than the usual $0.25$ as suggested in~\citep{ppo-implementation-2}: \textit{"Start with the clipping threshold set to 0.25 but also try lower and higher values if possible."}
 
-\begin{figure}[H]
+\begin{figure}
 \centering
 \includegraphics[width=1.0\textwidth]{resources/psppo_sweep.png}
 \caption{A graph representing the different combinations and outcomes of the grid search.}
@@ -1013,7 +1028,7 @@ Obviously the score represents the right parameter to maximize in the search, bu
 The search confirmed that double dqn brings better results, and revealed that smaller batch sizes, shorter and shared neural networks, tend to perform better.
 Obviously higher learning rates push the model to converge faster, so in these tests we managed to understand better the limits.
 The "update\_every" parameter influenced the two metrics differently, high values (32) cause score to increase while low values (16) improved the completion.
-The search didn't help to choose between larger (256) or thinner (128) networks.
+The search did not help to choose between larger (256 neurons) or thinner (128 neurons) networks.
 The "type 1" variant described in~\ref{subsubsec:training-setup2} definitely performed better, demonstrating that including in memory experience collected from arrived agents is better.
 
 \paragraph{Experience replay, fingerprints and sharing}\label{par:d3qn_er_fp_ps}
@@ -1062,7 +1077,7 @@ One alternative approach is to manually describe ranges of coherent parameter va
 \subsection{Testing}\label{subsec:testing3}
 \href{https://app.wandb.ai/lomb/flatland-challenge-ps-ppo-curriculum?workspace=user-lomb}{Project page}.\\
 
-% TODO
+The test was divided in three phases, the first was the application of the semi-automatic curriculum using the five different environments obtained with the seeds 14, 50, 80, 130, 200, the second consisted in training the environments for 3000 episodes and finally the latter evaluating them.
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 % TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv, shuffling order, skipping
@@ -1206,6 +1221,13 @@ Additional materials, can be found in the \href{https://pytorch.org/resources/}{
 \includegraphics[width=0.5\textwidth]{resources/psppo_shared_graph_commented.png}
 \caption{An example of execution graph with actor and critic with shared layers}
 \label{fig:psppo_shared_graph_commented}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.925\textwidth]{resources/lstm_pytorch.png}
+\caption{A portion of the recurrent PS-PPO computation graph containing a LSTM cell compared with the formal representation.}
+\label{fig:psppo_shared_recurrent_graph}
 \end{figure}
 
 \begin{figure}

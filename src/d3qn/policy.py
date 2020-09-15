@@ -48,8 +48,7 @@ class D3QNPolicy(Policy):
         # Q-Network
         self.qnetwork_local = DuelingQNetwork(state_size,
                                               action_size,
-                                              parameters,
-                                              parameters.evaluation_mode).to(self.device)
+                                              parameters).to(self.device)
 
         if not parameters.evaluation_mode:
             self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
