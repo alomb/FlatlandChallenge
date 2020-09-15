@@ -217,7 +217,8 @@ def train_multiple_agents(env_params, train_params):
                                                   {"loss": policy.get_stat("loss"),
                                                    "q_expected": policy.get_stat("q_expected"),
                                                    "q_targets": policy.get_stat("q_targets"),
-                                                   "eps": eps_start}
+                                                   "eps": eps_start,
+                                                   "memory_size": len(policy.memory)}
                                                   if policy.are_stats_ready() else {},
                                                   {"step": step_timer,
                                                    "reset": reset_timer,
