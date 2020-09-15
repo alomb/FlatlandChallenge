@@ -60,6 +60,26 @@
 
 \renewcommand{\labelenumi}{\alph{enumi}.} % Make numbering in the enumerate environment by letter rather than number (e.g. section 6)
 
+% Remove Chapter N from the document preserving the numbering
+\makeatletter
+\def\@makechapterhead#1{%
+  \vspace*{50\p@}%
+  {\parindent \z@ \raggedright \normalfont
+    \ifnum \c@secnumdepth >\m@ne
+      %\if@mainmatter
+        %\huge\bfseries \@chapapp\space \thechapter
+        \Huge\bfseries \thechapter.\space%
+        %\par\nobreak
+        %\vskip 20\p@
+      %\fi
+    \fi
+    \interlinepenalty\@M
+    \Huge \bfseries #1\par\nobreak
+    \vskip 40\p@
+  }}
+\makeatother
+
+
 \begin{document}
 \begin{titlepage}
 
@@ -120,19 +140,19 @@ Academic Year {2019-2020}
 \newpage
 \setcounter{page}{1}
 
-\chapter*{Introduction}
+\chapter{Introduction}
+
 The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
 The following work is related to the second edition of this challenge started in Summer 2020.
 In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
 In this work we propose and describe the implementation of some Deep Reinforcement Learning solutions, leveraging the most recent outcomes in this vibrant and exciting field.
 
 \chapter{Flatland environment}\label{ch:flatland-environment}
-\addcontentsline{toc}{chapter}{Flatland}
 
 In order to conceive a solution for this challenge we need to fully understand the environment, how does it work and how do some subtle details influence behind the scenes what we can only perceive through observations and rewards.
 The following results have been evaluated on the Python package \href{https://pypi.org/project/flatland-rl/}{flatland-rl version 2.1.10}.
 
-\section*{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
+\section{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
 
 \textbf{RailAgentStatus} extends Python IntEnum and assumes the following values:
 \begin{itemize}
@@ -259,10 +279,9 @@ Currently the other penalties are all set to zero.
 So each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
 Currently it is possible to say that rewards are always full step excluding the end of the episode and the single agents that have finished which have reward equal to 0.
 
-\chapter{Multi-Agent Reinforcement Learning (MARL)}\label{ch:multi-agent-reinforcement-learning}
-\addcontentsline{toc}{chapter}{Multi-Agent Reinforcement Learning (MARL)}
+\chapter{Multi-Agent Reinforcement Learning}\label{ch:multi-agent-reinforcement-learning}
 
-This section provides an overview of some useful works and theory behind MARL that we consider useful to suggest approaches or solutions to the Flatland Challenge.
+This section provides an overview of some useful works and theory behind Multi-Agent Reinforcement Learning (MARL) that we consider useful to suggest approaches or solutions to the Flatland Challenge.
 
 \section{Theoretical background}\label{sec:marl-theoretical-background}
 
@@ -378,11 +397,10 @@ The multi-agent credit assignment refers to the problem of how each agent should
 In the Flatland environment agents are already provided with an individual score, so intuitively both approaches are free to be analyzed.
 
 \chapter{Original work}\label{ch:original-work}
-\addcontentsline{toc}{chapter}{Original work}
 
 This section describes the implementation and the testing of some Deep Reinforcement Learning algorithms explored in this work.
 We developed the following work using Python and PyTorch.
-A brief introduction to PyTorch can be found in the appendix~\ref{}.
+A brief introduction to PyTorch can be found in the appendix~\ref{sec:pytorch}.
 
 \section{Metrics and evaluation}\label{sec:metrics-and-evaluation}
 
@@ -1080,13 +1098,32 @@ One alternative approach is to manually describe ranges of coherent parameter va
 The test was divided in three phases, the first was the application of the semi-automatic curriculum using the five different environments obtained with the seeds 14, 50, 80, 130, 200, the second consisted in training the environments for 3000 episodes and finally the latter evaluating them.
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
-% TODO hierarchical https://openai.com/blog/learning-a-hierarchy/, meta, conv, shuffling order, skipping
+
+Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
+\begin{itemize}
+	\item \textbf{Meta-Reinforcement Learning (Meta-RL)} applies meta-learning to Reinforcement Learning to enable the rapid training of agents able to generalize never seen problems, making a move towards general AI\@.
+Meta-RL is deeply linked with techniques such as curriculum learning, and would be interesting applying it in this scenario.
+A well organized introductory overview can be found here~\citep{weng2019metaRL}.
+	\item \textbf{Hierarchical Learning} has been proposed to deal with high dimensional action spaces.
+Instead of performing a brute force learning as the majority of Reinforcement Learning techniques do this approach groups the low-level actions in high-level actions, such that a task that originally requires thousands of ordered actions to be performed can be described with less, but more general, actions.
+We think this idea perfectly suites the Flatland Challenge and its complex environment, as we can notice that learning from scratch induces training the agent with the same low-level actions which do not reflect well how an agent can solve big problems such as collision avoidance and path finding.
+More information can be found in this~\href{https://openai.com/blog/learning-a-hierarchy/}{OpenAI blog post}.
+	\item \textbf{Global graphical observation} has been proposed in some works such as~\citep{Stanford2016MULTIAGENTDR}.
+	\item \textbf{Action skipping} and \textbf{Agent preempting} to slightly change how the agents interacts with the environment.
+Action skipping allows agents to skip deciding actions in cells where there are no choices, for instance long straight rails, consequently rewards must be adjusted.
+We noticed that the agents decide always in the same order, this may cause problems as the Flatland internals actually gives more priority to the agents which have decided first, so in deadlock avoidance this choice can be crucial.
+In the Flatland Baselines can be found also some code related to \textbf{Sparse Rewards} which should be further investigated, maybe introducing \textbf{Curiosity}~\citep{pathakICMl17curiosity}.
+\end{itemize}
 
 \newpage
 
 \appendix
+\chapter{Appendix}
 
-\section*{Algorithms}
+% Personalize how appendix is numbered
+\renewcommand{\thesection}{A.\arabic{section}}
+
+\section{Algorithms}
 
 \begin{algorithm}[H]
 	\uIf{agent is in DONE or in DONE\_REMOVED ($1^{\text{th}}$ case)}{
@@ -1157,6 +1194,7 @@ The test was divided in three phases, the first was the application of the semi-
 \newpage
 
 \section{PyTorch}\label{sec:pytorch}
+
 This section provides a very briefly overview in FAQ format of PyTorch functionalities and references to more detailed external materials.
 
 \paragraph{What is PyTorch?}\label{par:what-is-pytorch}
@@ -1205,9 +1243,7 @@ Usually they are initialized passing the parameters to optimize, such as neural 
 \\
 Additional materials, can be found in the \href{https://pytorch.org/resources/}{official site} or in the following blogs and articles \href{https://blog.paperspace.com/pytorch-101-understanding-graphs-and-automatic-differentiation/}{PyTorch 101, Part 1: Understanding Graphs, Automatic Differentiation and Autograd} and \href{https://towardsdatascience.com/understanding-pytorch-with-an-example-a-step-by-step-tutorial-81fc5f8c4e8e}{Understanding PyTorch with an example: a step-by-step tutorial}.
 
-\renewcommand\thefigure{F.\arabic{figure}}
-\section*{Figures}
-\setcounter{figure}{0}
+\section{Figures}
 
 \begin{figure}
 \centering
