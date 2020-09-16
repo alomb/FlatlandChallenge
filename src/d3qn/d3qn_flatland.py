@@ -1,4 +1,5 @@
 import random
+from enum import Enum
 
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ from flatland.envs.rail_env import RailEnvActions
 
 try:
     import wandb
+
     use_wandb = True
 except ImportError as e:
     print("wandb is not installed, TensorBoard on specified directory will be used!")
@@ -20,19 +22,52 @@ from src.common.utils import Timer, TensorBoardLogger
 from src.d3qn.policy import D3QNPolicy
 
 
-def add_fingerprints(obs, num_agents, eps, step):
+class FingerprintType(Enum):
+    """
+    How the fingerprint is made
+    """
+
+    EPSILON = 1
+    STEP = 2
+    EPISODE = 3
+    EPSILON_STEP = 4
+    EPSILON_EPISODE = 5
+    STEP_EPISODE = 6
+    EPSILON_STEP_EPISODE = 7
+
+
+def add_fingerprints(obs, num_agents, fingerprint_type, eps, step, episode):
     """
 
     :param obs: The observation to modify
     :param num_agents: Total number of agents
+    :param fingerprint_type: instructs the function on how to build the fingerprint
     :param eps: the current exploration rate
-    :param step: the current step
+    :param step: the current time step
+    :param episode: the current episode
     :return: the observations with fingerprints
     """
 
     for a in range(num_agents):
         if obs[a] is not None:
-            obs[a] = np.append(obs[a], [eps, step])
+            fingerprint = []
+
+            if fingerprint_type in [FingerprintType.EPSILON, FingerprintType.EPSILON_STEP,
+                                    FingerprintType.EPSILON_EPISODE, FingerprintType.EPSILON_STEP_EPISODE]:
+                fingerprint.append(eps)
+
+            if fingerprint_type in [FingerprintType.STEP, FingerprintType.EPSILON_STEP, FingerprintType.STEP_EPISODE,
+                                    FingerprintType.EPSILON_STEP_EPISODE]:
+                fingerprint.append(step)
+
+            if episode in [FingerprintType.EPISODE, FingerprintType.EPSILON_EPISODE, FingerprintType.STEP_EPISODE,
+                           FingerprintType.EPSILON_STEP_EPISODE]:
+                fingerprint.append(episode)
+
+            assert not any(map(lambda x: x is None, fingerprint)), "Fingerprint cannot be made, some arguments are " \
+                                                                   "None."
+
+            obs[a] = np.append(obs[a], fingerprint)
 
     return obs
 
@@ -84,10 +119,24 @@ def train_multiple_agents(env_params, train_params):
     # See details in flatland.envs.schedule_generators.sparse_schedule_generator
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
+    # To conform with previous version where this option was not enabled
+    if train_params.fingerprint_type is None:
+        train_params.fingerprint_type = FingerprintType.EPSILON_STEP
+
     # Double Dueling DQN policy
-    if train_params.fingerprints:
-        # With fingerprints
+    if train_params.fingerprints and train_params.fingerprint_type in [FingerprintType.EPISODE,
+                                                                       FingerprintType.EPSILON,
+                                                                       FingerprintType.STEP]:
+        # With single fingerprints
+        policy = D3QNPolicy(env.state_size + 1, action_size, train_params)
+    elif train_params.fingerprints and train_params.fingerprint_type in [FingerprintType.EPSILON_STEP,
+                                                                         FingerprintType.EPSILON_EPISODE,
+                                                                         FingerprintType.STEP_EPISODE]:
+        # With double fingerprints
         policy = D3QNPolicy(env.state_size + 2, action_size, train_params)
+    elif train_params.fingerprints and train_params.fingerprint_type is FingerprintType.EPSILON_STEP_EPISODE:
+        # With triple fingerprints
+        policy = D3QNPolicy(env.state_size + 3, action_size, train_params)
     else:
         # Without fingerprints
         policy = D3QNPolicy(env.state_size, action_size, train_params)
@@ -126,7 +175,8 @@ def train_multiple_agents(env_params, train_params):
         reset_timer.start()
         obs, info = env.reset()
         if train_params.fingerprints:
-            obs = add_fingerprints(obs, env_params.n_agents, eps_start, timestep)
+            obs = add_fingerprints(obs, env_params.n_agents, train_params.fingerprint_type, eps_start, timestep,
+                                   episode)
 
         reset_timer.end()
 
@@ -164,7 +214,8 @@ def train_multiple_agents(env_params, train_params):
             step_timer.start()
             next_obs, all_rewards, done, info = env.step(action_dict)
             if train_params.fingerprints:
-                next_obs = add_fingerprints(next_obs, env_params.n_agents, eps_start, timestep)
+                next_obs = add_fingerprints(next_obs, env_params.n_agents, train_params.fingerprint_type, eps_start,
+                                            timestep, episode)
             step_timer.end()
 
             for agent in range(env_params.n_agents):
