@@ -41,14 +41,14 @@ def train():
         # ============================
         "custom_observations": False,
 
-        "reward_shaping": False,
-        "uniform_reward": False,
-        "stop_penalty": -0.0,
+        "reward_shaping": True,
+        "uniform_reward": True,
+        "stop_penalty": -0.2,
         "invalid_action_penalty": -0.0,
-        "deadlock_penalty": -0.0,
+        "deadlock_penalty": -5.0,
         # 1.0 for skipping
-        "shortest_path_penalty_coefficient": 1.0,
-        "done_bonus": 0.0,
+        "shortest_path_penalty_coefficient": 1.2,
+        "done_bonus": 0.2,
     }
 
     training_parameters = {
