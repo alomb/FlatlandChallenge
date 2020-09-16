@@ -1,3 +1,4 @@
+
 from argparse import Namespace
 from datetime import datetime
 
@@ -107,7 +108,7 @@ def train():
         "advantage_estimator": "gae",
 
         # ============================
-        # Saving and rendering
+        # Optimization and rendering
         # ============================
         # Save and evaluate interval
         "checkpoint_interval": 75,
@@ -116,9 +117,6 @@ def train():
         "use_gpu": False,
         "render": False,
         "print_stats": True,
-        "wandb_project": "flatland-challenge-ps-ppo-test",
-        "wandb_entity": "fiorenzoparascandolo",
-        "wandb_tag": "ps-ppo",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
         "tensorboard_path": "log_" + namefile + "/",
@@ -141,6 +139,7 @@ def train():
     # Mount Drive on Colab
     from google.colab import drive
     drive.mount("/content/drive", force_remount=True)
+
     # Show Tensorboard on Colab
     import tensorflow
     %load_ext tensorboard
