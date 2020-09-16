@@ -143,15 +143,15 @@ def complex_rail_generator(curriculum) -> RailGenerator:
 def curriculum_learning():
     num_levels = 70
     num_episodes_in_env = 20
-    model_saving_number = 0
+    model_saving_name = ""
 
     """
     curriculum = Manual_Curriculum("curriculum.yml")
     """
 
-    curriculum = Semi_Auto_Curriculum(offset_curriculum_generator(num_levels, {"x_dim": 30,
-                                                                               "y_dim": 30,
-                                                                               "n_agents": 1.7,
+    curriculum = Semi_Auto_Curriculum(offset_curriculum_generator(num_levels, {"x_dim": 25,
+                                                                               "y_dim": 25,
+                                                                               "n_agents": 1.75,
                                                                                "n_cities": 3,
                                                                                # "n_extra": 3,
                                                                                # "min_dist": 2,
@@ -180,17 +180,15 @@ def curriculum_learning():
             if curriculum.get("malfunction_level") < 1:
                 malfunction_rate = 0.0
             elif curriculum.get("malfunction_level") < 2:
-                malfunction_rate = 0.1
+                malfunction_rate = 0.0025
             elif curriculum.get("malfunction_level") < 3:
-                malfunction_rate = 0.2
+                malfunction_rate = 0.0055
             else:
-                malfunction_rate = 0.3
+                malfunction_rate = 0.0075
 
-            print("=" * 100)
+            print("=" * 203)
             print("Running the level {}".format(level))
-            print("=" * 100)
-
-            try_outs = 0
+            print("=" * 203)
 
             print("{}x{} grid, {} agents, {} cities, {} rails between cities, {} rails in cities, malfunctions rate {} "
                   "and speed {}. Completion threshold of {}".format(curriculum.get("x_dim"),
@@ -203,10 +201,11 @@ def curriculum_learning():
                                                                     speed_profiles,
                                                                     threshold))
 
+            try_outs = 0
             completion = 0
 
             while try_outs < 10 and completion < threshold:
-                namefile = "curriculum_{}".format(model_saving_number)
+                namefile = "curriculum_{}_{}_{}".format(myseed, level, try_outs)
 
                 environment_parameters = {
                     "n_agents": curriculum.get("n_agents"),
@@ -294,7 +293,7 @@ def curriculum_learning():
                     "advantage_estimator": "gae",
 
                     # ============================
-                    # Saving and rendering
+                    # Optimization and rendering
                     # ============================
                     "checkpoint_interval": num_episodes_in_env,
                     "evaluation_mode": False,
@@ -302,29 +301,30 @@ def curriculum_learning():
                     "use_gpu": False,
                     "render": False,
                     "print_stats": True,
+
                     "wandb_project": "flatland-challenge-ps-ppo-curriculum",
                     "wandb_entity": "lomb",
-                    "wandb_tag": "ps-ppo",
+                    "wandb_tag": "curriculum_{}".format(myseed),
+
                     "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
-                    "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + "curriculum_{}".format(
-                        model_saving_number - 1) + ".pt",
+                    "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + model_saving_name + ".pt",
                     "tensorboard_path": "log_" + namefile + "/",
 
                     # ============================
-                    # Action Masking / Skipping
+                    # Action Masking
                     # ============================
                     "action_masking": True,
                     "allow_no_op": False
                 }
 
-                print("Level %d try out number % d" % (level, try_outs))
+                print("\nLevel %d try out number % d" % (level, try_outs))
                 # Train
                 _, completions, _, _ = train_multiple_agents(Namespace(**environment_parameters),
                                                              Namespace(**training_parameters))
                 try_outs += 1
-                model_saving_number += 1
+                model_saving_name = namefile
                 completion = np.mean(completions)
-            print("\n" + "=" * 100)
+            print("\n" + "=" * 203)
 
             # Update curriculum
             curriculum.update()
