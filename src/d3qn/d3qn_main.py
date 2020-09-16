@@ -3,7 +3,7 @@ from datetime import datetime
 
 from flatland.envs.malfunction_generators import MalfunctionParameters
 
-from src.d3qn.d3qn_flatland import train_multiple_agents
+from src.d3qn.d3qn_flatland import train_multiple_agents, FingerprintType
 from src.d3qn.eval_d3qn import eval_policy
 
 
@@ -81,6 +81,8 @@ def train():
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
         "fingerprints": True,
+        # If not set the default value is the standard FingerprintType.EPSILON_STEP
+        "fingerprint_type": FingerprintType.EPSILON_STEP,
 
         # ============================
         # Memory
