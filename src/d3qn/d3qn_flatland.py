@@ -60,8 +60,8 @@ def add_fingerprints(obs, num_agents, fingerprint_type, eps, step, episode):
                                     FingerprintType.EPSILON_STEP_EPISODE]:
                 fingerprint.append(step)
 
-            if episode in [FingerprintType.EPISODE, FingerprintType.EPSILON_EPISODE, FingerprintType.STEP_EPISODE,
-                           FingerprintType.EPSILON_STEP_EPISODE]:
+            if fingerprint_type in [FingerprintType.EPISODE, FingerprintType.EPSILON_EPISODE,
+                                    FingerprintType.STEP_EPISODE, FingerprintType.EPSILON_STEP_EPISODE]:
                 fingerprint.append(episode)
 
             assert not any(map(lambda x: x is None, fingerprint)), "Fingerprint cannot be made, some arguments are " \
