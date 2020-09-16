@@ -145,7 +145,7 @@ Academic Year {2019-2020}
 The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
 The following work is related to the second edition of this challenge started in Summer 2020.
 In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
-In this work we propose and describe the implementation of some Deep Reinforcement Learning solutions, leveraging the most recent outcomes in this vibrant and exciting field.
+In this work we propose and describe the implementation of some Deep Reinforcement Learning solutions, leveraging the most recent outcomes in this vibrant and exciting field of study.
 
 \chapter{Flatland environment}\label{ch:flatland-environment}
 
@@ -156,16 +156,16 @@ The following results have been evaluated on the Python package \href{https://py
 
 \textbf{RailAgentStatus} extends Python IntEnum and assumes the following values:
 \begin{itemize}
-	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None), the prediction is to stay at the starting position.
+	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None).
 If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
-	\item ACTIVE (1) the agent is in the grid (position is not None) and hasn't reached the target yet, the prediction is the remaining path.
-	\item DONE (2) the agent is still in the grid (position is not None) but has already reached the target, the prediction is to stay at the target forever.
-	\item DONE\_REMOVED (3) the agent has reached the target and it's removed from the grid.
+	\item ACTIVE (1) the agent is in the grid (position is not None) and hasn't reached the target yet.
+	\item DONE (2) the agent is still in the grid (position is not None) but has already reached the target.
+	\item DONE\_REMOVED (3) the agent has reached the target and has been removed from the grid.
 \end{itemize}
 
 \textbf{Grid4TransitionsEnum} extends Python standard IntEnum and assumes the following values: NORTH (0), EAST (1), SOUTH (2), WEST (3).
-\textbf{Grid4TransitionsEnum} is used to indicate absolute directions, related to the environment, like a compass.
-Possible usages are storing where the agent is facing or computing legal actions, for example including as observation a one hot encoding of the directions where the agent can move.
+\textbf{Grid4TransitionsEnum} is used to indicate absolute directions (like a compass), related to the environment and not to the agents' orientations.
+Possible usages are storing where an agent is facing or computing legal actions, for example including in the observations a one hot encoding representing the directions where an agent can move.
 \\
 \textbf{EnvAgent} class models the agent and encapsulates in its internal state the following attributes:
 \begin{itemize}
@@ -187,10 +187,8 @@ The malfunction of an agent contains the keys 'malfunction' which contains how m
 
 From the documentation
 \begin{quotation}
-	RailEnv is an environment inspired by a (simplified version of) a rail
-    network, in which agents (trains) have to navigate to their target
-    locations in the shortest time possible, while at the same time cooperating
-    to avoid bottlenecks.
+	RailEnv is an environment inspired by a (simplified version of) a rail network, in which agents (trains) have to navigate to their target
+    locations in the shortest time possible, while at the same time cooperating to avoid bottlenecks.
 \end{quotation}
 
 In the \textit{step} function the number of steps is updated and if the overall task is still uncompleted, for each agent the associated reward is initially put to zero, a malfunction is tried to be induced and the specific step is performed.
@@ -209,7 +207,6 @@ It updates the direction of the agent and if the new cell is a dead-end the new 
     \item MOVE\_RIGHT (3) If agent.moving is False then becomes True.
 If it's possible turn the agent right, changing its direction, otherwise if agent.moving is True tries the action MOVE\_FORWARD\@.
     \item STOP\_MOVING (4) If agent.moving is True then becomes False.
-A penalty will be added.
 Stop the agent in the current occupied cell.
 \end{itemize}
 The pseudocode of the agent step function can be found in the appendix~\ref{alg:flatland-agent-loop}.
@@ -218,11 +215,11 @@ The pseudocode of the agent step function can be found in the appendix~\ref{alg:
 Some useful questions:
 \begin{itemize}
 	\item Can agents stop during the performance of an action between two cells?
-Absolutely no, it's like any other action.
+Absolutely no, STOP\_MOVING is like any other action and must be performed when the agent has concluded the current.
 	\item Are requested actions during a malfunction ignored?
 Yes.
 	\item Are requested actions during a not completed movement saved for after execution?
-No, because the condition at line 11 is not executed and the conditions in line 16 check whether the cell is free and possibly complete agent data.
+No, because the condition at line 11 of the algorithm~\ref{alg:flatland-agent-loop} is not executed and the conditions at line 16 check whether the cell is free and eventually complete agent data.
 Actions are not allowed to change within the cell, each agent can only chose an action to be taken when entering a cell.
 This action is then executed when a step to the next cell is valid.
 	\item How is possible to understand if an agent is ready to perform an action?
@@ -235,9 +232,9 @@ Although in rendering its representation may remain, the agent is removed.
 It is possible to change this setting modifying the attribute remove\_agents\_at\_target of the class \textbf{RailEnv}.
 	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning?
 No. A MOVE\_* is necessary.
-	\item Do collisions occur?
+	\item Do collisions really occur?
 No, agents check if the cell is free before moving.
-Deadlocks are possible when two agents are one in front the other without any chance to change path.
+Deadlocks are possible when two or more agents are stucked in a particular situations which does not let anyone of them moving without colliding with another agent or moving in an invalid cell.
 \end{itemize}
 
 \subsection{Malfunctions}\label{subsec:malfunctions}
@@ -245,10 +242,10 @@ The strategy depends on the passed \textit{malfunction\_generator\_and\_process\
 A strategy can be defined using the class \textbf{MalfunctionParameters} that can be initialized with the parameters to shape the stochasticity of the environment as the malfunction rate, expressed as a probability (Poisson distribution), and minimum and maximum malfunction duration.
 
 \begin{itemize}
-	\item A malfunction can occur during the resolution of another?
+	\item Can a malfunction occur during the resolution of another?
 No.
-	\item An agent could have a malfunction during the completion of an action between two cells?
-Yes, malfunctions are induced before the step and so before also action completion.
+	\item Could an agent have a malfunction during the completion of an action between two cells?
+Yes, malfunctions are induced before the step and so before action completion too.
 \end{itemize}
 
 \subsection{Speed}\label{subsec:speed}
@@ -275,17 +272,15 @@ There are different rewards for different situations:
 	\item full step penalty plus the other penalties (invalid\_action\_penalty, stop\_penalty and start\_penalty) when the agent is finishing actions or start new ones ($4^{\text{th}}$ \textit{\_step\_agent} case).
 Currently the other penalties are all set to zero.
 \end{itemize}
-
-So each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
-Currently it is possible to say that rewards are always full step excluding the end of the episode and the single agents that have finished which have reward equal to 0.
+the end of the
+Each train starts counting rewards since the beginning, not since it becomes ACTIVE\@.
+Currently it is possible to say that agents' rewards are always full step, excluding when the episode ends and when they have finished, where is 0.
 
 \chapter{Multi-Agent Reinforcement Learning}\label{ch:multi-agent-reinforcement-learning}
 
-This section provides an overview of some useful works and theory behind Multi-Agent Reinforcement Learning (MARL) that we consider useful to suggest approaches or solutions to the Flatland Challenge.
+This part provides an overview of some useful works and theory behind Multi-Agent Reinforcement Learning (MARL) that we consider useful to suggest approaches or solutions to the Flatland Challenge.
 
 \section{Theoretical background}\label{sec:marl-theoretical-background}
-
-\subsection{Introduction}\label{subsec:introduction}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{MARL-definition}}]
 Specifically, MARL addresses the sequential decision-making problem of multiple autonomous agents that operate in a common environment, each of which aims to optimize its own long-term return by interacting with the environment and other agents.
@@ -309,7 +304,7 @@ Usually agents share a common reward function but it is possible to have differe
 	\item \textbf{Decentralized POMDP (Dec-POMDP)}.
 As a MDP can be extended to a \textbf{Partially Observable Markov Decision Process (POMDP)} when information that can be accessed at a given state is incomplete, similarly a Markov Game can be extended to a Dec-POMDP\@.
 In multi-agent scenario, an agent may not only depend on the information it has autonomously gathered, it will also be influenced by the choices of other agents, which are partially observable.
-In Dec-POMDP each agent has its own local observation of the system state, that without other agents' observations, leads to the impossibility to maintain a global belief state.
+In Dec-POMDP each agent has its own local observation of the system state, which without other agents' observations, leads to the impossibility of maintaining a global belief state.
 To overcome this problem, agents can exploit levels of coordination among them to obtain the full observability of a state by combining the individual observations from each member~\citep{castaneda}.
 Dec-POMDP approaches are usually considered more difficult to solve than others, especially when the number of agents is greater than two.
 	\item \textbf{Extensive-Form Game} inspired from computational game theory, it handles imperfect information.
@@ -328,7 +323,7 @@ The involvement of Deep Learning to tackle the problem of MARL defines a new spe
 	\item \textbf{Agents modeling agents}, they study how agents reason about others to fulfill a task.
 \end{itemize}
 
-\subsection{Challenges}\label{subsec:challenges}
+\section{Challenges}\label{sec:challenges}
 
 MARL frameworks inevitably adds many challenging problems on the single-agent scenario.
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{Hernandez-Leal-2019}}]
@@ -337,7 +332,7 @@ Learning in multiagent settings is fundamentally more difficult than the single-
 
 Below follow some problems that may affect the Flatland Challenge.
 
-\subsubsection{Non-Stationarity}
+\subsection{Non-Stationarity}\label{subsec:non-stationarity}
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={"\citep{papoudakis2019dealing}}]
 In Markov games, the state transition function $T$ and the reward function of each agent $r_i$ depend on the actions of all agents.
@@ -369,7 +364,7 @@ Either accessing hidden layers as \textbf{CommNet} or feeding other agents' neur
 A popular alternative approach to MARL is \textbf{Independent Learning}, in which each agent independently learns its own policy, treating other agents as part of the environment.
 While this method avoid some scalability problems and has been successfully used in practice even if it introduces a non-stationary environment from the point of view of each agent.
 
-\subsubsection{Partial observability}
+\subsection{Partial observability}\label{subsec:partial-observability}
 
 As mentioned, in the single-agent scenario this type of problem is usually modelled with a POMDP\@.
 \textbf{Deep Recurrent Q-Networks (DRQN)} proposed using recurrent neural networks, in particular, Long Short-Term Memory (LSTMs) cells in DQN, to introduce a memory capability.
@@ -378,20 +373,21 @@ Another technique to deal with partial observability is \textbf{Deep Recurrent P
 Methods to address partial observability in Markov Games usually involve communication (RIAL and \textbf{Differentiable Inter-Agent Learning (DIAL)}) or parameter sharing (\textbf{PS-DQN}, \textbf{PS-DDPG}, \textbf{PS-A3C} and \textbf{PS-TRPO}).
 Alternatively to the Markov Game, the Dec-POMDP can be used to model this type of scenario in a more classical \textbf{centralized learning for decentralized execution} fashion or in a more modern \textbf{decentralized learning for decentralized execution} way.
 
-\subsubsection{Scalability}
+\subsection{Scalability}\label{subsec:scalability}
 
-To handle non-stationarity, each individual agent may need to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@~\citep{zhang2019multiagent}.
-Many methods have been proposed to tackle this problem, one of them is the extension of \textbf{Curriculum Learning} for a multi-agent scenario.
+In general multi-agent problems scale not well as much more computational resources must be allocated, usually depending on the size of the problem including the number of agents.
+Some approaches try to handle non-stationarity, forcing each individual agent to account for the joint action space, whose dimension increases exponentially with the number of agents, this is  also referred to as the combinatorial nature of MARL\@~\citep{zhang2019multiagent}.
+Many methods have been proposed to tackle this problem, one of them is an extension of \textbf{Curriculum Learning} for multi-agent scenarios.
 
-\subsubsection{Information Structures and Training Schemes}
-In the single-agent case is easier to understand what information is visible to the agent.
+\subsection{Information Structures and Training Schemes}\label{subsec:information-structures-and-training-schemes}
+In the single-agent case is easier to understand which information is visible to the agent.
 In Markov games is sufficient to observe the current state, while on extensive-form games agents may need to recall the history of past decisions.
-In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by by individual agents~\citep{Nguyen-2020}~\citep{zhang2019multiagent}.
+In addition agents struggle to fully access information like rewards and policies of other agents, increasing the non-stationarity viewed by each individual agent~\citep{Nguyen-2020}~\citep{zhang2019multiagent}.
 These considerations led to the development of different training schemes such as centralized learning for decentralized execution, which originated from the works on the Dec-POMDP setting and has been widely adopted in recent MADRL works, and \textbf{fully decentralized}.
 The former has become a standard as simulators are usually involved in MARL training, there are different types of communications between agents and the central controller such as centralized learning, concurrent learning and parameter sharing\citep{Nguyen-2020}.
 Usually decentralized settings may allow some sort of communication to address the non-convergence issue typical of the independent learning, this strategy is also referred as \textbf{decentralized setting with networked agents}.
 
-\subsubsection{Multi-agent credit assignment}\label{subsubsec:multi-agent-credit-assignment}
+\subsection{Multi-agent credit assignment}\label{subsec:multi-agent-credit-assignment}
 In cooperative multi-agent scenarios, it is common to use either local rewards, unique for each agent, or global rewards, which represent the entire group’s performance.
 The multi-agent credit assignment refers to the problem of how each agent should contribute to design a global reward, as usually it is easier to obtain than local.
 In the Flatland environment agents are already provided with an individual score, so intuitively both approaches are free to be analyzed.
@@ -409,8 +405,8 @@ A brief introduction to PyTorch can be found in the appendix~\ref{sec:pytorch}.
 In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode.
 Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performed in polynomial time, however an estimate of the occurrence of these events is valuable information both for performance analysis described in the metrics and for Rewards Shaping described in~\ref{subsec:rewards2}.
 The algorithm proposed is not complete: situations detected as deadlocks are truly deadlocks, but it is also possible that some particular deadlocks are not recognized at all.
-The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}. 
-We have also implemented some wrappers to flexibly add and/or remove various features in the train/evaluation phase. 
+The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}.
+We have also implemented some environmental \textbf{Wrappers} to flexibly add and/or remove various features in the train/evaluation phase, preserving the original Flatland's implementation.
 Going into more details, the implementations of the two proposed approaches share some general features, for the generation of the environment, observations, deadlocks and display performances which are controllable in the main using some hyperparameters.
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
@@ -442,7 +438,7 @@ It was created to understand and optimize machine learning programs by:
 In particular our \textbf{TensorBoard} logger shows:
 
 \begin{itemize}
-	\item Specific training metrics for PSPPO and D3QN.
+	\item Specific training metrics for PS-PPO and D3QN\@.
 	\item Information on the reset and step time of the environment and on the learning of neural networks.
 	\item The evolution of the metrics to evaluate the algorithm's performances described above.
 \end{itemize}
@@ -539,7 +535,7 @@ This is not necessarily the order.
 Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance.
 According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards.
 In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}.
-Crafting rewards is not easy beacuse as a consequence we could get a cobra effect:
+Crafting rewards is not easy because as a consequence we could get the "Cobra Effect":
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={ \footnote{https://medium.com/@BonsaiAI/deep-reinforcement-learning-models-tips-tricks-for-writing-reward-functions-a84fe525e8e0}}]
 Historically, the government tried to incentivize people to assist them in ridding the area of cobras.
@@ -695,7 +691,7 @@ A trajectory is a sequence of states, actions performed in the first state, rewa
 Additional information are stored too, as flags to distinguish terminal states and logarithms of the probability mass function evaluated at the chosen actions, used as the old policy in the probability ratio.
 Each agent has its own trajectory, when an agent finishes its task it stops collecting new experience until a new episode is generated, otherwise it continues to store new information, in both cases the agent stops collecting when it has reached a certain amount which is used for training and then discarded.
 Practically the multi-agent scenario does not influence much how externally agents interact independently with the environment, but introduces the possibility to learn cooperatively on the same policy.
-Originally, rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsubsec:multi-agent-credit-assignment}), but after some tests we realized that was not beneficial and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
+Originally, rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsec:multi-agent-credit-assignment}), but after some tests we realized that was not beneficial and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
 During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
 Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
 As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.%TODO conclude and ref tests
@@ -923,12 +919,13 @@ This section describes the most remarkable details of the algorithm implementati
 
 Similarly to PS-PPO also D3QN allows customization on layers depth and width.
 The layers form a fully connected neural network.
-As D3QN has a dueling component the network structure is heavily bounded on this choice, after some hidden layers, involved in encoding the agent's observation, the network terminates in two branches, one responsible for the action's advantage and the other for the state's value prediction, the results are aggregated summing the two outcomes and subtracting the mean of the advantage.
-Hidden layers can be set shared between the two flows or separated.
-Finally, two neural networks are declared following the above description.
+As D3QN has a dueling component the network structure is heavily bounded on this choice, after some hidden layers, involved in the encoding of the agent's observation, the network terminates in two branches, one responsible for the computation of action advantages and the other for the state value prediction, the results are aggregated summing the two outcomes and subtracting the mean of the advantage.
+Hidden layers weights can be set shared between the two flows or separated.
+At the end, two neural networks are declared following the above description.
 The two networks work in synergy providing respectively the local and the target of the Double DQN strategy.
 The local is updated with gradient descents and used to predict the best action and the Q value of the previous state, while the target receives the best action and computes the Q value of the following state.
-The local network is used also to collect trajectories following the the Q values approximations and exploiting the acquired knowledge about the environment, while with a certain probability $\epsilon$ it is forced to choose a random action (masked if action masking is active) to affect exploration.
+The local network is used also to collect trajectories following the the Q values approximations and exploiting the acquired knowledge about the environment, while with a certain probability $\epsilon$ it is forced to choose a random action to affect exploration.
+If action masking is active both choices are masked.
 This strategy is called \textbf{$\epsilon$-Greedy}, it allows the agents to explore more at the beginning and exploit better after a while, decaying the probability to randomly explore the environment during the training.
 The final loss used to optimize the local network is the mean squared error of the discounted Q value of the successive state summed with the reward with the Q value of the current state.
 The target network's weights are updated using \textbf{soft updates}, which can be described with the following formula:
@@ -993,7 +990,8 @@ This additional information helps agent to better understand in which moment sam
 An ideal fingerprint is formed by the training step and the $\epsilon$ exploration rate, as it anneals during time.
 \end{itemize}
 
-We applied fingerprints expanding the state without observing substantial improvements~\ref{par:d3qn_er_fp_ps}.
+We applied different fingerprints strategies as we noticed that the original "exploration rate and step" was not effective, for example using episodes, alone or combined with $\epsilon$ or all of them.
+Results can be found in~\ref{par:d3qn_er_fp_ps}.
 
 \subsection{Testing}\label{subsec:testing2}
 
@@ -1054,8 +1052,19 @@ The "type 1" variant described in~\ref{subsubsec:training-setup2} definitely per
 \href{https://app.wandb.ai/lomb/flatland-challenge-d3qn-er}{Project page}.\\
 
 After a preliminary grid search we performed a series of training tests to evaluate specific implementation details such as the type of experience replay, the usage of fingerprints and sharing networks.
-Unfortunately adding fingerprints significantly worsen the performances while using Prioritized Experience Replay slightly improves the run without fingerprints and remarkably improve the metrics of those with fingerprints.
-Sharing networks' parameters performed better also with these new configurations.
+We performed these tests using a set of environments generated with the seeds 14, 50, 80, 130, 200 to obtain a less biased result.
+Apparently adding the fingerprints as described in the papers significantly worsen the performances, while using Prioritized Experience Replay slightly improves the run without fingerprints but remarkably improve the metrics of those with fingerprints.
+As other fingerprints strategies containing the step continued to perform badly we concluded that feeding a neural network with an input always different as the global timestep, which can be seen as an identifier, can only damage the performance.
+On the other hand using values which change slowly as $\epsilon$ and the episode is better.
+After some tests we noticed that the "$\epsilon$ and episode" fingerprint performs better than the others.
+In particular we can observe different positive trends:
+\begin{itemize}
+	\item Without fingerprints, the best outcomes are obtained with shared smaller networks (2 $\times$ 128) and batches (32).
+In this setting UER slightly overcome PER\@.
+Enabling fingerprints with the same configuration maintains a good result, which overcomes the one without fingerprints.
+	\item With fingerprints, the best results are obtained with separated bigger networks (3 $\times$ 256) and batches (128).
+% TODO: In this setting PER drastically overcome UER\@.
+\end{itemize}
 
 \section{Curriculum Learning}\label{sec:curriculum-learning}
 
@@ -1108,10 +1117,10 @@ A well organized introductory overview can be found here~\citep{weng2019metaRL}.
 Instead of performing a brute force learning as the majority of Reinforcement Learning techniques do this approach groups the low-level actions in high-level actions, such that a task that originally requires thousands of ordered actions to be performed can be described with less, but more general, actions.
 We think this idea perfectly suites the Flatland Challenge and its complex environment, as we can notice that learning from scratch induces training the agent with the same low-level actions which do not reflect well how an agent can solve big problems such as collision avoidance and path finding.
 More information can be found in this~\href{https://openai.com/blog/learning-a-hierarchy/}{OpenAI blog post}.
-	\item \textbf{Global graphical observation} has been proposed in some works such as~\citep{Stanford2016MULTIAGENTDR}.
+	\item Explore other observation methods, in particular \textbf{global graphical observations}, which have been proposed in some works such as~\citep{Stanford2016MULTIAGENTDR}.
 	\item \textbf{Action skipping} and \textbf{Agent preempting} to slightly change how the agents interacts with the environment.
 Action skipping allows agents to skip deciding actions in cells where there are no choices, for instance long straight rails, consequently rewards must be adjusted.
-We noticed that the agents decide always in the same order, this may cause problems as the Flatland internals actually gives more priority to the agents which have decided first, so in deadlock avoidance this choice can be crucial.
+We noticed that the agents decide always in the same order, this may cause problems as the Flatland internals actually gives more priority to the agents which have decided first, therefore in deadlock avoidance this choice can be crucial.
 In the Flatland Baselines can be found also some code related to \textbf{Sparse Rewards} which should be further investigated, maybe introducing \textbf{Curiosity}~\citep{pathakICMl17curiosity}.
 \end{itemize}
 
@@ -1199,10 +1208,10 @@ This section provides a very briefly overview in FAQ format of PyTorch functiona
 
 \paragraph{What is PyTorch?}\label{par:what-is-pytorch}
 PyTorch is an open source machine learning library based on the Torch library.
-As deep learning building blocks are tensors also PyTorch fundamental class is \textit{torch.Tensor}.
-Tensors are data structures that can be placed in the GPU and can be used to track linear algebra operations whenever they have the \textit{requires\_grad} property set to True.
+As deep learning building blocks are tensors similarly PyTorch fundamental class is \textit{torch.Tensor}.
+Tensors are data structures that can be placed in a specific device, like a GPU, and can be used to track linear algebra operations whenever the \textit{requires\_grad} property is set to True.
 This property is propagated through operations to resulting tensors.
-When a tensor is generated from the user, for example the input of a neural network, it does not reference a PyTorch \textit{torch.autograd.Function} that created the tensor (the \textit{grad\_fn property is set to None}) and is called \textbf{leaf}.
+When a tensor is generated from the user, for example the input of a neural network, it does not reference a PyTorch \textit{torch.autograd.Function} responsible for its creation (the \textit{grad\_fn property is set to None}) and is called \textbf{leaf}.
 
 \paragraph{How does differentiation work?}\label{par:what-is-autograd}
 Another core component of PyTorch is \textbf{Autograd}, which allows automatic differentiation by recording all the operations performed and replaying them backward to compute the gradients.
@@ -1211,15 +1220,15 @@ Gradients are accumulated, thus before computing new gradients the older are usu
 Each time the gradients are computed memory buffers created during the forward step are freed preventing the possibility to repeat other backtracks.
 To allow multiple backtracks the option \textit{retain\_graph} must be set True.
 It is possible to generate graphical representations of the gradients computations with the function \textit{make\_dot(variable)} of the \href{https://github.com/szagoruyko/pytorchviz}{PyTorchViz} package.
-These representations are acyclic graphs that encode a complete history of the computation called \textbf{Computational graphs}, which are computed calling \textit{nn.Module.forward()}.
-Blue boxes are tensors involved in gradient computation such as neural network's weights, biases and inputs, while gray and green boxes both represent recorded operations in which gradients have been involved, the color green is used to underline the starting point or root of the tree.
-Additionally to setting \textit{requires\_grad} it is possible to exclude parts from the Autograd tracking temporarily enclosing code portions within a \textit{with torch.no\_grad()} block or more permanently detaching tensors from the current graph with the \textit{detach()} method.
+These representations are acyclic graphs that encode a complete history of the computation called \textbf{Computational graphs}, which are procedurally generated in the forward pass, by calling the method \textit{nn.Module.forward()}.
+Blue boxes are tensors involved in gradient computation such as neural network's weights, biases and inputs, while gray and green boxes both represent recorded operations in which gradients have been involved, the color green is used to underline the starting point, or root of the tree.
+It is possible to prune parts of the computation graph setting Tensor's attribute \textit{requires\_grad} to False, or alternatively in a more temporarily way, enclosing the interested code portions within a \textit{with torch.no\_grad()} block or more permanently detaching tensors from the current graph with the \textit{detach()} method.
 
 \paragraph{What is the difference from PyTorch to TensorFlow/Keras?}\label{par:what-is-the-difference-from-pytorch-to-tensorflow/keras?}
 While TensorFlow provides both a low level and high level API, Keras is mainly an high level API and PyTorch a low level one.
 PyTorch usually allows much more flexibility but it is also less intuitive and user-friendly than the other libraries.
 Probably the most important difference between PyTorch and TensorFlow is the way they define computational graphs.
-While Tensorflow creates statics graphs, PyTorch deploys \textbf{dynamics graphs}.
+While Tensorflow creates static graphs, PyTorch deploys \textbf{dynamic graphs}.
 Practically this means that in PyTorch it is possible to define/manipulate graphs on the fly rather than following two separate and ordered steps: definition and execution.
 Therefore PyTorch neural networks can be easily executed and examined.
 
@@ -1230,8 +1239,8 @@ It is also possible to assign the device in the definition passing a string to t
 
 \paragraph{How to build a neural network?}\label{par:how-to-build-a-neural-network?}
 Neural networks are supported by the package \textit{torch.nn}.
-Custom neural networks are built inheriting the PyTorch \textit{nn.Module} class, it is also possible to combine them as they are seen as functions, for instance the class \textit{nn.Sequential} used in the various Actor-Critic implementations for both parts are declared inside an extension of \textit{nn.Module}.
-When a class extends \textit{nn.Module} it should implement the function \textit{forward()} to describe how the different components and layers of the network work together, giving a lot of flexibility.
+Custom neural networks are built inheriting the PyTorch \textit{nn.Module} class, it is also possible to combine them and call one inside another as a function, for instance the class \textit{nn.Sequential} used in the various Actor-Critic implementations for both parts are declared inside an extension of \textit{nn.Module}.
+When a class extends \textit{nn.Module} it should implement the function \textit{forward()} to describe how the different components and layers of the network work together, permitting a lot of flexibility.
 \textbf{Parameters} are Tensor subclasses, that are automatically assigned as network parameters (they will appear in \textit{parameters()} iterator) when used with \textit{Module}s.
 The package \textit{torch.nn} provides also the implementation of many layers such as Convolutional, Recurrent and Fully Connected.
 
