@@ -625,7 +625,7 @@ In particular they found significantly beneficial to initialize the policy netwo
 Our studies follow the path of these helpful outcomes taking into account that our action and observation spaces are discrete and not continuous and that our environment is multi-agent.
 The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo-baselines} as mentioned in the article~\citep{ppo-32-implementations-details}.
 
-\subsubsection{Network architecture}
+\subsubsection{Network architecture}\label{subsubsec:network-architecture}
 
 PPO has been widely implemented in an \textbf{actor-critic} style.
 The actor (or parallel actors) takes observations and outputs the probabilities of taking each action in the action space when the agent is in the given state, on the other hand, the critic takes the observations and outputs the corresponding expectation of the discounted long-term reward, called also state value.
@@ -792,6 +792,9 @@ PS-PPO hyperparameters legend:
 	\item Network Architecture
 	\begin{itemize}
 		\item "shared": True to allow actor and critic to share initial and hidden layers.
+        	\item "shared\_recurrent": True to set the shared portion of the network as a LSTM module.
+        	\item "linear\_size": linear size of LSTM, common values are 128, 256.
+        	\item "hidden\_size": hidden size of LSTM, common values are 64, 128.
 		\item "critic\_mlp\_width": the number of nodes in critic's hidden layers (input and output included).
 		\item "critic\_mlp\_depth": the number of layers of the critic network (input and output included).
 		\item "last\_critic\_layer\_scaling": a scaling factor applied at the initialization on the last critic's layer.
@@ -884,7 +887,7 @@ environment_parameters = {
 The basic idea is that deadlocks are more catastrophic, in terms of performances, as the number of agents increases given their irreversible nature.
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
-So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}      \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
+So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
 The plots clearly show that RewardsShaping has a positive impact on performance. 
 Apparently the only metrics where the no RewardsShaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics. \\
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/score}
@@ -893,7 +896,29 @@ Apparently the only metrics where the no RewardsShaping approach seems to perfor
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_score}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_completion}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_deadlocks}
+As it was mentioned in ~\ref{subsubsec:network-architecture} our algorithm provides the possibility to use a Long-Short-Term-Memory (LSTM) module as the shared portion of the network which is well-suited to make predictions based on time series data like the trajectories in a reinforcment-learning problem.
+We then repeated the experiment described above by exploiting LSTM, to evaluate its benefits, using the following hyperparameters: 
+\begin{lstlisting}[label={lst:psppo-net-init}]
+training_parameters = {
+        "shared_recurrent": True,
+        "linear_size": 128,
+        "hidden_size": 64,
+}
+\end{lstlisting}
+Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of $GAE$ as it was mentioned in ~\ref{subsubsec:training-setup2}. 
+This approach does not seem really correct but brings an improvement in performance as shown in the graphs where:
+\begin{itemize}
+\item "endtraj-norecurrent" is the best of the test described above.
+\item "end-traj-recurrent" is the same test with LSTM.
+\item "noendtraj-recurrent" is the test with LSTM with the different interpretation of the trajectory. 
+\end{itemize}
 
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/deadlocks}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_deadlocks}
 \section{D3QN}\label{sec:d3qn}
 
 \textbf{Deep Q Networks (DQN)} have been proposed as the union of Deep Learning with Q-Learning to deal with complex and high dimensional environments such as video games and robotics.
