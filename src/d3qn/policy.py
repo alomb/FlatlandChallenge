@@ -221,22 +221,19 @@ class D3QNPolicy(Policy):
         Save networks' params
         :param filename: the path where the file is saved
         """
-        torch.save(self.qnetwork_local.state_dict(), "local_" + filename)
-        torch.save(self.qnetwork_target.state_dict(), "target_" + filename)
+        try:
+            torch.save(self.qnetwork_local.state_dict(), filename)
+        except FileNotFoundError:
+            print("\nCould not save the model because the desired path doesn't exist.")
 
     def load(self, filename):
         """
         Load networks' params
         :param filename: the path where the params are saved
         """
-        loading = True
-        if os.path.exists("local_" + filename):
-            self.qnetwork_local.load_state_dict(torch.load("local_" + filename))
+        if os.path.exists(filename):
+            self.qnetwork_local.load_state_dict(torch.load(filename))
+            return True
         else:
-            loading = False
-        if os.path.exists("target_" + filename):
-            self.qnetwork_target.load_state_dict(torch.load("target_" + filename))
-        else:
-            loading = False
-
-        return loading
+            print("Loading file failed. File not found.")
+            return False

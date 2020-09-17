@@ -10,7 +10,7 @@ from src.d3qn.eval_d3qn import eval_policy
 def train():
     seed = 14
 
-    namefile = "d3qn_" + datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+    namefile = "d3qn_1_mm5"
     print("Running {}".format(namefile))
 
     environment_parameters = {
@@ -26,7 +26,7 @@ def train():
         "observation_max_path_depth": 30,
         # Malfunctions
         "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0.0075,
+            malfunction_rate=0.005,
             min_duration=15,
             max_duration=50),
         # Speeds
@@ -56,9 +56,9 @@ def train():
         # Network architecture
         # ============================
         "double_dqn": True,
-        "shared": True,
+        "shared": False,
         "hidden_size": 256,
-        "hidden_layers": 3,
+        "hidden_layers": 2,
         "update_every": 16,
         "type": 1,
 
@@ -76,13 +76,13 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 2500,
-        "batch_size": 128,
+        "n_episodes": 15000,
+        "batch_size": 32,
         # Minimum number of samples to start learning
         "buffer_min_size": 0,
         "fingerprints": True,
         # If not set the default value is the standard FingerprintType.EPSILON_STEP
-        "fingerprint_type": FingerprintType.EPSILON_STEP,
+        "fingerprint_type": FingerprintType.EPSILON_EPISODE,
 
         # ============================
         # Memory
@@ -90,25 +90,25 @@ def train():
         # Memory maximum size
         "buffer_size": int(1e6),
         # memory type uer or per
-        "memory_type": "uer",
+        "memory_type": "per",
 
 
         # ============================
         # Saving and rendering
         # ============================
-        "checkpoint_interval": 100,
+        "checkpoint_interval": 500,
         "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
         "render": False,
         "print_stats": True,
-        "wandb_project": "flatland-challenge-d3qn-er",
-        "wandb_entity": "lomb",
+        "wandb_project": "flatland-challenge-final",
+        "wandb_entity": "fiorenzoparascandolo",
         "wandb_tag": "d3qn",
-        "save_model_path": namefile + ".pt",
-        "load_model_path": namefile + ".pt",
+        "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
+        "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/todo.pt",
+        "tensorboard_path": "/content/drive/My Drive/Colab Notebooks/logs/logs" + namefile + "/",
         "automatic_name_saving": True,
-        "tensorboard_path": "log_" + namefile + "/",
 
         # ============================
         # Action Masking / Skipping
