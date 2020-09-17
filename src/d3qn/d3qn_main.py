@@ -107,6 +107,7 @@ def train():
         "wandb_tag": "d3qn",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
+        "automatic_name_saving": True,
         "tensorboard_path": "log_" + namefile + "/",
 
         # ============================

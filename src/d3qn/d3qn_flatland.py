@@ -120,7 +120,7 @@ def train_multiple_agents(env_params, train_params):
     max_steps = int(4 * 2 * (env_params.y_dim + env_params.x_dim + (env_params.n_agents / env_params.n_cities)))
 
     # To conform with previous version where this option was not enabled
-    if train_params.fingerprint_type is None:
+    if "fingerprint_type" not in train_params:
         train_params.fingerprint_type = FingerprintType.EPSILON_STEP
 
     # Double Dueling DQN policy
@@ -253,9 +253,11 @@ def train_multiple_agents(env_params, train_params):
         eps_start = max(eps_end, eps_decay * eps_start)
 
         # Save checkpoints
-        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
-            if train_params.save_model_path is not None:
-                policy.save(train_params.save_model_path)
+        if "checkpoint_interval" in train_params and episode % train_params.checkpoint_interval == 0:
+            if "save_model_path" in train_params:
+                policy.save(train_params.save_model_path + "_ep_{}.pt".format(episode)
+                            if "automatic_name_saving" in train_params and train_params.automatic_name_saving else
+                            train_params.save_model_path)
         # Rendering
         if train_params.render:
             env.env.close()
