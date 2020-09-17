@@ -73,7 +73,7 @@ class NormalizeObservations:
 
         return agent_obs
 
-    def _split_node_into_feature_groups(self, node: TreeObsForRailEnv.Node) -> (np.ndarray, np.ndarray, np.ndarray):
+    def _split_node_into_feature_groups(self, node):
         data = np.zeros(6)
         distance = np.zeros(1)
         agent_data = np.zeros(4)
@@ -145,9 +145,7 @@ class NormalizeObservations:
         norm = np.abs(max_obs - min_obs)
         return np.clip((np.array(obs) - min_obs) / norm, clip_min, clip_max)
 
-    def _split_subtree_into_feature_groups(self, node: TreeObsForRailEnv.Node, current_tree_depth: int,
-                                           max_tree_depth: int) -> (
-            np.ndarray, np.ndarray, np.ndarray):
+    def _split_subtree_into_feature_groups(self, node, current_tree_depth, max_tree_depth):
         if node == -np.inf:
             remaining_depth = max_tree_depth - current_tree_depth
             # reference: https://stackoverflow.com/questions/515214/total-number-of-nodes-in-a-tree-data-structure
@@ -169,8 +167,7 @@ class NormalizeObservations:
 
         return data, distance, agent_data
 
-    def _split_tree_into_feature_groups(self, tree: TreeObsForRailEnv.Node, max_tree_depth: int) -> (
-            np.ndarray, np.ndarray, np.ndarray):
+    def _split_tree_into_feature_groups(self, tree, max_tree_depth):
         """
         This function splits the tree into three difference arrays of values
         """

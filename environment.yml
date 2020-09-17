@@ -18,7 +18,7 @@ dependencies:
   - pip
   - pip:
     # The world simulation
-    - flatland-rl
+    - flatland-rl==2.2.1
     # Notebooks
     - jupyter
     - ipycanvas
