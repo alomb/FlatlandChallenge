@@ -63,16 +63,16 @@ class D3QNPolicy(Policy):
 
             self.t_step = 0
 
-        if parameters.evaluation_mode:
-            loading = True
-            self.qnetwork_target = copy.deepcopy(self.qnetwork_local)
+        # Load from file if available
+        loading = False
 
-            if parameters.load_model_path is not None:
-                loading = self.load(parameters.load_model_path)
-            if not loading:
-                # If the network is called in evaluation mode but there is no a model to load the execution is
-                # terminated
-                sys.exit()
+        if "load_model_path" in parameters and parameters.load_model_path is not None:
+            loading = self.load(parameters.load_model_path)
+
+        if parameters.evaluation_mode and not loading:
+            # If the network is called in evaluation mode but there is no a model to load the execution is
+            # terminated
+            sys.exit()
 
     def act(self, state, action_mask, eps=0.):
         """
