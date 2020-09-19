@@ -181,9 +181,11 @@ def train_multiple_agents(env_params, train_params):
                 break
 
         # Save checkpoints
-        if train_params.checkpoint_interval is not None and episode % train_params.checkpoint_interval == 0:
-            if train_params.save_model_path is not None:
-                ppo.save(train_params.save_model_path)
+        if "checkpoint_interval" in train_params and episode % train_params.checkpoint_interval == 0:
+            if "save_model_path" in train_params:
+                ppo.save(train_params.save_model_path + "_ep_{}.pt".format(episode)
+                         if "automatic_name_saving" in train_params and train_params.automatic_name_saving else
+                         train_params.save_model_path)
         # Rendering
         if train_params.render:
             env.env.close()

@@ -309,6 +309,7 @@ def curriculum_learning():
                     "save_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + namefile + ".pt",
                     "load_model_path": "/content/drive/My Drive/Colab Notebooks/models/" + model_saving_name + ".pt",
                     "tensorboard_path": "log_" + namefile + "/",
+                    "automatic_name_saving": False,
 
                     # ============================
                     # Action Masking

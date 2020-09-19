@@ -101,9 +101,11 @@ class PsPPO(nn.Module):
         # Load from file if available
         loading = False
 
-        if train_params.load_model_path is not None:
+        if "load_model_path" in train_params and train_params.load_model_path is not None:
             loading = self.load(train_params.load_model_path)
         if self.evaluation_mode and not loading:
+            # If the network is called in evaluation mode but there is no a model to load the execution is
+            # terminated
             sys.exit()
 
     def _build_network(self, is_actor, nn_depth, nn_width):

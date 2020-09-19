@@ -1,77 +1,30 @@
-# Getting Started with Flatland
+# Flatland Challenge
 
-> **Flatland** is an environment for developing and comparing multi-agent reinforcement learning algorithms in gridworlds.
+> The Flatland challenge aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
+> This is the second edition of this challenge. In the first one, participants mainly used solutions from the operations research field. In this second edition we are encouraging participants to use solutions which leverage the recent progress in reinforcement learning.
 
-This repository contains notebooks to get you started on the right track with the Flatland environment, in order to take part in the [AIcrowd Flatland Challenge](https://www.aicrowd.com/challenges/flatland-challenge).
+For more information visit the [official page](https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge).
 
-If you want to dive into challenge baselines right away, [check out the various approaches below](#challenge-baselines). 
+This repository contains the approaches and solutions that our team developed. A detailed explanation of our strategies can be read in the report.
 
-Discovering Flatland
+Project structure
 ---
-
-**Part 1: The Rail Environment**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_1.ipynb)
-
-- Create a `RailEnv` environment and render it
-- Check out the default observations
-- "Train" a random agent
-
-![notebook1](assets/movie.gif)
-
-**Part 2: Observations & Predictions**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_2.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_2.ipynb)
-
-- Finding suitable observations
-- Using predictions
-- Crafting custom observations and predictions
-
-**Part 3: Level Generation**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_3.ipynb)
-
-- Creating random rail networks
-- Creating schedules
-- Adjusting size and difficulty
-
-**Part 4: Malfunctions**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_4.ipynb)
-
-- Introducing stochastic malfunctions
-- Handling malfunctions
-
-**Part 5: Speed Profiles**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_5.ipynb)
-
-- Handling agent speed
-- Handling partial moves
-
-
-Challenge Baselines
----
-
-The Flatland Challenge can be approached in different ways - for example using methods from **operations research**, **reinforcement learning**, or anything else!
-
-The following notebooks show how to approach the problem using each of these methods.
-
-**Reinforcement Learning: DDQN**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_5.ipynb)
-
-Solve simple rail problems using Double DQN.
-
-**Operations Research**
-
-[![Open In Binder](https://mybinder.org/badge.svg)](https://mybinder.org/v2/gh/MasterScrat/getting-started/master?filepath=notebook_1.ipynb)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/MasterScrat/getting-started/blob/master/notebook_5.ipynb)
-
-Solve simple rail problems using OR methods.
+    .
+    ├── modules (contains Git submodules)
+    │   ├── MARL-Papers (list of MARL papers)
+    │   └── neurips2020-flatland-starter-kit (contains files useful for submitting solutions to the Challenge)
+    ├── report (contains resources and source files to generate the Latex report)
+    ├── single (contains preliminary works on single agent setting performed on previous versions of Flatland)
+    └── src
+        ├── common (contains source code in common with all the approaches)
+        ├── curriculum (contains files related with the curriculum approach)
+        ├── d3qn (contains files related with the D3QN approach)
+        │   ├── hyperparameters
+        │   │   └── server.py (code to run Sweeps)
+        │   ├── d3qn_flatland.py (main loop)
+        │   ├── d3qn_main.py (hyperparameter definition and starting point)
+        │   ├── eval_d3qn.py (code to evaluate the policy)
+        │   ├── memory.py (experience replay)
+        │   ├── model.py (the network architecture)
+        │   └── policy.py (the )
+        └──  psppo (contains files related with the parameter sharing PPO approach)

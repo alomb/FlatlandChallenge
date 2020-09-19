@@ -111,7 +111,7 @@ def train():
         # Optimization and rendering
         # ============================
         # Save and evaluate interval
-        "checkpoint_interval": 75,
+        "checkpoint_interval": 100,
         "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
@@ -122,6 +122,7 @@ def train():
         "wandb_tag": "ps-ppo",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
+        "automatic_name_saving": True,
         "tensorboard_path": "log_" + namefile + "/",
 
         # ============================
