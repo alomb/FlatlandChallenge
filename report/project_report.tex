@@ -611,6 +611,10 @@ Theoretically, TRPO can guarantee a policy improvement as long as it optimizes t
 PPO was conceived to improve the policy-based techniques by introducing an algorithm that attains the data efficiency and reliable performance of TRPO, while using only first-order optimization, as one of the most remarkable drawback of TRPO is its complexity.
 To attain this PPO relies on clipped probability ratios, which form a pessimistic estimate of the performance of the policy.
 Returning to the multi-agent setting, due to the high flexibility of the Flatland environment, we decided to change also the agent personalization.
+\begin{figure}
+	\[ L(s, a, \theta_{k}, \theta) = \min\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}A^{\pi_{\theta_{k}}}(s, a), clip\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}, 1 - \epsilon, 1 + \epsilon\right)A^{\pi_{\theta_{k}}}(s, a)\right)\]
+	\caption{The objective function of the PPO algorithm. If the advantage $A^{\pi_{\theta_{k}}}(s, a)$ measured on the new policy is positive, the objective will increase proportionally to the intensity of the ratio between the old and new policy, bound to be less or equal than $1 + \epsilon$. Similarly with a negative advantage the value is bound to be at least $1 - \epsilon$.}\label{fig:ppo_objective}
+\end{figure}
 Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate, which are only specific of a certain generated environment, we formulated a function to transform agent's features to id.
 During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour based on speed profiles and malfunction stochasticity.
 
@@ -741,7 +745,7 @@ The $Q$ value can be estimated in the following way:
 where $V^{\pi}$ is a value function approximator, $N$ controls the bias–variance trade-off of the estimator and $\gamma$ is the discount factor.
 $V^{\pi}$ tends to be biased because it is computed with a function approximator but has lower variance than the actual summed rewards since they are obtained from a single trajectory.
 Bigger $N$ values results in an estimator closer to empirical returns and induce less bias and more variance.
-Variance of the actual rewards typically increases the more steps away from the current step $t$ are taken, while close to $t$, the benefits of using an unbiased estimate may outweigh the variance introduced.
+Variance of the actual rewards typically increases if more steps away from the current step $t$ are taken, but this not always represent a problem as the estimates are unbiased.
 As $N$ increases, the variance in the estimates will likely start to become problematic, and switching to a lower variance but biased estimate can be better.
 The advantage is measured subtracting from $V_t^{(N)}$ the estimated value $V^{\pi}(s_t)$.
 
@@ -931,6 +935,16 @@ In this case, the idea is to increase the training phase and allow the controlle
 At the end, advantages and values are combined to obtain Q values.
 The second D stands for Double, which refers to the idea of using two separate neural networks during training, one called the primary network, is used to compute Q values used to choose the optimal action, while the other, called the target network, is used to estimate the Q value of the chosen action in the given state.
 Double DQN have been recently proposed in multi-agent context in the algorithm \textbf{Weighted Double Deep Q-network (WDDQN)} presented in the work~\citep{weighted-ddqn}.
+
+\begin{figure}
+	\begin{gather*}
+		\delta = r + \gamma Q\left( s^{'}, argmax_{a^{'}}Q\left( s^{'}, a^{'}; \theta_{k} \right); \theta_{k}^{-} \right) - Q(s, a; \theta_{k})\\\\
+	    L(\theta_{k}, \theta_{k}^{-}) = E_{\left(s, a, r, s^{'}\right) \sim D} \left( \delta \right)^{2}\\
+	\end{gather*}
+
+	\caption{The objective function of the Double DQN algorithm using a batch of transitions $(s, a, r, s^{'})$ sampled from the experience replay D. $\delta$ is called \textbf{Temporal Difference (TD) Error}, if the state $s$ is terminal $\delta = r$ . $\theta$ represents the parameters of the online network while $\theta^{-}$ the parameters of the target network.}\label{fig:d3qn_objective}
+\end{figure}
+
 Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:experience-replay}.
 The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.
 The following part will continue describing a soft adaptation to multi-agent scenario inspired by the~\href{https://gitlab.aicrowd.com/flatland/flatland-examples}{Flatland's baselines} which relies mostly on the classical single-agent implementation while~\ref{subsubsec:fingerprints} describes more specific tricks.
@@ -990,10 +1004,18 @@ PER implementation can be described in three parts:
 SumTrees are binary trees where each parent node contains the sum of its children.
 In this context the tree is used to store data and related priorities inside the leaves while the other nodes are involved in updating more efficiently priorities to speed up samplings and insertions.
 	\item The part associated to insertion of new data.
+\begin{figure}
+	\[ P(i) = \frac{p_{i}^{\alpha}}{\sum_{k}p_{k}^{\alpha}} \]
+	\caption{$p_i = |\delta| + \epsilon$ where $\epsilon$ is a small constant ensuring that the sample has a non-zero probability of being drawn. $\alpha$ determines the level of prioritization. If $\alpha$ is near zero, then there is no prioritization, otherwise if $\alpha$ is near 1 sampling data points depends much more on the actual TD errors.}\label{fig:per_priority}
+\end{figure}
 Before inserting new data, an initial priority must be computed and for each new transition a prediction of the Q value must be computed and compared with the estimation both based on the current value estimator.
 A larger difference between the two values, called \textbf{Temporal Difference Error (TD Error)} suggests that more exploration must be done to improve the predictor.
 TD Errors and an hyperparameter $\alpha$ are used to compute the probability of each sample.
 	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
+\begin{figure}
+    \[ w_{i} = \left(\frac{1}{N} \frac{1}{P(i)} \right)^{\beta} \]
+	\caption{$N$ is the memory size. The hyperparameter $\beta$ controls how much prioritization is applied. Training is highly unstable at the beginning, and importance sampling corrections matter more near the end of training. Thus, $\beta$ starts small and anneals towards one. Weights are then applied to the TD error $\delta$ in the objective function.}\label{fig:importance_weights}
+\end{figure}
 \end{itemize}
 The consequences on the computational graph of the different methods can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
 
