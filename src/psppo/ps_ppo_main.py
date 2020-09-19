@@ -15,7 +15,7 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 2,
+        "n_agents": 5,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -32,10 +32,10 @@ def train():
             max_duration=50),
         # Speeds
         "speed_profiles": {
-            1.: 0.5,
+            1.: 0.25,
             1. / 2.: 0.25,
             1. / 3.: 0.25,
-            1. / 4.: 0.0},
+            1. / 4.: 0.25},
 
         # ============================
         # Custom observations&rewards
@@ -58,8 +58,8 @@ def train():
         # ============================
         # Shared actor-critic layer
         # If shared is True then the considered sizes are taken from the critic
-        "shared": True,
-        "shared_recurrent": False,
+        "shared": False,
+        "shared_recurrent": True,
         "linear_size": 128,
         "hidden_size": 64,
         # Policy network
@@ -71,7 +71,7 @@ def train():
         "actor_mlp_depth": 3,
         "last_actor_layer_scaling": 0.01,
         # Adam learning rate
-        "learning_rate": 0.001,
+        "learning_rate": 0.002,
         # Adam epsilon
         "adam_eps": 1e-5,
         # Activation
@@ -85,11 +85,11 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 650,
-        "horizon": 512,
+        "n_episodes": 2500,
+        "horizon": 2048,
         "epochs": 8,
         # 64, 128, 256
-        "batch_size": 32,
+        "batch_size": 256,
         "batch_mode": "shuffle",
 
         # ============================
@@ -99,7 +99,7 @@ def train():
         "discount_factor": 0.99,
         "max_grad_norm": 0.5,
         # PPO-style value clipping
-        "eps_clip": 0.2,
+        "eps_clip": 0.3,
 
         # ============================
         # Advantage estimation
@@ -117,6 +117,9 @@ def train():
         "use_gpu": False,
         "render": False,
         "print_stats": True,
+        "wandb_project": "flatland-challenge-ps-ppo-test",
+        "wandb_entity": "fiorenzoparascandolo",
+        "wandb_tag": "ps-ppo",
         "save_model_path": namefile + ".pt",
         "load_model_path": namefile + ".pt",
         "tensorboard_path": "log_" + namefile + "/",
