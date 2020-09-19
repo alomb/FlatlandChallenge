@@ -117,6 +117,8 @@ def train_multiple_agents(env_params, train_params):
         agent_ids = get_agent_ids(env.get_rail_env().agents, env_params.malfunction_parameters.malfunction_rate)
         reset_timer.end()
 
+        deadlocks_counter = [0] * env_params.n_agents
+
         # Run episode
         for step in range(max_steps):
             # Action dictionary to feed to step
@@ -124,9 +126,6 @@ def train_multiple_agents(env_params, train_params):
 
             # Set used to track agents that didn't skipped the action
             agents_in_action = set()
-
-            # Flag to control the last step of an episode
-            is_last_step = step == (max_steps - 1)
 
             """
             Collect trajectories and fill action dictionary.
@@ -139,10 +138,11 @@ def train_multiple_agents(env_params, train_params):
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
                 # Fill action dict
-                # If agent is moving between two cells or trapped in a deadlock (the latter is caught only
-                # when the agent is moving in the deadlock triggering the first case) or the step is the last or the
-                # agent has reached its destination.
-                if info["action_required"][agent] or (is_last_step and not done[agent]):
+                # If agent is moving between two cells or trapped in a deadlock for the first time in the episode
+                # (the condition is necessary for agents which move with speed less than 1).
+                if info["action_required"][agent] or (info["deadlocks"][agent] and deadlocks_counter[agent] < 1):
+                    if info["deadlocks"][agent]:
+                        deadlocks_counter[agent] += 1
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
                                                  action_mask, agent_id=agent)
@@ -167,12 +167,6 @@ def train_multiple_agents(env_params, train_params):
                     prev_obs[a] = next_obs[a].copy()
 
             for a in range(env_params.n_agents):
-                # Update dones and rewards for each agent that performed act() or step is the episode's last or has
-                # finished
-
-                # To represent the end of the episode inside the trajectory of each agent.
-                if is_last_step:
-                    done[a] = True
 
                 if a in agents_in_action:
                     learn_timer.start()
