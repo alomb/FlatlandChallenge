@@ -140,7 +140,7 @@ def train_multiple_agents(env_params, train_params):
                 # Fill action dict
                 # If agent is moving between two cells or trapped in a deadlock for the first time in the episode
                 # (the condition is necessary for agents which move with speed less than 1).
-                if info["action_required"][agent] or (info["deadlocks"][agent] and deadlocks_counter[agent] < 1):
+                if deadlocks_counter[agent] < 1 and (info["action_required"][agent] or info["deadlocks"][agent]):
                     if info["deadlocks"][agent]:
                         deadlocks_counter[agent] += 1
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
