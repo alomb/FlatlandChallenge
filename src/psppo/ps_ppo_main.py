@@ -15,7 +15,7 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 5,
+        "n_agents": 3,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -115,7 +115,7 @@ def train():
         "evaluation_mode": False,
         "eval_episodes": 25,
         "use_gpu": False,
-        "render": False,
+        "render": True,
         "print_stats": True,
         "wandb_project": "flatland-challenge-ps-ppo-test",
         "wandb_entity": "fiorenzoparascandolo",

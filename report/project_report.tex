@@ -786,7 +786,9 @@ The entropy coefficient is a regularizer which helps preventing premature conver
 A policy has maximum entropy when all policies are equally likely and minimum when the one action probability of the policy is dominant.
 
 \subsection{Testing}\label{subsec:testing}
-
+~\newline
+\href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test?workspace=user-fiorenzoparascandolo}{Project page}.\\
+\\
 PS-PPO hyperparameters legend:
 \begin{itemize}
 	\item Network Architecture
@@ -911,8 +913,18 @@ This approach does not seem really correct but brings an improvement in performa
 \item "endtraj-norecurrent" is the best of the test described above.
 \item "end-traj-recurrent" is the same test with LSTM.
 \item "noendtraj-recurrent" is the test with LSTM with the different interpretation of the trajectory. 
+\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop. For each step of the environment, Flatland provided various information on the status of each agent including "action\_required". 
+In the baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action). 
+We realized that using only this information has limitations: for some deadlocks situations "action\_required" is false while for others it is not, therefore from a trajectory construction point of view, this logic immplies the presence of more serious deadlocks (whose observations must be added in memory until the end of the episode) and deadlocks less severe (whose observation is added only once in memory). 
+Therefore the change, at the base of this experiment, consists in imposing that the actions are calculated by the neural network (and the relative observations added in memory), if the agent is not deadlocked (with "action\_required" true) or if it has entered deadlock in the last step. 
+This logic has two advantages: 
+\begin{enumerate}
+\item [1.] Redundant observations from deadlocks that have "action\_required" true are not considered.
+\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Rewards Shaping).
+\end{enumerate}
 \end{itemize}
 
+As you can see the modification of the loop, in combination with LSTM, brings about a noticeable improvement. \\
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/completion}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/deadlocks}
