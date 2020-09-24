@@ -578,7 +578,7 @@ reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * 
 rewards\_shaped = \frac{rewards\_shaped}{|deadlock\_penalty|} = \frac{-1.8}{|-3.0 - 1.0|} = -0.6
 \end{equation*}
 
-At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and textbf{$done\_bonus$} as the biggest reward. In particular:
+At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and \textbf{$done\_bonus$} as the biggest reward. In particular:
 
 \begin{itemize}
 	\item If $rewards\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).

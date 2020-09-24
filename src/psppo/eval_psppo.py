@@ -3,12 +3,10 @@ import random
 import numpy as np
 import torch
 
-from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnvActions
 
-from src.common.action_skipping_masking import find_decision_cells, get_action_masking
+from src.common.action_skipping_masking import get_action_masking
 from src.common.flatland_railenv import FlatlandRailEnv
 from src.psppo.policy import PsPPOPolicy
 from src.psppo.ps_ppo_flatland import get_agent_ids
@@ -82,7 +80,7 @@ def eval_policy(env_params, train_params):
                 # Create action mask
                 action_mask = get_action_masking(env, agent, action_size, train_params)
 
-                if info["action_required"][agent] or (is_last_step and not done[agent]):
+                if info["action_required"][agent]:
                     # If an action is required, the actor predicts an action and the obs, actions, masks are stored
                     action_dict[agent] = ppo.act(np.append(prev_obs[agent], [agent_ids[agent]]),
                                                  action_mask, agent_id=agent)

@@ -1,4 +1,3 @@
-
 from argparse import Namespace
 from datetime import datetime
 
@@ -15,7 +14,7 @@ def train():
     print("Running {}".format(namefile))
 
     environment_parameters = {
-        "n_agents": 3,
+        "n_agents": 5,
         "x_dim": 16 * 3,
         "y_dim": 9 * 3,
         "n_cities": 5,
@@ -85,7 +84,7 @@ def train():
         # ============================
         # Training setup
         # ============================
-        "n_episodes": 2500,
+        "n_episodes": 500,
         "horizon": 2048,
         "epochs": 8,
         # 64, 128, 256
@@ -113,9 +112,9 @@ def train():
         # Save and evaluate interval
         "checkpoint_interval": 100,
         "evaluation_mode": False,
-        "eval_episodes": 25,
+        "eval_episodes": 500,
         "use_gpu": False,
-        "render": True,
+        "render": False,
         "print_stats": True,
         "wandb_project": "flatland-challenge-ps-ppo-test",
         "wandb_entity": "fiorenzoparascandolo",
