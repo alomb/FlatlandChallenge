@@ -1018,15 +1018,15 @@ In this context the tree is used to store data and related priorities inside the
 	\item The part associated to insertion of new data.
 \begin{figure}
 	\[ P(i) = \frac{p_{i}^{\alpha}}{\sum_{k}p_{k}^{\alpha}} \]
-	\caption{$p_i = |\delta| + \epsilon$ where $\epsilon$ is a small constant ensuring that the sample has a non-zero probability of being drawn. $\alpha$ determines the level of prioritization. If $\alpha$ is near zero, then there is no prioritization, otherwise if $\alpha$ is near 1 sampling data points depends much more on the actual TD errors.}\label{fig:per_priority}
+	\caption{Priority of a transition $i$ of being sampled with respect to all the other $k$ transitions in memory. When an agent is inserted in memory is associated with a priority $p_i = |\delta| + \epsilon$ where $\epsilon$ is a small constant ensuring that the sample has a non-zero probability of being drawn. $\alpha$ determines the level of prioritization: if $\alpha$ is near zero, then there is no prioritization, otherwise if $\alpha$ is near 1 sampling data points depends much more on the actual TD errors.}\label{fig:per_priority}
 \end{figure}
 Before inserting new data, an initial priority must be computed and for each new transition a prediction of the Q value must be computed and compared with the estimation both based on the current value estimator.
 A larger difference between the two values, called \textbf{Temporal Difference Error (TD Error)} suggests that more exploration must be done to improve the predictor.
 TD Errors and an hyperparameter $\alpha$ are used to compute the probability of each sample.
-	\item The part associated to the batch sampling, where \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
+	\item The part associated to the batch sampling, where priorities are updated and \textbf{Importance Sampling Weights} are computed and used to correct the bias introduced by high-priority samples.
 \begin{figure}
     \[ w_{i} = \left(\frac{1}{N} \frac{1}{P(i)} \right)^{\beta} \]
-	\caption{$N$ is the memory size. The hyperparameter $\beta$ controls how much prioritization is applied. Training is highly unstable at the beginning, and importance sampling corrections matter more near the end of training. Thus, $\beta$ starts small and anneals towards one. Weights are then applied to the TD error $\delta$ in the objective function.}\label{fig:importance_weights}
+	\caption{Importance sampling weight of transition $i$. $N$ is the memory size. The hyperparameter $\beta$ controls how much prioritization is applied. Training is highly unstable at the beginning, and importance sampling corrections matter more near the end of training. Thus, $\beta$ starts small and anneals towards one. Weights are then applied to the TD error $\delta$ in the objective function.}\label{fig:importance_weights}
 \end{figure}
 \end{itemize}
 The consequences on the computational graph of the different methods can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
