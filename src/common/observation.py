@@ -5,6 +5,9 @@ from flatland.envs.observations import TreeObsForRailEnv
 
 
 class NormalizeObservations:
+    """
+    Class containing functions to normalize observations.
+    """
     def __init__(self,
                  observation_dim,
                  observation_tree_depth,

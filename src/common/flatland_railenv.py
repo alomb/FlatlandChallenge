@@ -12,6 +12,9 @@ from src.common.wrappers import RewardsWrapper, StatsWrapper
 
 
 class FlatlandRailEnv:
+    """
+    Flatland environment to deal with wrappers.
+    """
     def __init__(self,
                  train_params,
                  env_params,
@@ -68,6 +71,9 @@ class FlatlandRailEnv:
 
 
 class FlatlandGymEnv(gym.Env):
+    """
+    gym.Env wrapper of the Flatland environment providing deadlocks and observation normalization.
+    """
     def __init__(self,
                  rail_env,
                  custom_observations,
@@ -120,6 +126,12 @@ class FlatlandGymEnv(gym.Env):
         return obs, info
 
     def step(self, action_dict):
+        """
+        Normalize observations by default, update deadlocks and step.
+
+        :param action_dict:
+        :return:
+        """
         obs, rewards, dones, info = self.rail_env.step(action_dict)
 
         # Compute deadlocks
@@ -137,6 +149,11 @@ class FlatlandGymEnv(gym.Env):
         return obs, rewards, dones, info
 
     def show_render(self):
+        """
+        Open rendering window.
+
+        :return:
+        """
         if self.render:
             return self.env_renderer.render_env(
                 show=True,
@@ -145,5 +162,9 @@ class FlatlandGymEnv(gym.Env):
                 show_predictions=False)
 
     def close(self):
+        """
+        Close rendering window.
+        :return:
+        """
         if self.render:
             return self.env_renderer.close_window()

@@ -61,7 +61,6 @@ def eval_policy(env_params, train_params):
           .format(env_params.n_agents, env_params.x_dim, env_params.y_dim, train_params.eval_episodes))
 
     agent_prev_obs = [None] * env_params.n_agents
-    agent_prev_action = [2] * env_params.n_agents
     timestep = 0
     eps_start = 0
 
@@ -71,7 +70,8 @@ def eval_policy(env_params, train_params):
         obs, info = env.reset()
 
         if train_params.fingerprints:
-            obs = add_fingerprints(obs, env_params.n_agents, eps_start, timestep)
+            obs = add_fingerprints(obs, env_params.n_agents, train_params.fingerprint_type, eps_start, timestep,
+                                   episode)
 
         # Build agent specific observations
         for agent in range(env_params.n_agents):
@@ -101,7 +101,8 @@ def eval_policy(env_params, train_params):
             next_obs, all_rewards, done, info = env.step(action_dict)
 
             if train_params.fingerprints:
-                next_obs = add_fingerprints(next_obs, env_params.n_agents, eps_start, timestep)
+                next_obs = add_fingerprints(next_obs, env_params.n_agents, train_params.fingerprint_type, eps_start,
+                                            timestep, episode)
 
             for agent in range(env_params.n_agents):
                 if next_obs[agent] is not None:

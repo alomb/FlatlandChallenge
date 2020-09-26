@@ -66,6 +66,12 @@ class StatsWrapper(gym.Wrapper):
         return obs, rewards, done, info
 
     def _update_and_print_results(self, info):
+        """
+        Update stats and print them
+
+        :param info: Flatland's environmental info
+        :return:
+        """
 
         self.normalized_score = self.score / (self.max_steps * self.num_agents)
         self.tasks_finished = sum(info["status"][a] in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]
@@ -101,6 +107,10 @@ class StatsWrapper(gym.Wrapper):
             ), end=" ")
 
     def _format_action_prob(self):
+        """
+
+        :return: the writable formatted action probabilities
+        """
         self.action_probs = np.round(self.action_probs, 3)
         actions = ["↻", "←", "↑", "→", "◼"]
 
@@ -193,7 +203,8 @@ class RewardsWrapper(gym.Wrapper):
                     rewards_shaped[agent] += self.deadlock_penalty
 
         rewards_shaped = {agent: (rewards_shaped[agent] / self.normalization_factor) + 0.01 if rewards_shaped[agent] < 0
-        else rewards_shaped[agent] for agent in range(num_agents)}
+                                                                                            else rewards_shaped[agent]
+                          for agent in range(num_agents)}
 
         return obs, rewards_shaped, done, info
 
@@ -225,7 +236,7 @@ class RewardsWrapper(gym.Wrapper):
         :return: the penalties based on decided STOPS
         """
         return {a: self.stop_penalty if a in action_dict and action_dict[a] == RailEnvActions.STOP_MOVING
-        else 0.0 for a in range(self.unwrapped.rail_env.get_num_agents())}
+                                        else 0.0 for a in range(self.unwrapped.rail_env.get_num_agents())}
 
 
 class ActionSkippingWrapper(gym.Wrapper):

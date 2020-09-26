@@ -73,6 +73,7 @@ def add_fingerprints(obs, num_agents, fingerprint_type, eps, step, episode):
 
 
 def train_multiple_agents(env_params, train_params):
+    # Initialize wandb
     if use_wandb:
         wandb.init(project=train_params.wandb_project,
                    entity=train_params.wandb_entity,

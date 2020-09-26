@@ -30,10 +30,8 @@ class D3QNPolicy(Policy):
         self.state_size = state_size
         self.action_size = action_size
         self.double_dqn = parameters.double_dqn
-        self.hidsize = 1
 
         if not parameters.evaluation_mode:
-            self.hidsize = parameters.hidden_size
             self.buffer_size = parameters.buffer_size
             self.batch_size = parameters.batch_size
             self.update_every = parameters.update_every
@@ -87,6 +85,7 @@ class D3QNPolicy(Policy):
         """
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
 
+        # Enter in network evaluation mode
         self.qnetwork_local.eval()
 
         with torch.no_grad():
@@ -96,6 +95,7 @@ class D3QNPolicy(Policy):
             # Action values excluded by the action masking filter are set at -1e+8
             action_values = torch.where(action_mask, action_values, torch.tensor(-1e+8).to(self.device))
 
+        # Exit from network evaluation mode
         self.qnetwork_local.train()
 
         # Epsilon-greedy action selection
@@ -110,7 +110,7 @@ class D3QNPolicy(Policy):
     def step(self, state, action, reward, next_state, done):
         """
         Perform a step if the evaluation mode is off, updating the memory and updating the networks if the agent has
-        already self.update_every steps
+        already updated self.update_every times the memory.
 
         :param state: the state where the action has been performed
         :param action: the performed action
@@ -124,6 +124,7 @@ class D3QNPolicy(Policy):
         if type(self.memory) is UniformExperienceReplay:
             self.memory.add(state, action, reward, next_state, done)
         else:
+            # Obtain an initial priority
             with torch.no_grad():
                 old_val = self.qnetwork_local(torch.tensor(state, dtype=torch.float32).to(self.device))[action]
 

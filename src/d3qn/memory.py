@@ -7,20 +7,41 @@ import numpy as np
 
 
 class ExperienceReplay(ABC):
+    """
+    The base interface for all Experience Replay buffers.
+    """
 
     def __init__(self):
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
     @abstractmethod
     def add(self, state, action, reward, next_state, done, priority=None):
+        """
+        Add a new transitions in the memory.
+
+        :param state: s
+        :param action: a
+        :param reward: r
+        :param next_state: s'
+        :param done: flag True when the transition terminates the episode
+        :param priority: is optional
+        :return:
+        """
         pass
 
     @abstractmethod
     def sample(self):
+        """
+
+        :return: a stored transitions
+        """
         pass
 
     @abstractmethod
     def __len__(self):
+        """
+        :return: the current size of internal memory.
+        """
         pass
 
     def v_stack_impr(self, data):

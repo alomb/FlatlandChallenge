@@ -2,17 +2,32 @@ from types import MappingProxyType
 
 
 class Curriculum:
+    """
+    Common curriculum interface.
+    """
     def __init__(self, level=0):
         self.level = level
 
     def update(self):
+        """
+        Update curriculum.
+        :return:
+        """
         raise NotImplementedError()
 
     def get(self, attribute):
+        """
+
+        :param attribute: key name of an attribute.
+        :return: the value associated to that attribute.
+        """
         raise NotImplementedError()
 
 
 class Manual_Curriculum(Curriculum):
+    """
+    Manual curriculum based on .yml files.
+    """
     def __init__(self, configuration_file, level=0):
         super(Manual_Curriculum, self).__init__(level=level)
         self.file = configuration_file
@@ -50,6 +65,19 @@ def offset_curriculum_generator(num_levels,
                                 forget_intensity=None,
                                 checkpoint_every=20,
                                 checkpoint_recovery_levels=5):
+    """
+    A generator of environmental parameters.
+
+    :param num_levels: number of levels
+    :param initial_values: initial values dict
+    :param offset: step size dict
+    :param forget_every: the frequency of forgets
+    :param forget_intensity: the forget period lasting time
+    :param checkpoint_every: the frequency of checkpoints
+    :param checkpoint_recovery_levels: the number of levels performed from the previous checkpoint
+    :return:
+    """
+
     for k in initial_values:
         initial_values[k] = float(initial_values[k])
 
@@ -78,6 +106,9 @@ def offset_curriculum_generator(num_levels,
 
 
 class Semi_Auto_Curriculum(Curriculum):
+    """
+    Curriculum generated from an algorithm.
+    """
     def __init__(self, generator, num_levels, level=0):
         super(Semi_Auto_Curriculum, self).__init__(level=level)
         self.generator = generator
@@ -87,9 +118,7 @@ class Semi_Auto_Curriculum(Curriculum):
     def update(self):
         """
 
-        :return:
-
-        :raise StopIteration
+        :raise StopIteration when the curriculum ends
         """
         # Increase level in the iterator
         self.values = next(self.generator)

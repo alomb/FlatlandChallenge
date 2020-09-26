@@ -1,5 +1,4 @@
 from argparse import Namespace
-from datetime import datetime
 
 from flatland.envs.malfunction_generators import MalfunctionParameters
 
