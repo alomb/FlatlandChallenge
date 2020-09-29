@@ -142,14 +142,14 @@ Academic Year {2019-2020}
 
 \chapter{Introduction}
 
-The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling and rescheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
+The \href{https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/}{Flatland Challenge} aims to address the problem of train scheduling by providing a simple grid world environment and allowing for diverse experimental approaches.
 The following work is related to the second edition of this challenge started in Summer 2020.
 In the first edition, which took place in 2019, the majority of the participants delivered solutions from the operations research field, this edition tries to encourage participants to elaborate Reinforcement Learning solutions, indeed the challenge has been selected to be featured in the \href{https://neurips.cc/Conferences/2020/CompetitionTrack}{NeurIPS 2020 Accepted competitions}.
 In this work we propose and describe the implementation of some Deep Reinforcement Learning solutions, leveraging the most recent outcomes in this vibrant and exciting field of study.
 
 \chapter{Flatland environment}\label{ch:flatland-environment}
 
-In order to conceive a solution for this challenge we need to fully understand the environment, how does it work and how do some subtle details influence behind the scenes what we can only perceive through observations and rewards.
+In order to conceive a solution for this challenge it is necessary to fully understand the environment, how does it work and how do some subtle details influence behind the scenes what we can only perceive through observations and rewards.
 The following results have been evaluated on the Python package \href{https://pypi.org/project/flatland-rl/}{flatland-rl version 2.1.10}.
 
 \section{The classes RailAgentStatus and EnvAgent}\label{sec:the-classes-railagentstatus-and-envagent}
@@ -215,8 +215,8 @@ The pseudocode of the agent step function can be found in the appendix~\ref{alg:
 Some useful questions:
 \begin{itemize}
 	\item Can agents stop during the performance of an action between two cells?
-Absolutely no, STOP\_MOVING is like any other action and must be performed when the agent has concluded the current.
-	\item Are requested actions during a malfunction ignored?
+Absolutely no, STOP\_MOVING is like any other action and must be performed when the agent has concluded the current one.
+	\item Are actions requested during a malfunction ignored?
 Yes.
 	\item Are requested actions during a not completed movement saved for after execution?
 No, because the condition at line 11 of the algorithm~\ref{alg:flatland-agent-loop} is not executed and the conditions at line 16 check whether the cell is free and eventually complete agent data.
@@ -1166,6 +1166,14 @@ One alternative approach is to manually describe ranges of coherent parameter va
 The test was divided in three phases, the first was the application of the semi-automatic curriculum using the five different environments obtained with the seeds 14, 50, 80, 130, 200, the second consisted in training the environments for 3000 episodes and finally the latter evaluating them.
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
+
+After various tests PS-PPO emerged as most effective algorithm.
+It has demonstrating great flexibility in terms of transfer learning and adapting to different environmental settings.
+It is more space-efficient and in the future can also be easily parallelized with different agents and \textbf{Vectorized Environments}, making learning even faster.
+
+% TODO: results
+
+Although the work has presented multiple and serious studies and modifications to the policy and to the network, the most remarkable improvements occurred changing the training loop, for instance changing the agents conditions to update the network or aggregate the rewards.
 
 Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
 \begin{itemize}
