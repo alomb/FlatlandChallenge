@@ -413,19 +413,19 @@ Going into more details, the implementations of the two proposed approaches shar
 We implemented a \textbf{StatsWrapper} to compute and print the metrics to evaluate the algorithm's performance:
 
 \begin{itemize}
-\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainable, computed as the product between the number of agents and the maximum number of steps in the episode.
-In the worst case, all agents do not reach their destination, therefore for each step they get a negative reward.
-\begin{equation}{\frac{score}{max\_steps \cdot n\_agents}}\label{eq:score}\end{equation}
-\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point.
-\begin{equation}{\frac{\sum{normalized\_score}}{N}}\label{eq:score_acc}\end{equation}
-\item \textbf{completion\_percentage} is the percentage of agents who reached their destination in the episode.
-\begin{equation}{100 \cdot {\frac{tasks\_finished}{n\_agents}}}\label{eq:compl_perc}\end{equation}
-\item \textbf{accumulated\_completion} is the mean of \textbf{completion\_percentage} obtained up to that point.
-\begin{equation}{\frac{\sum{completion\_percentage}}{N}}\label{eq:compl_acc}\end{equation}
-\item \textbf{deadlocks\_percentage} is the percentage of deadlocks that occured in the episode.
-\begin{equation}{100 \cdot {\frac{n\_deadlocks}{n\_agents}}}\label{eq:deads_perc}\end{equation}
-\item \textbf{accumulated\_deadlocks} is the mean of \textbf{deadlocks\_percentage} obtained up to that point.
-\begin{equation}{\frac{\sum {deadlocks\_percentage}}{N}}\label{eq:deads_acc}\end{equation}
+	\item \textbf{normalized\_score} is the sum of the rewards accumulated by all agents during the episode divided by the worst score obtainable, computed as the product between the number of agents and the maximum number of steps in the episode.
+	In the worst case, all agents do not reach their destination, therefore for each step they get a negative reward.
+	\begin{equation}{\frac{score}{max\_steps \cdot n\_agents}}\label{eq:score}\end{equation}
+	\item \textbf{accumulated\_normalized\_score} is the mean of \textbf{normalized\_score} obtained up to that point.
+	\begin{equation}{\frac{\sum{normalized\_score}}{N}}\label{eq:score_acc}\end{equation}
+	\item \textbf{completion\_percentage} is the percentage of agents who reached their destination in the episode.
+	\begin{equation}{100 \cdot {\frac{tasks\_finished}{n\_agents}}}\label{eq:compl_perc}\end{equation}
+	\item \textbf{accumulated\_completion} is the mean of \textbf{completion\_percentage} obtained up to that point.
+	\begin{equation}{\frac{\sum{completion\_percentage}}{N}}\label{eq:compl_acc}\end{equation}
+	\item \textbf{deadlocks\_percentage} is the percentage of deadlocks that occured in the episode.
+	\begin{equation}{100 \cdot {\frac{n\_deadlocks}{n\_agents}}}\label{eq:deads_perc}\end{equation}
+	\item \textbf{accumulated\_deadlocks} is the mean of \textbf{deadlocks\_percentage} obtained up to that point.
+	\begin{equation}{\frac{\sum {deadlocks\_percentage}}{N}}\label{eq:deads_acc}\end{equation}
 \end{itemize}
 
 The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
@@ -505,34 +505,34 @@ The order is \textbf{left}, \textbf{forward}, \textbf{right}, \textbf{back}.
 Each branch data is organized as:
 
 \begin{lstlisting}[label={lst:tree-obs}]
-[root node information] +
-[recursive branch data from 'left'] +
-[recursive from 'forward'] +
-[recursive from 'right] +
-[recursive from 'back']
+	[root node information] +
+	[recursive branch data from 'left'] +
+	[recursive from 'forward'] +
+	[recursive from 'right] +
+	[recursive from 'back']
 \end{lstlisting}
 
 Each node information is composed of 9 features:
 
 \begin{enumerate}
-\item [1:]If own target lies on the explored branch the current distance from the agent in number of cells is stored.
-\item [2:]If another agent’s target is detected, the distance in number of cells from the current agent position is stored.
-\item [3:]If another agent is detected, the distance in number of cells from the current agent position is stored.
-\item [4:]Possible conflict detected (This only works when we use a predictor and will not be important in this tutorial)
-\item [5:]If an unusable switch (for the agent) is detected we store the distance.
-An unusable switch is a switch where the agent does not have any choice of path, but other agents coming from
-\item [6:]This feature stores the distance (in number of cells) to the next node (e.g.\ switch or target or dead-end)
-\item [7:]Minimum remaining travel distance from this node to the agent’s target given the direction of the agent if this path is chosen
-\item [8:]Agent in the same direction found on path to node
-\item [9:]Agent in the opposite direction on path to node
+	\item [1:]If own target lies on the explored branch the current distance from the agent in number of cells is stored.
+	\item [2:]If another agent’s target is detected, the distance in number of cells from the current agent position is stored.
+	\item [3:]If another agent is detected, the distance in number of cells from the current agent position is stored.
+	\item [4:]Possible conflict detected (This only works when we use a predictor and will not be important in this tutorial)
+	\item [5:]If an unusable switch (for the agent) is detected we store the distance.
+	An unusable switch is a switch where the agent does not have any choice of path, but other agents coming from
+	\item [6:]This feature stores the distance (in number of cells) to the next node (e.g.\ switch or target or dead-end)
+	\item [7:]Minimum remaining travel distance from this node to the agent’s target given the direction of the agent if this path is chosen
+	\item [8:]Agent in the same direction found on path to node
+	\item [9:]Agent in the opposite direction on path to node
 \end{enumerate}
 
 \textbf{TreeObsForRailEnv} depends on three hyperparameters:
 
 \begin{enumerate}
-\item [1.] \textbf{observation\_tree\_depth} represents the depth of the observation tree.
-\item [2.] \textbf{observation\_radius} is used in the normalization phase.
-\item [3.] \textbf{observation\_max\_path\_depth} is the shortest-path predictions for agents in the environment.
+	\item [1.] \textbf{observation\_tree\_depth} represents the depth of the observation tree.
+	\item [2.] \textbf{observation\_radius} is used in the normalization phase.
+	\item [3.] \textbf{observation\_max\_path\_depth} is the shortest-path predictions for agents in the environment.
 \end{enumerate}
 
 \subsection{Actions}\label{subsec:actions}
@@ -603,13 +603,13 @@ Let's consider for example the set of parameters in~\ref{lst:rewards-params}, su
 
 According to the description given above, the reward will be calculated as follows:
 \begin{equation*}
-reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -0.2 = -1.2
+	reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -0.2 = -1.2
 \end{equation*}
 \begin{equation*}
-reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-1.2)= -1.8
+	reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * (-1.2)= -1.8
 \end{equation*}
 \begin{equation*}
-rewards\_shaped = \frac{rewards\_shaped}{|deadlock\_penalty|} = \frac{-1.8}{|-3.0 - 1.0|} = -0.6
+	rewards\_shaped = \frac{rewards\_shaped}{|deadlock\_penalty|} = \frac{-1.8}{|-3.0 - 1.0|} = -0.6
 \end{equation*}
 
 At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and \textbf{$done\_bonus$} as the biggest reward.
@@ -772,23 +772,17 @@ if self.max_grad_norm is not None:
 
 The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
 
-The $Q$ value can be estimated using the equation~\ref{fig:N-step}.
+To calculate the advantage $A_t^{(N)} = V_t^{(N)} - V^{\pi}(s_t)$ are necessary the estimates of the action value $V_t^{(N)}$ and the state value $V^{\pi}(s_t)$.
+As is easier and cheaper to get the Q value from V, Q is estimated using the equation~\ref{fig:N-step}.
 \begin{figure}
 	\[ V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V^{\pi}(s_{t + N}) \]
-	\caption{}
+	\caption{The N-step formula used to obtain an estimate of the Q value from $V^{\pi}$. $V^{\pi}$ is a value function approximator, $N$ controls the bias–variance trade-off of the estimator and $\gamma$ is the discount factor.}
 	\label{fig:N-step}
 \end{figure}
-
-where $V^{\pi}$ is a value function approximator, $N$ controls the bias–variance trade-off of the estimator and $\gamma$ is the discount factor.
-$V^{\pi}$ tends to be biased because it is computed with a function approximator but has lower variance than the actual summed rewards since they are obtained from a single trajectory.
+While the summed actual rewards tend to have less bias and more variance, as they come from a single trajectory, $V^{\pi}$ tends to be more biased because it is computed with a function approximator, but has also lower variance since it reflects an expectation over all of the trajectories seen so far.
 Bigger $N$ values results in an estimator closer to empirical returns and induce less bias and more variance.
 Variance of the actual rewards typically increases if more steps away from the current step $t$ are taken, but this not always represent a problem as the estimates are unbiased.
 As $N$ increases, the variance in the estimates will likely start to become problematic, and switching to a lower variance but biased estimate can be better.
-The advantage is measured subtracting from $V_t^{(N)}$ the estimated value $V^{\pi}(s_t)$.
-
-\begin{equation}
-	A_t^{(N)} = V_t^{(N)} - V^{\pi}(s_t)\label{eq:N-step-advantage}
-\end{equation}
 
 GAE was proposed as an improvement over the N-steps result~\citep{gae}.
 
@@ -800,16 +794,19 @@ The purpose of GAE is to significantly reduce the variance of the estimator whil
 \end{quoting}
 
 GAE is defined with the equation~\ref{fig:GAE}.
-
+\\
+\\
 \begin{figure}
-	\[ V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}A_t^{(N)} \]
-	\caption{}
+	\[ A^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}A_t^{(N)} \]
+	\caption{The GAE calculated with n-step forward returns. $\lambda$ is a hyperparameter between 0 and 1 which controls the bias–variance trade-off. Usually this formula is too complex to work it so an alternative definition is used.}
+	\begin{gather*}
+	    \delta_{t} = r_{t} + \lambda V^{\pi}(s_{t + 1}) - V^{\pi}(s_{t})\\
+	    A^{(GAE)} = \sum_{N > 0} (\lambda \gamma)^{N} \delta_{t + N}\\
+	\end{gather*}
+	\caption{The alternative formula used in the code implementation.}
 	\label{fig:GAE}
 \end{figure}
 
-where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
-\\
-\\
 The total loss function is composed by three elements:
 \begin{itemize}
 	\item The surrogate loss obtained from the minimum between the clipped and the unclipped objectives.
@@ -951,7 +948,7 @@ Apparently the only metrics where the no \textbf{Reward Shaping} approach seems 
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_completion}\hfill
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_deadlocks}
 	\end{subfigure}\par\medskip
-	\caption{}
+	\caption{Training using reward shaping compared to using only standard rewards.}
 	\label{fig:psppo_training_rs}
 \end{figure}
 
@@ -998,7 +995,7 @@ It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that t
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_completion}\hfill
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_deadlocks}
 	\end{subfigure}\par\medskip
-	\caption{}
+	\caption{The different combinations obtained using recurrence and the modification on the loop during the training.}
 	\label{fig:psppo_training_rec_loop}
 \end{figure}
 
@@ -1020,7 +1017,7 @@ Even the hyperparameters for training are the same as before, varying the learni
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_completion}\hfill
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_deadlocks}
 	\end{subfigure}\par\medskip
-	\caption{}
+	\caption{The comparison between action masking or not, with different learning rates.}
 	\label{fig:psppo_training_lr_am}
 \end{figure}
 
@@ -1049,7 +1046,6 @@ Double DQN have been recently proposed in multi-agent context in the algorithm \
 		\delta = r + \gamma Q\left( s^{'}, argmax_{a^{'}}Q\left( s^{'}, a^{'}; \theta_{k} \right); \theta_{k}^{-} \right) - Q(s, a; \theta_{k})\\\\
 	    L(\theta_{k}, \theta_{k}^{-}) = E_{\left(s, a, r, s^{'}\right) \sim D} \left( \delta \right)^{2}\\
 	\end{gather*}
-
 	\caption{The objective function of the Double DQN algorithm using a batch of transitions $(s, a, r, s^{'})$ sampled from the experience replay D. $\delta$ is called \textbf{Temporal Difference (TD) Error}, if the state $s$ is terminal $\delta = r$ . $\theta$ represents the parameters of the online network while $\theta^{-}$ the parameters of the target network.}\label{fig:d3qn_objective}
 \end{figure}
 
@@ -1078,7 +1074,7 @@ The final loss used to optimize the local network is the mean squared error of t
 The target network's weights are updated using \textbf{soft updates}, which can be described with the equation~\ref{fig:soft_update}.
 \begin{figure}
 	\[ \theta^{-} = \theta \tau + \theta^{-}(1 - \tau) \]
-	\caption{}
+	\caption{Soft update formula.}
 	\label{fig:soft_update}
 \end{figure}
 where $\theta^{-}$ are the target's weights, $\theta$ the local network's weights and $\tau$ an hyperparameter usually set to a very small number as this update is performed at each mini-batch gradient descent.
@@ -1258,16 +1254,33 @@ The problem of generating environment is not easy too because parameters must be
 One alternative approach is to manually describe ranges of coherent parameter values or levels of difficulty that allows an adaptive and automatic process of task sequencing.
 
 \subsection{Testing}\label{subsec:testing3}
-\href{https://app.wandb.ai/lomb/flatland-challenge-ps-ppo-curriculum?workspace=user-lomb}{Project page}.\\
+\href{https://app.wandb.ai/lomb/flatland-challenge-ps-ppo-curriculum}{Project page}.\\
 
-The test was divided in three phases, the first was the application of the semi-automatic curriculum using the five different environments obtained with the seeds 14, 50, 80, 130, 200, the second consisted in training the environments for 3000 episodes and finally the latter evaluating them.
+The first test conducted on an older version of the PS-PPO algorithm was divided in three phase: the first was the application of the semi-automatic curriculum using the five different environments, obtained with the seeds 19, 80, 130, 200, the second consisted in training the environments for more than two thousands episodes and finally the latter the evaluation of them.
+These experiments demonstrate that the curriculum is able to preserve or slightly improve the performances.
+Finally we applied the mentioned three phases of curriculum learning to the final PS-PPO model obtaining better metrics during the training as visible in the plots in graph~\ref{fig:training_cl}, but experiencing worse results on the evaluation phase as shown in the tables~\ref{tab:evaluation_cl1} and~\ref{tab:evaluation_cl2}.
+
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_cl/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{psppo\_final\_cl is the training based on curriculum learning while the other is the best PS-PPO model both trained on small environments with malfunctions and speeds.}
+	\label{fig:training_cl}
+\end{figure}
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 
 After various tests PS-PPO emerged as the most effective algorithm.
 It has demonstrated great flexibility in terms of transfer learning and adaptation to different environmental settings.
 It is more space-efficient and in the future can also be easily parallelized with different actors and \textbf{Vectorized Environments}, making learning even faster.
-At the end, we performed the final training phase using the best combination of hyperparameters and algorithm that emerged from the experiments in~\ref{subsec:testing} to generate two models:
+At the end, we performed the final training phase using the best combination of hyperparameters and algorithm that came to light from the experiments in~\ref{subsec:testing} to generate two models:
 \begin{itemize}
 \item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments (\ref{itm:evaluation_envs1}) \textbf{without} malfunctions and different speeds.
 \item "malf-and-speeds" to be evaluated on a set of multi-agent environments (\ref{itm:evaluation_envs2}) \textbf{with} different malfunctions and speeds.
@@ -1303,8 +1316,10 @@ accumulated\_score                             & -0.174    & -0.226    & -0.257 
 \label{tab:evaluation2}
 \end{table}
 
-Although the work has presented multiple and serious studies and modifications to the policy and to the network, the most remarkable improvements occurred changing the training loop, for instance changing the agents conditions to update the network or aggregate the rewards.
+Although the work has presented multiple and serious studies and modifications to the policy and to the network, the most remarkable improvements occurred changing the training loop, for instance changing the agents conditions to update the network, flag the termination of the episodes or aggregate the rewards.
+As presented in many MADRL works involving partial observability, recurrent models can provide better results and help the model get more insights on the observations.
 Coherently with many reinforcement learning problems tuning the learning rate has been crucial to obtain the best results, specifically, the learning rate obtained performing the grid search was biased by the low number of episodes and was not preferable after many episodes.
+Unfortunately our naive curriculum learning did not bring better results, suggesting more studies and better approaches should be performed.
 
 \newpage
 \section{Future works}\label{sec:future-works}
@@ -1490,6 +1505,33 @@ Additional materials, can be found in the \href{https://pytorch.org/resources/}{
 \label{fig:d3qn_per_graph}
 \end{figure}
 
+\begin{table}[]
+	\begin{tabular}{|l|l|l|l|l|l|l|l|}
+	\hline
+	\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{No malfunctions - single speed (1.0)}                                 \\ \cline{2-8}
+	\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8}
+	\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+	accumulated\_completion                        & 0.8963    & 0.8006    & 0.7004   & 0.8276    & 0.7283    & \multicolumn{2}{l|}{0.3912}    \\ \hline
+	accumulated\_deadlocks                         & 0.0950    & 0.1912    & 0.2869   & 0.1602    & 0.2573    & \multicolumn{2}{l|}{0.5403}    \\ \hline
+	accumulated\_score                             & -0.186    & -0.275    & -0.364   & -0.264    & -0.351    & \multicolumn{2}{l|}{-0.333}    \\ \hline
+	\end{tabular}
+	\caption{Curriculum learning performances on simpler environments.}
+	\label{tab:evaluation_cl1}
+
+
+	\begin{tabular}{|l|l|l|l|l|l|l|l|}
+	\hline
+	\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{Malfunctions - 4 speeds (0.25)}                                       \\ \cline{2-8}
+	\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8}
+	\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+	accumulated\_completion                        & 0.7483    & 0.6316    & 0.5334   & 0.5900    & 0.4979    & \multicolumn{2}{l|}{0.6243}    \\ \hline
+	accumulated\_deadlocks                         & 0.1540    & 0.2886    & 0.4079   & 0.2852    & 0.4019    & \multicolumn{2}{l|}{0.3582}    \\ \hline
+	accumulated\_score                             & -0.192    & -0.239    & -0.280   & -0.251    & -0.292    & \multicolumn{2}{l|}{-0.440}    \\ \hline
+	\end{tabular}
+	\caption{Curriculum learning performances on more complex environments.}
+	\label{tab:evaluation_cl2}
+\end{table}
+
 \begin{figure}
 	\begin{subfigure}{\linewidth}
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}\hfill
@@ -1507,6 +1549,5 @@ Additional materials, can be found in the \href{https://pytorch.org/resources/}{
 
 ~\nocite{*}
 \bibliography{bibliography}
-
 
 \end{document}
