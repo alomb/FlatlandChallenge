@@ -450,8 +450,41 @@ In particular our \textbf{TensorBoard} logger shows:
 As we did not have at our disposal a powerful and dedicated machine to run our experiments, we faced a lot of difficulties in carrying on experiments, especially in complex environments where the simulation becomes computationally expensive.
 This is not a new situation as reported in~\citep{Hernandez-Leal-2019} in DRL training involves dozens of CPUs and millions of frames during entire days of continuous learning.
 We trained and tested our code mainly on Google Colaboratory, leveraging the possibility to run many concurrent instances and the high number of available threads in CPU runtime type, as we observed that major bottlenecks are in the Flatland code.
-Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size.\\% TODO: test environments
-\\
+Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size, in particular we considered the following environments:
+\begin{enumerate}
+\item [1.] Medium size:
+	\begin{itemize}
+	\item $x\_dim = 48$
+	\item $y\_dim = 27$
+	\item $n\_agents = 3 - 5 - 7$
+	\item $max\_num\_cities = 5$
+	\item $max\_rails\_between\_cities = 2$
+	\item $max\_rails\_in\_cities = 3$
+	\item $rand\_seed = 14$
+	\end{itemize}
+\item [2.] Big size:
+	\begin{itemize}
+	\item $x\_dim = 64$
+	\item $y\_dim = 36$
+	\item $n\_agents = 5 - 7 - 10$
+	\item $max\_num\_cities = 9$
+	\item $max\_rails\_between\_cities = 5$
+	\item $max\_rails\_in\_cities = 5$
+	\item $rand\_seed = 14$
+	\end{itemize}
+\end{enumerate}
+
+With two different scenarios with 1000 iterations for each test session:
+\begin{enumerate}
+\item [1.] Same speed for all agents (set to 1.0) and no malfunctions.
+\item [2.] Different speeds (all with 25\% of probability) and malfunctions according to the following parameters:
+	\begin{itemize}
+	\item $malfunction\_rate = 0.005$
+	\item $min\_duration = 15$
+	\item $max\_duration = 50$
+	\end{itemize}
+\end{enumerate}
+
 In order to evaluate different algorithms combinations of hyperparameters and strategies we need a tool to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
 We found such a tool in \href{https://www.wandb.com/}{Weights \& Biases}.
 Subscribing to a free account provides an effective and very intuitive way of monitoring a Deep Learning project.
@@ -556,7 +589,7 @@ In the first case it is possible to choose how to shape the rewards by choosing 
 	\item \textbf{$shortest\_path\_penalty\_coefficient$}: It is used to penalize agents who are moving away from their target by multiplying the value assigned to the reward associated with the agent calculated in the previous step.
 	\item \textbf{$done\_bonus$}: It is used to reward agents who have arrived at their destination by assigning them a positive reward.
 \end{itemize}
-Let's consider for example this set of parameters:
+Let's consider for example the set of parameters in~\ref{lst:rewards-params}, suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target.
 
 \begin{lstlisting}[label={lst:rewards-params}]
 "reward_shaping": True,
@@ -568,7 +601,6 @@ Let's consider for example this set of parameters:
 "done_bonus": 1.0,
 \end{lstlisting}
 
-suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target.
 According to the description given above, the reward will be calculated as follows:
 \begin{equation*}
 reward\_shaped = standard\_reward + invalid\_action\_penalty = -1 -0.2 = -1.2
@@ -580,7 +612,8 @@ reward\_shaped = shortest\_path\_penalty\_coefficient * rewards\_shaped = 1.5 * 
 rewards\_shaped = \frac{rewards\_shaped}{|deadlock\_penalty|} = \frac{-1.8}{|-3.0 - 1.0|} = -0.6
 \end{equation*}
 
-At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and \textbf{$done\_bonus$} as the biggest reward. In particular:
+At the end the reward obtained is normalized, considering for simplicity,  \textbf{$deadlock\_penalty$ - $standard\_reward$} as the smallest reward (worst behavior given the irreversibility of the deadlock) and \textbf{$done\_bonus$} as the biggest reward.
+In particular:
 
 \begin{itemize}
 	\item If $rewards\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).
@@ -700,7 +733,7 @@ Practically the multi-agent scenario does not influence much how externally agen
 Originally, rewards and information about the termination of the problem of each agent were joined together to form uniques values (see~\ref{subsec:multi-agent-credit-assignment}), but after some tests we realized that was not beneficial and we reverted rewards and termination information to a single agent's perspective experiencing a great performance improvement.
 During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
 Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
-As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.%TODO conclude and ref tests
+As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.
 \\
 \\
 Trajectories' lengths particularly depend on the chosen horizon, deciding how much experience should an agent collect before updating the policy is crucial.
@@ -739,10 +772,12 @@ if self.max_grad_norm is not None:
 
 The references show how the \textbf{Generalized Advantage Estimation (GAE)} outperform the other techniques such as \textbf{N-step} and \textbf{V-trace}.
 
-The $Q$ value can be estimated in the following way:
-\begin{equation}
-	V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V^{\pi}(s_{t + N})\label{eq:N-step}
-\end{equation}
+The $Q$ value can be estimated using the equation~\ref{fig:N-step}.
+\begin{figure}
+	\[ V_t^{(N)} = \sum_{i = t}^{t + N - 1} \gamma^{i - t}r_i + \gamma^{N}V^{\pi}(s_{t + N}) \]
+	\caption{}
+	\label{fig:N-step}
+\end{figure}
 
 where $V^{\pi}$ is a value function approximator, $N$ controls the bias–variance trade-off of the estimator and $\gamma$ is the discount factor.
 $V^{\pi}$ tends to be biased because it is computed with a function approximator but has lower variance than the actual summed rewards since they are obtained from a single trajectory.
@@ -764,11 +799,13 @@ That is, calculate the advantage using a weighted average of individual advantag
 The purpose of GAE is to significantly reduce the variance of the estimator while keeping the bias introduced as low as possible.
 \end{quoting}
 
-GAE is defined in the following way:
+GAE is defined with the equation~\ref{fig:GAE}.
 
-\begin{equation}
-	V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}A_t^{(N)}\label{eq:GAE}
-\end{equation}
+\begin{figure}
+	\[ V_t^{(GAE)} = (1 - \lambda)\sum_{N > 0} \lambda^{N - 1}A_t^{(N)} \]
+	\caption{}
+	\label{fig:GAE}
+\end{figure}
 
 where $0 < \lambda < 1$ is a hyperparameter controlling the bias–variance trade-off.
 \\
@@ -790,7 +827,7 @@ A policy has maximum entropy when all policies are equally likely and minimum wh
 \subsection{Testing}\label{subsec:testing}
 ~\newline
 \href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test?workspace=user-fiorenzoparascandolo}{Project page}.\\
-\\
+
 PS-PPO hyperparameters legend:
 \begin{itemize}
 	\item Network Architecture
@@ -837,7 +874,12 @@ PS-PPO hyperparameters legend:
 	\end{itemize}
 \end{itemize}
 
-To choose between different hyperparameter values we run a grid search using Weights \& Biases Sweeps, we noticed a performance improving with the clipping hyperparameter $\epsilon$ equal to $0.3$ which is greater than the usual $0.25$ as suggested in~\citep{ppo-implementation-2}: \textit{"Start with the clipping threshold set to 0.25 but also try lower and higher values if possible."}
+\paragraph{Grid search}\label{par:psppo_grid_search}
+~\newline
+\href{https://wandb.ai/lomb/flatland-challenge-lorem-ipsum-dolor-sit-amet/sweeps/5nhm3coj}{Sweep page}.\\
+
+To choose between different hyperparameter values we run a grid search using Weights \& Biases Sweeps, we noticed a performance improving with the clipping hyperparameter $\epsilon$ equal to $0.3$ which is greater than the usual $0.25$ as suggested in~\citep{ppo-implementation-2}: \textit{"Start with the clipping threshold set to 0.25 but also try lower and higher values if possible."}.
+An overview of the Sweep can be seen in the figure~\ref{fig:psppo_sweep}
 
 \begin{figure}
 \centering
@@ -846,45 +888,50 @@ To choose between different hyperparameter values we run a grid search using Wei
 \label{fig:psppo_sweep}
 \end{figure}
 \newpage
-Considering the optimal hyperparameters found with the grid search we carried out a test to compare the performances with and without Rewards Shaping.
-We used an environment with malfunctions and different agent speeds, specifically using the following parameters:
 
-\begin{lstlisting}[label={lst:psppo-net-init}]
+\paragraph{Reward shaping}\label{par:psppo_reward_shaping}
+~\newline
+\href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test}{Project page}.\\
+
+Considering the optimal hyperparameters found with the grid search we carried out a test to compare the performances with and without Rewards Shaping.
+We used an environment with malfunctions and different agent speeds, specifically using the parameters~\ref{lst:psppo-env-params}.
+
+\begin{lstlisting}[label={lst:psppo-env-params}]
 environment_parameters = {
 	"n_agents": 5,
-        "x_dim": 16 * 3,
-        "y_dim": 9 * 3,
-        "n_cities": 5,
-        "max_rails_between_cities": 2,
-        "max_rails_in_city": 3,
-        "seed": seed,
-        "observation_tree_depth": 2,
-        "observation_radius": 10,
-        "observation_max_path_depth": 30,
-        "malfunction_parameters": MalfunctionParameters(
-            malfunction_rate=0.0075,
-            min_duration=15,
-            max_duration=50),
-        "speed_profiles": {
-            1.: 0.25,
-            1. / 2.: 0.25,
-            1. / 3.: 0.25,
-            1. / 4.: 0.25},
+	"x_dim": 16 * 3,
+	"y_dim": 9 * 3,
+	"n_cities": 5,
+	"max_rails_between_cities": 2,
+	"max_rails_in_city": 3,
+	"seed": seed,
+	"observation_tree_depth": 2,
+	"observation_radius": 10,
+	"observation_max_path_depth": 30,
+	"malfunction_parameters": MalfunctionParameters(
+		malfunction_rate=0.0075,
+		min_duration=15,
+		max_duration=50),
+	"speed_profiles": {
+		1.: 0.25,
+		1. / 2.: 0.25,
+		1. / 3.: 0.25,
+		1. / 4.: 0.25},
 }
 \end{lstlisting}
 
 Therefore the tests were replicated with seeds: 14, 50, 80, 130, 200 and the final result, for each metric, obtained by making an average.
-According to the criteria described in ~\ref{subsec:rewards2} we have chosen the following parameters for testing with Rewards Shaping:
+According to the criteria described in ~\ref{subsec:rewards2} we have chosen the parameters listed in~\ref{lst:psppo-reward-shaping-params} to test with Rewards Shaping.
 
-\begin{lstlisting}[label={lst:psppo-net-init}]
+\begin{lstlisting}[label={lst:psppo-reward-shaping-params}]
 environment_parameters = {
-        "reward_shaping": True,
-        "uniform_reward": True,
-        "stop_penalty": -1/n_agents,
-        "invalid_action_penalty": -0.0,
-        "deadlock_penalty": -n_agents,
-        "shortest_path_penalty_coefficient": 1 + 1/n_agents,
-        "done_bonus": 1/n_agents,
+	"reward_shaping": True,
+	"uniform_reward": True,
+	"stop_penalty": -1/n_agents,
+	"invalid_action_penalty": -0.0,
+	"deadlock_penalty": -n_agents,
+	"shortest_path_penalty_coefficient": 1 + 1/n_agents,
+	"done_bonus": 1/n_agents,
 }
 \end{lstlisting}
 
@@ -892,133 +939,94 @@ The basic idea is that deadlocks are more catastrophic, in terms of performances
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
 So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
-The plots clearly show that Rewards Shaping has a positive impact on performance. 
-Apparently the only metrics where the no Rewards Shaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics. \\
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/deadlocks}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_deadlocks}
-As it was mentioned in ~\ref{subsubsec:network-architecture} our algorithm provides the possibility to use a Long-Short-Term-Memory (LSTM) module as the shared portion of the network which is well-suited to make predictions based on time series data like the trajectories in a reinforcment-learning problem.
-We then repeated the experiment described above by exploiting LSTM, to evaluate its benefits, using the following hyperparameters: 
-\begin{lstlisting}[label={lst:psppo-net-init}]
+The plots in figure~\ref{fig:psppo_training_rs}, clearly show that Rewards Shaping has a positive impact on performance.
+Apparently the only metrics where the no Rewards Shaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
+
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{}
+	\label{fig:psppo_training_rs}
+\end{figure}
+
+\paragraph{Recurrence and loop}\label{par:psppo_recurrence_loop}
+~\newline
+\href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test}{Project page}.\\
+
+As it was mentioned in ~\ref{subsubsec:network-architecture} our algorithm provides the possibility to use a Long-Short-Term-Memory (LSTM) module as the shared portion of the network which is well-suited to make predictions based on time series data like the trajectories in a reinforcement-learning problem.
+We then repeated the experiment described above by exploiting LSTM, to evaluate its benefits, using the hyperparameters listed in~\ref{lst:psppo-net-params}.
+\begin{lstlisting}[label={lst:psppo-net-params}]
 training_parameters = {
         "shared_recurrent": True,
         "linear_size": 128,
         "hidden_size": 64,
 }
 \end{lstlisting}
-Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of $GAE$ as it was mentioned in ~\ref{subsubsec:training-setup2}. 
+Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of $GAE$ as it was mentioned in ~\ref{subsubsec:training-setup2}.
 This approach does not seem really correct but brings an improvement in performance as shown in the graphs where:
 \begin{itemize}
-\item "endtraj-norecurrent" is the best of the test described above.
-\item "end-traj-recurrent" is the same test with LSTM.
-\item "noendtraj-recurrent" is the test with LSTM with the different interpretation of the trajectory. 
-\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop. For each step of the environment, Flatland provided various information on the status of each agent including "action\_required". 
-In the baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action). 
-We realized that using only this information has limitations: for some deadlocks situations "action\_required" is false while for others it is not, therefore from a trajectory construction point of view, this logic immplies the presence of more serious deadlocks (whose observations must be added in memory until the end of the episode) and deadlocks less severe (whose observation is added only once in memory). 
-Therefore the change, at the base of this experiment, consists in imposing that the actions are calculated by the neural network (and the relative observations added in memory), if the agent is not deadlocked (with "action\_required" true) or if it has entered deadlock in the last step. 
-This logic has two advantages: 
-\begin{enumerate}
-\item [1.] Redundant observations from deadlocks that have "action\_required" true are not considered.
-\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Rewards Shaping).
-\end{enumerate}
+	\item "end-traj-norecurrent" is the best of the test described above.
+	\item "end-traj-recurrent" is the same test with LSTM\@.
+	\item "noendtraj-recurrent" is the test with LSTM with the different interpretation of the trajectory.
+	\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop.
+	For each step of the environment, Flatland provided various information on the status of each agent including "action\_required".
+	In the baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action).
+	We realized that using only this information has limitations: for some deadlocks situations "action\_required" is false while for others it is not, therefore from a trajectory construction point of view, this logic implies the presence of more serious deadlocks (whose observations must be added in memory until the end of the episode) and deadlocks less severe (whose observation is added only once in memory).
+	Therefore the change, at the base of this experiment, consists in imposing that the actions are calculated by the neural network (and the relative observations added in memory), if the agent is not deadlocked (with "action\_required" true) or if it has entered deadlock in the last step.
+	This logic has two advantages:
+	\begin{enumerate}
+		\item [1.] Redundant observations from deadlocks that have "action\_required" true are not considered.
+		\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Rewards Shaping).
+	\end{enumerate}
 \end{itemize}
 
-As you can see the modification of the loop, in combination with LSTM, brings about a noticeable improvement. \\
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/deadlocks}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_deadlocks}
+It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that the modification of the loop, in combination with LSTM, brings about a noticeable improvement.
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{}
+	\label{fig:psppo_training_rec_loop}
+\end{figure}
 
-\newpage
+\paragraph{Learning rate and action masking}\label{par:learning_rate_action_masking}
+~\newline
+\href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-final}{Project page}.\\
+
 We have performed other experiments in order to investigate and find the best learning rate for the final training and also to show the importance of \textbf{Action Masking} described in ~\ref{subsec:actions}, which we used in the tests described above, but we had not yet provided any evidence on its positive impact for performance. 
-The result shown in the following graph were obtained using the environment parameters described above, without malfunctions and different speeds for the agents.
-Even the hyperparameters for training are the same as before, varying the learning rate and \textbf{Action Masking} as the names suggest. \\
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/deadlocks}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_deadlocks}
+The result shown in the graphs~\ref{fig:psppo_training_lr_am} were obtained using the environment parameters described above, without malfunctions and different speeds for the agents.
+Even the hyperparameters for training are the same as before, varying the learning rate and \textbf{Action Masking} as the names suggest.
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{}
+	\label{fig:psppo_training_lr_am}
+\end{figure}
 
 So the best configuration as we can see is with $learning\_rate = 0.0002$ and \textbf{Action Masking}.
-In the end we performed the final train using the best combination of hyperparameters and algorithm that emerged from the previous experiments to generate two models:
-
-\begin{itemize}
-\item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{without} malfunctions and different speeds.
-\item "malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{with} different malfunctions and speeds.
-\end{itemize}
-\newpage
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/deadlocks}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_score}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}
-\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
-
-For the evaluation phase we considered the following environments:
-\begin{enumerate}
-\item [1.] Medium size:
-	\begin{itemize}
-	\item $x\_dim = 48$
-	\item $y\_dim = 27$
-	\item $n\_agents = 3 - 5 - 7$
-	\item $max\_num\_cities = 5$
-	\item $max\_rails\_between\_cities = 2$
-	\item $max\_rails\_in\_cities = 3$
-	\item $rand\_seed = 14$
-	\end{itemize}
-\item [2.] Big size:
-	\begin{itemize}
-	\item $x\_dim = 64$
-	\item $y\_dim = 36$
-	\item $n\_agents = 5 - 7 - 10$
-	\item $max\_num\_cities = 9$
-	\item $max\_rails\_between\_cities = 5$
-	\item $max\_rails\_in\_cities = 5$
-	\item $rand\_seed = 14$
-	\end{itemize}
-\end{enumerate}
-\newpage
-With two different scenarios with 1000 iterations for each test session:
-\begin{enumerate}
-\item [1.] Same speed for all agents (set to 1.0) and no malfunctions.
-\item [2.] Different speeds (all with 25\% of probability) and malfunctions according to the following parameters:
-	\begin{itemize}
-	\item $malfunction\_rate = 0.005$
-	\item $min\_duration = 15$
-	\item $max\_duration = 50$
-	\end{itemize}
-\end{enumerate}
-
-The results obtained are shown in the tables.
-\begin{table}[]
-\begin{tabular}{|l|l|l|l|l|l|l|l|}
-\hline
-\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{No malfunctions - single speed (1.0)}                                 \\ \cline{2-8} 
-\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8} 
-\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
-accumulated\_completion                        & 0.9193    & 0.8134    & 0.7263   & 0.8700    & 0.7933    & \multicolumn{2}{l|}{0.6721}    \\ \hline
-accumulated\_deadlocks                         & 0.0760    & 0.1770    & 0.2630   & 0.1206    & 0.1951    & \multicolumn{2}{l|}{0.3080}    \\ \hline
-accumulated\_score                             & -0.167    & -0.262    & -0.341   & -0.223    & -0.294    & \multicolumn{2}{l|}{-0.398}    \\ \hline
-\end{tabular}
-\end{table}
-
-\begin{table}[]
-\begin{tabular}{|l|l|l|l|l|l|l|l|}
-\hline
-\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{Malfunctions - 4 speeds (0.25)}                                       \\ \cline{2-8} 
-\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8} 
-\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
-accumulated\_completion                        & 0.8493    & 0.7098    & 0.6321   & 0.7242    & 0.6231    & \multicolumn{2}{l|}{0.5071}    \\ \hline
-accumulated\_deadlocks                         & 0.1213    & 0.2616    & 0.3304   & 0.2246    & 0.3299    & \multicolumn{2}{l|}{0.4583}    \\ \hline
-accumulated\_score                             & -0.174    & -0.226    & -0.257   & -0.227    & -0.266    & \multicolumn{2}{l|}{-0.308}    \\ \hline
-\end{tabular}
-\end{table}
 
 \newpage
 \section{D3QN}\label{sec:d3qn}
@@ -1069,10 +1077,12 @@ The local network is used also to collect trajectories following the the Q value
 If action masking is active both choices are masked.
 This strategy is called \textbf{$\epsilon$-Greedy}, it allows the agents to explore more at the beginning and exploit better after a while, decaying the probability to randomly explore the environment during the training.
 The final loss used to optimize the local network is the mean squared error of the discounted Q value of the successive state summed with the reward with the Q value of the current state.
-The target network's weights are updated using \textbf{soft updates}, which can be described with the following formula:
-\begin{equation}
-	\theta^{-} = \theta \tau + \theta^{-}(1 - \tau)\label{eq:soft-update}
-\end{equation}
+The target network's weights are updated using \textbf{soft updates}, which can be described with the equation~\ref{fig:soft_update}.
+\begin{figure}
+	\[ \theta^{-} = \theta \tau + \theta^{-}(1 - \tau) \]
+	\caption{}
+	\label{fig:soft_update}
+\end{figure}
 where $\theta^{-}$ are the target's weights, $\theta$ the local network's weights and $\tau$ an hyperparameter usually set to a very small number as this update is performed at each mini-batch gradient descent.
 Network graphs can be seen in the figures~\ref{fig:d3qn_uer_graph} and~\ref{fig:d3qn_per_graph}.
 
@@ -1204,15 +1214,14 @@ After a preliminary grid search we performed a series of training tests to evalu
 We performed these tests using a set of environments generated with the seeds 14, 50, 80, 130, 200 to obtain a less biased result.
 Apparently adding the fingerprints as described in the papers significantly worsen the performances, while using Prioritized Experience Replay slightly improves the run without fingerprints but remarkably improve the metrics of those with fingerprints.
 As other fingerprints strategies containing the step continued to perform badly we concluded that feeding a neural network with an input always different as the global timestep, which can be seen as an identifier, can only damage the performance.
-On the other hand using values which change slowly as $\epsilon$ and the episode is better.
+On the other hand, using values which change slowly as $\epsilon$ and the episode is better.
 After some tests we noticed that the "$\epsilon$ and episode" fingerprint performs better than the others.
 In particular we can observe different positive trends:
 \begin{itemize}
 	\item Without fingerprints, the best outcomes are obtained with shared smaller networks (2 $\times$ 128) and batches (32).
 In this setting UER slightly overcome PER\@.
-Enabling fingerprints with the same configuration maintains a good result, which overcomes the one without fingerprints.
-	\item With fingerprints, the best results are obtained with separated bigger networks (3 $\times$ 256) and batches (128).
-% TODO: In this setting PER drastically overcome UER\@.
+	\item With fingerprints, the best results are obtained with separated bigger networks (2 $\times$ 256) and small batches (32).
+In this setting PER drastically overcome UER\@.
 \end{itemize}
 
 \section{Curriculum Learning}\label{sec:curriculum-learning}
@@ -1261,7 +1270,57 @@ After various tests PS-PPO emerged as most effective algorithm.
 It has demonstrating great flexibility in terms of transfer learning and adapting to different environmental settings.
 It is more space-efficient and in the future can also be easily parallelized with different agents and \textbf{Vectorized Environments}, making learning even faster.
 
-% TODO: results
+%TODO:
+In the end we performed the final train using the best combination of hyperparameters and algorithm that emerged from the previous experiments to generate two models:
+
+todo~\ref{fig:psppo_training_final}.
+
+\begin{itemize}
+\item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{without} malfunctions and different speeds.
+\item "malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{with} different malfunctions and speeds.
+\end{itemize}
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{}
+	\label{fig:psppo_training_final}
+\end{figure}
+The final results obtained in the evaluation environments are shown in the tables~\ref{tab:evaluation1} and~\ref{tab:evaluation2}.
+\begin{table}[]
+\begin{tabular}{|l|l|l|l|l|l|l|l|}
+\hline
+\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{No malfunctions - single speed (1.0)}                                 \\ \cline{2-8}
+\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8}
+\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+accumulated\_completion                        & 0.9193    & 0.8134    & 0.7263   & 0.8700    & 0.7933    & \multicolumn{2}{l|}{0.6721}    \\ \hline
+accumulated\_deadlocks                         & 0.0760    & 0.1770    & 0.2630   & 0.1206    & 0.1951    & \multicolumn{2}{l|}{0.3080}    \\ \hline
+accumulated\_score                             & -0.167    & -0.262    & -0.341   & -0.223    & -0.294    & \multicolumn{2}{l|}{-0.398}    \\ \hline
+\end{tabular}
+\caption{}
+\label{tab:evaluation1}
+\end{table}
+
+\begin{table}[]
+\begin{tabular}{|l|l|l|l|l|l|l|l|}
+\hline
+\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{Malfunctions - 4 speeds (0.25)}                                       \\ \cline{2-8}
+\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8}
+\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+accumulated\_completion                        & 0.8493    & 0.7098    & 0.6321   & 0.7242    & 0.6231    & \multicolumn{2}{l|}{0.5071}    \\ \hline
+accumulated\_deadlocks                         & 0.1213    & 0.2616    & 0.3304   & 0.2246    & 0.3299    & \multicolumn{2}{l|}{0.4583}    \\ \hline
+accumulated\_score                             & -0.174    & -0.226    & -0.257   & -0.227    & -0.266    & \multicolumn{2}{l|}{-0.308}    \\ \hline
+\end{tabular}
+\caption{}
+\label{tab:evaluation2}
+\end{table}
 
 Although the work has presented multiple and serious studies and modifications to the policy and to the network, the most remarkable improvements occurred changing the training loop, for instance changing the agents conditions to update the network or aggregate the rewards.
 
@@ -1284,12 +1343,12 @@ In the Flatland Baselines can be found also some code related to \textbf{Sparse 
 \newpage
 
 \appendix
-\chapter{Appendix}
+\chapter{Appendix}\label{ch:appendix}
 
 % Personalize how appendix is numbered
 \renewcommand{\thesection}{A.\arabic{section}}
 
-\section{Algorithms}
+\section{Algorithms}\label{sec:algorithms}
 
 \begin{algorithm}[H]
 	\uIf{agent is in DONE or in DONE\_REMOVED ($1^{\text{th}}$ case)}{
@@ -1409,7 +1468,7 @@ Usually they are initialized passing the parameters to optimize, such as neural 
 \\
 Additional materials, can be found in the \href{https://pytorch.org/resources/}{official site} or in the following blogs and articles \href{https://blog.paperspace.com/pytorch-101-understanding-graphs-and-automatic-differentiation/}{PyTorch 101, Part 1: Understanding Graphs, Automatic Differentiation and Autograd} and \href{https://towardsdatascience.com/understanding-pytorch-with-an-example-a-step-by-step-tutorial-81fc5f8c4e8e}{Understanding PyTorch with an example: a step-by-step tutorial}.
 
-\section{Figures}
+\section{Figures}\label{sec:figures}
 
 \begin{figure}
 \centering
