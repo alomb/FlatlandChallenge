@@ -461,7 +461,7 @@ Due to this reasons we decided to limit the complexity of the experiments especi
 	\item $max\_rails\_between\_cities = 2$
 	\item $max\_rails\_in\_cities = 3$
 	\item $rand\_seed = 14$
-	\end{itemize}
+	\end{itemize}\label{itm:evaluation_envs1}
 \item [2.] Big size:
 	\begin{itemize}
 	\item $x\_dim = 64$
@@ -471,7 +471,7 @@ Due to this reasons we decided to limit the complexity of the experiments especi
 	\item $max\_rails\_between\_cities = 5$
 	\item $max\_rails\_in\_cities = 5$
 	\item $rand\_seed = 14$
-	\end{itemize}
+	\end{itemize}\label{itm:evaluation_envs2}
 \end{enumerate}
 
 With two different scenarios with 1000 iterations for each test session:
@@ -825,8 +825,6 @@ The entropy coefficient is a regularizer which helps preventing premature conver
 A policy has maximum entropy when all policies are equally likely and minimum when the one action probability of the policy is dominant.
 
 \subsection{Testing}\label{subsec:testing}
-~\newline
-\href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test?workspace=user-fiorenzoparascandolo}{Project page}.\\
 
 PS-PPO hyperparameters legend:
 \begin{itemize}
@@ -1266,34 +1264,17 @@ The test was divided in three phases, the first was the application of the semi-
 
 \chapter{Conclusions and future works}\label{ch:conclusions-and-future-works}
 
-After various tests PS-PPO emerged as most effective algorithm.
-It has demonstrating great flexibility in terms of transfer learning and adapting to different environmental settings.
-It is more space-efficient and in the future can also be easily parallelized with different agents and \textbf{Vectorized Environments}, making learning even faster.
-
-%TODO:
-In the end we performed the final train using the best combination of hyperparameters and algorithm that emerged from the previous experiments to generate two models:
-
-todo~\ref{fig:psppo_training_final}.
-
+After various tests PS-PPO emerged as the most effective algorithm.
+It has demonstrated great flexibility in terms of transfer learning and adaptation to different environmental settings.
+It is more space-efficient and in the future can also be easily parallelized with different actors and \textbf{Vectorized Environments}, making learning even faster.
+At the end, we performed the final training phase using the best combination of hyperparameters and algorithm that emerged from the experiments in~\ref{subsec:testing} to generate two models:
 \begin{itemize}
-\item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{without} malfunctions and different speeds.
-\item "malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{with} different malfunctions and speeds.
+\item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments (\ref{itm:evaluation_envs1}) \textbf{without} malfunctions and different speeds.
+\item "malf-and-speeds" to be evaluated on a set of multi-agent environments (\ref{itm:evaluation_envs2}) \textbf{with} different malfunctions and speeds.
 \end{itemize}
-\begin{figure}
-	\begin{subfigure}{\linewidth}
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}\hfill
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/completion}\hfill
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/deadlocks}
-	\end{subfigure}\par\medskip
-	\begin{subfigure}{\linewidth}
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_score}\hfill
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}\hfill
-		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
-	\end{subfigure}\par\medskip
-	\caption{}
-	\label{fig:psppo_training_final}
-\end{figure}
-The final results obtained in the evaluation environments are shown in the tables~\ref{tab:evaluation1} and~\ref{tab:evaluation2}.
+
+The final results obtained in the evaluation environments are shown in the tables~\ref{tab:evaluation1} and~\ref{tab:evaluation2}, while the training graphs are shown in the figure~\ref{fig:psppo_training_final}.
+
 \begin{table}[]
 \begin{tabular}{|l|l|l|l|l|l|l|l|}
 \hline
@@ -1323,6 +1304,10 @@ accumulated\_score                             & -0.174    & -0.226    & -0.257 
 \end{table}
 
 Although the work has presented multiple and serious studies and modifications to the policy and to the network, the most remarkable improvements occurred changing the training loop, for instance changing the agents conditions to update the network or aggregate the rewards.
+Coherently with many reinforcement learning problems tuning the learning rate has been crucial to obtain the best results, specifically, the learning rate obtained performing the grid search was biased by the low number of episodes and was not preferable after many episodes.
+
+\newpage
+\section{Future works}\label{sec:future-works}
 
 Before concluding we propose some interesting efforts and ideas which may be useful for further progress in this work.
 \begin{itemize}
@@ -1503,6 +1488,21 @@ Additional materials, can be found in the \href{https://pytorch.org/resources/}{
 \includegraphics[width=0.74\textwidth]{resources/d3qn_per_graph.png}
 \caption{An example of execution graph with prioritized experience replay}
 \label{fig:d3qn_per_graph}
+\end{figure}
+
+\begin{figure}
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/deadlocks}
+	\end{subfigure}\par\medskip
+	\begin{subfigure}{\linewidth}
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_score}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}\hfill
+		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
+	\end{subfigure}\par\medskip
+	\caption{The final training.}
+	\label{fig:psppo_training_final}
 \end{figure}
 
 ~\nocite{*}
