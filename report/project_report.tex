@@ -405,7 +405,7 @@ A brief introduction to PyTorch can be found in the appendix~\ref{sec:pytorch}.
 \subsection{Metrics}\label{subsec:metrics}
 
 In Flatland, deadlocks are a truly catastrophic event because the agents involved can no longer move and are an obstacle to those free to navigate for the rest of the episode.
-Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performed in polynomial time, however an estimate of the occurrence of these events is valuable information both for performance analysis described in the metrics and for Rewards Shaping described in~\ref{subsec:rewards2}.
+Deadlocks detection is an additional challenge whereas there is still no algorithm for this particular task that can be performed in polynomial time, however an estimate of the occurrence of these events is valuable information both for performance analysis described in the metrics and for Reward Shaping described in~\ref{subsec:rewards2}.
 The algorithm proposed is not complete: situations detected as deadlocks are truly deadlocks, but it is also possible that some particular deadlocks are not recognized at all.
 The pseudocode of the algorithm can be found in the appendix~\ref{alg:deadlocks}.
 We have also implemented some environmental \textbf{Wrappers} to flexibly add and/or remove various features in the train/evaluation phase, preserving the original Flatland's implementation.
@@ -569,7 +569,7 @@ Agents must basically learn two behaviors:
 This is not necessarily the order.
 Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance.
 According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards.
-In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Rewards Shaping}.
+In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Reward Shaping}.
 Crafting rewards is not easy because as a consequence we could get the "Cobra Effect":
 
 \begin{quoting}[font=itshape, begintext={"}, endtext={ \footnote{https://medium.com/@BonsaiAI/deep-reinforcement-learning-models-tips-tricks-for-writing-reward-functions-a84fe525e8e0}}]
@@ -616,11 +616,11 @@ At the end the reward obtained is normalized, considering for simplicity,  \text
 In particular:
 
 \begin{itemize}
-	\item If $rewards\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).
-	\item If $rewards\_shaped$ is greater than 1 then it is placed at 1 
+	\item If $reward\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).
+	\item If $reward\_shaped$ is greater than 1 then it is placed at 1 
 \end{itemize}
 
-In this way we are sure that $rewards\_shaped \in [-1, 1]$.
+In this way we are sure that $reward\_shaped \in [-1, 1]$.
 
 \section{PS-PPO}\label{sec:ps-ppo}
 
@@ -891,7 +891,7 @@ An overview of the Sweep can be seen in the figure~\ref{fig:psppo_sweep}
 ~\newline
 \href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test}{Project page}.\\
 
-Considering the optimal hyperparameters found with the grid search we carried out a test to compare the performances with and without Rewards Shaping.
+Considering the optimal hyperparameters found with the grid search we carried out a test to compare the performances with and without \textbf{Reward Shaping}.
 We used an environment with malfunctions and different agent speeds, specifically using the parameters~\ref{lst:psppo-env-params}.
 
 \begin{lstlisting}[label={lst:psppo-env-params}]
@@ -919,7 +919,7 @@ environment_parameters = {
 \end{lstlisting}
 
 Therefore the tests were replicated with seeds: 14, 50, 80, 130, 200 and the final result, for each metric, obtained by making an average.
-According to the criteria described in ~\ref{subsec:rewards2} we have chosen the parameters listed in~\ref{lst:psppo-reward-shaping-params} to test with Rewards Shaping.
+According to the criteria described in ~\ref{subsec:rewards2} we have chosen the parameters listed in~\ref{lst:psppo-reward-shaping-params} to test with \textbf{Reward Shaping}.
 
 \begin{lstlisting}[label={lst:psppo-reward-shaping-params}]
 environment_parameters = {
@@ -936,9 +936,9 @@ environment_parameters = {
 The basic idea is that deadlocks are more catastrophic, in terms of performances, as the number of agents increases given their irreversible nature.
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
-So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
-The plots in figure~\ref{fig:psppo_training_rs}, clearly show that Rewards Shaping has a positive impact on performance.
-Apparently the only metrics where the no Rewards Shaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
+So with this parameter configuration for Reward Shaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
+The plots in figure~\ref{fig:psppo_training_rs}, clearly show that \textbf{Reward Shaping} has a positive impact on performance.
+Apparently the only metrics where the no \textbf{Reward Shaping} approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
 
 \begin{figure}
 	\begin{subfigure}{\linewidth}
@@ -959,8 +959,8 @@ Apparently the only metrics where the no Rewards Shaping approach seems to perfo
 ~\newline
 \href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-ps-ppo-test}{Project page}.\\
 
-As it was mentioned in ~\ref{subsubsec:network-architecture} our algorithm provides the possibility to use a Long-Short-Term-Memory (LSTM) module as the shared portion of the network which is well-suited to make predictions based on time series data like the trajectories in a reinforcement-learning problem.
-We then repeated the experiment described above by exploiting LSTM, to evaluate its benefits, using the hyperparameters listed in~\ref{lst:psppo-net-params}.
+As it was mentioned in ~\ref{subsubsec:network-architecture} our algorithm provides the possibility to use a Long-Short-Term-Memory (\textbf{LSTM}) module as the shared portion of the network which is well-suited to make predictions based on time series data like the trajectories in a reinforcement-learning problem.
+We then repeated the experiment described above by exploiting \textbf{LSTM}, to evaluate its benefits, using the hyperparameters listed in~\ref{lst:psppo-net-params}.
 \begin{lstlisting}[label={lst:psppo-net-params}]
 training_parameters = {
         "shared_recurrent": True,
@@ -968,12 +968,12 @@ training_parameters = {
         "hidden_size": 64,
 }
 \end{lstlisting}
-Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of $GAE$ as it was mentioned in ~\ref{subsubsec:training-setup2}.
+Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of \textbf{GAE} as it was mentioned in ~\ref{subsubsec:training-setup2}.
 This approach does not seem really correct but brings an improvement in performance as shown in the graphs where:
 \begin{itemize}
 	\item "end-traj-norecurrent" is the best of the test described above.
-	\item "end-traj-recurrent" is the same test with LSTM\@.
-	\item "noendtraj-recurrent" is the test with LSTM with the different interpretation of the trajectory.
+	\item "end-traj-recurrent" is the same test with \textbf{LSTM}\@.
+	\item "noendtraj-recurrent" is the test with \textbf{LSTM} with the different interpretation of the trajectory.
 	\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop.
 	For each step of the environment, Flatland provided various information on the status of each agent including "action\_required".
 	In the baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action).
@@ -982,11 +982,11 @@ This approach does not seem really correct but brings an improvement in performa
 	This logic has two advantages:
 	\begin{enumerate}
 		\item [1.] Redundant observations from deadlocks that have "action\_required" true are not considered.
-		\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Rewards Shaping).
+		\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Reward Shaping).
 	\end{enumerate}
 \end{itemize}
 
-It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that the modification of the loop, in combination with LSTM, brings about a noticeable improvement.
+It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that the modification of the loop, in combination with \textbf{LSTM}, brings about a noticeable improvement.
 \begin{figure}
 	\begin{subfigure}{\linewidth}
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}\hfill
@@ -1501,7 +1501,7 @@ Additional materials, can be found in the \href{https://pytorch.org/resources/}{
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}\hfill
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
 	\end{subfigure}\par\medskip
-	\caption{The final training.}
+	\caption{The final training of PS-PPO. \href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-final}{Project page}}
 	\label{fig:psppo_training_final}
 \end{figure}
 
