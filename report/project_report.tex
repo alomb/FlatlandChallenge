@@ -27,6 +27,8 @@
 \usepackage{titletoc}
 \usepackage{listings} % code
 \usepackage{seqsplit} % split long lines
+\usepackage{multirow}
+\usepackage{booktabs}
 
 \bibliographystyle{plainnat}
 
@@ -890,8 +892,8 @@ The basic idea is that deadlocks are more catastrophic, in terms of performances
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
 So with this parameter configuration for RewardsShaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
-The plots clearly show that RewardsShaping has a positive impact on performance. 
-Apparently the only metrics where the no RewardsShaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics. \\
+The plots clearly show that Rewards Shaping has a positive impact on performance. 
+Apparently the only metrics where the no Rewards Shaping approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics. \\
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/score}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/completion}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_1/deadlocks}
@@ -931,6 +933,94 @@ As you can see the modification of the loop, in combination with LSTM, brings ab
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_score}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_completion}
 \includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/accumulated_deadlocks}
+
+\newpage
+We have performed other experiments in order to investigate and find the best learning rate for the final training and also to show the importance of \textbf{Action Masking} described in ~\ref{subsec:actions}, which we used in the tests described above, but we had not yet provided any evidence on its positive impact for performance. 
+The result shown in the following graph were obtained using the environment parameters described above, without malfunctions and different speeds for the agents.
+Even the hyperparameters for training are the same as before, varying the learning rate and \textbf{Action Masking} as the names suggest. \\
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/deadlocks}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/accumulated_deadlocks}
+
+So the best configuration as we can see is with $learning\_rate = 0.0002$ and \textbf{Action Masking}.
+In the end we performed the final train using the best combination of hyperparameters and algorithm that emerged from the previous experiments to generate two models:
+
+\begin{itemize}
+\item "no-malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{without} malfunctions and different speeds.
+\item "malf-and-speeds" to be evaluated on a set of multi-agent environments \textbf{with} different malfunctions and speeds.
+\end{itemize}
+\newpage
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/deadlocks}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_score}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_completion}
+\includegraphics[width=0.33\linewidth]{resources/charts_psppo_4/accumulated_deadlocks}
+
+For the evaluation phase we considered the following environments:
+\begin{enumerate}
+\item [1.] Medium size:
+	\begin{itemize}
+	\item $x\_dim = 48$
+	\item $y\_dim = 27$
+	\item $n\_agents = 3 - 5 - 7$
+	\item $max\_num\_cities = 5$
+	\item $max\_rails\_between\_cities = 2$
+	\item $max\_rails\_in\_cities = 3$
+	\item $rand\_seed = 14$
+	\end{itemize}
+\item [2.] Big size:
+	\begin{itemize}
+	\item $x\_dim = 64$
+	\item $y\_dim = 36$
+	\item $n\_agents = 5 - 7 - 10$
+	\item $max\_num\_cities = 9$
+	\item $max\_rails\_between\_cities = 5$
+	\item $max\_rails\_in\_cities = 5$
+	\item $rand\_seed = 14$
+	\end{itemize}
+\end{enumerate}
+\newpage
+With two different scenarios with 1000 iterations for each test session:
+\begin{enumerate}
+\item [1.] Same speed for all agents (set to 1.0) and no malfunctions.
+\item [2.] Different speeds (all with 25\% of probability) and malfunctions according to the following parameters:
+	\begin{itemize}
+	\item $malfunction\_rate = 0.005$
+	\item $min\_duration = 15$
+	\item $max\_duration = 50$
+	\end{itemize}
+\end{enumerate}
+
+The results obtained are shown in the tables.
+\begin{table}[]
+\begin{tabular}{|l|l|l|l|l|l|l|l|}
+\hline
+\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{No malfunctions - single speed (1.0)}                                 \\ \cline{2-8} 
+\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8} 
+\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+accumulated\_completion                        & 0.9193    & 0.8134    & 0.7263   & 0.8700    & 0.7933    & \multicolumn{2}{l|}{0.6721}    \\ \hline
+accumulated\_deadlocks                         & 0.0760    & 0.1770    & 0.2630   & 0.1206    & 0.1951    & \multicolumn{2}{l|}{0.3080}    \\ \hline
+accumulated\_score                             & -0.167    & -0.262    & -0.341   & -0.223    & -0.294    & \multicolumn{2}{l|}{-0.398}    \\ \hline
+\end{tabular}
+\end{table}
+
+\begin{table}[]
+\begin{tabular}{|l|l|l|l|l|l|l|l|}
+\hline
+\multicolumn{1}{|c|}{\multirow{3}{*}{Metrics}} & \multicolumn{7}{c|}{Malfunctions - 4 speeds (0.25)}                                       \\ \cline{2-8} 
+\multicolumn{1}{|c|}{}                         & \multicolumn{3}{c|}{Medium size} & \multicolumn{4}{c|}{Big size}                          \\ \cline{2-8} 
+\multicolumn{1}{|c|}{}                         & 3 agents  & 5 agents  & 7 agents & 5 agents  & 7 agents  & \multicolumn{2}{l|}{10 agents} \\ \hline
+accumulated\_completion                        & 0.8493    & 0.7098    & 0.6321   & 0.7242    & 0.6231    & \multicolumn{2}{l|}{0.5071}    \\ \hline
+accumulated\_deadlocks                         & 0.1213    & 0.2616    & 0.3304   & 0.2246    & 0.3299    & \multicolumn{2}{l|}{0.4583}    \\ \hline
+accumulated\_score                             & -0.174    & -0.226    & -0.257   & -0.227    & -0.266    & \multicolumn{2}{l|}{-0.308}    \\ \hline
+\end{tabular}
+\end{table}
+
+\newpage
 \section{D3QN}\label{sec:d3qn}
 
 \textbf{Deep Q Networks (DQN)} have been proposed as the union of Deep Learning with Q-Learning to deal with complex and high dimensional environments such as video games and robotics.
