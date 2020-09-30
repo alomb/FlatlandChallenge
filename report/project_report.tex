@@ -160,7 +160,7 @@ The following results have been evaluated on the Python package \href{https://py
 \begin{itemize}
 	\item READY\_TO\_DEPART (0) the agent is not in the grid yet (position is None).
 If a MOVE\_* action is performed during this state it becomes ACTIVE\@.
-	\item ACTIVE (1) the agent is in the grid (position is not None) and hasn't reached the target yet.
+	\item ACTIVE (1) the agent is in the grid (position is not None) and has not reached the target yet.
 	\item DONE (2) the agent is still in the grid (position is not None) but has already reached the target.
 	\item DONE\_REMOVED (3) the agent has reached the target and has been removed from the grid.
 \end{itemize}
@@ -226,7 +226,7 @@ Actions are not allowed to change within the cell, each agent can only chose an 
 This action is then executed when a step to the next cell is valid.
 	\item How is possible to understand if an agent is ready to perform an action?
 The entry info\_dict["action\_required"] returned by the function \textit{step} of \textbf{RailEnv} contains True for the given agent.
-This doesn't mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info\_dict["action\_required"] will remain True.
+This does not mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info\_dict["action\_required"] will remain True.
 info\_dict["action\_required"] is True when an agent is in "READY\_TO\_DEPART" or is in "ACTIVE" and is close to complete a movement (position fraction is near zero).
 This means that agents that are arrived to their destination and many agents that are in deadlock (by trying to move they increase their position fraction) can be ignored using this single flag.
 	\item Does an agent which has been reached DONE be removed automatically the following step?
@@ -236,7 +236,7 @@ It is possible to change this setting modifying the attribute remove\_agents\_at
 No. A MOVE\_* is necessary.
 	\item Do collisions really occur?
 No, agents check if the cell is free before moving.
-Deadlocks are possible when two or more agents are stucked in a particular situations which does not let anyone of them moving without colliding with another agent or moving in an invalid cell.
+Deadlocks occur when two or more agents are stucked in a particular situations which does not let anyone of them moving without colliding with another agent or moving in an invalid cell.
 \end{itemize}
 
 \subsection{Malfunctions}\label{subsec:malfunctions}
@@ -716,7 +716,7 @@ with torch.no_grad():
 \end{lstlisting}
 
 Neural networks are trained using an Adam optimizer.
-References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we didn't cover them.
+References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we did not cover them.
 As PPO computes the divergence between the new and the old policies, experiences are collected using the old policy while advantages are computed from the new policy, two neural networks are used, in particular two \textit{torch.nn.Module} are declared.
 The old one is not updated with gradient descents, it simply copies the weights of the new policy after each the training session termination.
 This should suggests that the difference between the two policies tends to increase augmenting the training session duration but should be controlled by the trust region.
@@ -930,12 +930,13 @@ environment_parameters = {
 }
 \end{lstlisting}
 
-The basic idea is that deadlocks are more catastrophic, in terms of performances, as the number of agents increases given their irreversible nature.
+The basic idea is that deadlocks are more catastrophic in terms of performances, as the number of agents increases given their irreversible nature.
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
-So with this parameter configuration for Reward Shaping, we wanted to penalize more deadlocks than  \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
-The plots in figure~\ref{fig:psppo_training_rs}, clearly show that \textbf{Reward Shaping} has a positive impact on performance.
-Apparently the only metrics where the no \textbf{Reward Shaping} approach seems to perform better are those concerning deadlocks, however we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
+So with this parameter configuration for Reward Shaping, we wanted to penalize more deadlocks than \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
+The plots in figure~\ref{fig:psppo_training_rs}, clearly show that \textbf{Reward Shaping} has a positive impact on the performance.
+Apparently the only metrics where disabling the \textbf{Reward Shaping} seems to perform better are those concerning deadlocks.
+However we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
 
 \begin{figure}
 	\begin{subfigure}{\linewidth}
@@ -973,17 +974,18 @@ This approach does not seem really correct but brings an improvement in performa
 	\item "noendtraj-recurrent" is the test with \textbf{LSTM} with the different interpretation of the trajectory.
 	\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop.
 	For each step of the environment, Flatland provided various information on the status of each agent including "action\_required".
-	In the baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action).
+	In the Flatland Baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action).
 	We realized that using only this information has limitations: for some deadlocks situations "action\_required" is false while for others it is not, therefore from a trajectory construction point of view, this logic implies the presence of more serious deadlocks (whose observations must be added in memory until the end of the episode) and deadlocks less severe (whose observation is added only once in memory).
 	Therefore the change, at the base of this experiment, consists in imposing that the actions are calculated by the neural network (and the relative observations added in memory), if the agent is not deadlocked (with "action\_required" true) or if it has entered deadlock in the last step.
 	This logic has two advantages:
 	\begin{enumerate}
 		\item [1.] Redundant observations from deadlocks that have "action\_required" true are not considered.
-		\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1, infact, according to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was false and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Reward Shaping).
+		\item [2.] When an agent goes into deadlock the memory is updated apriori, this is very important in the case of agents with speeds less than 1.
+According to the previous logic, if the deadlock occurred while an agent was walking through a fraction of the cell, "action\_required" was set to False and the memory was not updated with the observation of the deadlock (this is particularly limiting when using Reward Shaping).
 	\end{enumerate}
 \end{itemize}
 
-It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that the modification of the loop, in combination with \textbf{LSTM}, brings about a noticeable improvement.
+It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that the modification of the loop combined with the use of \textbf{LSTM} brings a noticeable improvement.
 \begin{figure}
 	\begin{subfigure}{\linewidth}
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_2/score}\hfill
@@ -1174,6 +1176,10 @@ A common value is $0.99$.
 		\item "buffer\_min\_size": minimum number of samples inside the memory to start learning.
 		\item "update\_every": number of fresh samples inserted in the memory to allow the networks learning.
 For example assigning $16$ would mean that the 16\textsuperscript{th} new insertion in the memory triggers the network to learn.
+		\item "fingerprints": enable fingerprints.
+		\item "fingerprint\_type": fingerprint data.
+If fingerprints is enabled and this is not set the default value is FingerprintType.EPSILON\_STEP\@.
+Other options are FingerprintType.EPSILON\_EPISODE, FingerprintType.EPISODE etc.. (see FingerprintType class).
 	\end{itemize}
 	\item Memory
 	\begin{itemize}
@@ -1256,9 +1262,9 @@ One alternative approach is to manually describe ranges of coherent parameter va
 \subsection{Testing}\label{subsec:testing3}
 \href{https://app.wandb.ai/lomb/flatland-challenge-ps-ppo-curriculum}{Project page}.\\
 
-The first test conducted on an older version of the PS-PPO algorithm was divided in three phase: the first was the application of the semi-automatic curriculum using the five different environments, obtained with the seeds 19, 80, 130, 200, the second consisted in training the environments for more than two thousands episodes and finally the latter the evaluation of them.
-These experiments demonstrate that the curriculum is able to preserve or slightly improve the performances.
-Finally we applied the mentioned three phases of curriculum learning to the final PS-PPO model obtaining better metrics during the training as visible in the plots in graph~\ref{fig:training_cl}, but experiencing worse results on the evaluation phase as shown in the tables~\ref{tab:evaluation_cl1} and~\ref{tab:evaluation_cl2}.
+The first test conducted on an older version of the PS-PPO algorithm was divided in three phases: the first was the application of the semi-automatic curriculum using the five different environments, obtained with the seeds 19, 80, 130, 200, the second consisted in training the environments for more than two thousands episodes and finally the latter concerned the evaluation of them.
+These experiments demonstrated that the curriculum is able to preserve or slightly improve the performances.
+Finally we applied the mentioned three phases of curriculum learning to the final PS-PPO model (seed 14) obtaining better metrics during the training, as visible in the plots in graph~\ref{fig:training_cl}, but experiencing worse results on the evaluation phase as shown in the tables~\ref{tab:evaluation_cl1} and~\ref{tab:evaluation_cl2}.
 
 \begin{figure}
 	\begin{subfigure}{\linewidth}
@@ -1438,7 +1444,8 @@ To allow multiple backtracks the option \textit{retain\_graph} must be set True.
 It is possible to generate graphical representations of the gradients computations with the function \textit{make\_dot(variable)} of the \href{https://github.com/szagoruyko/pytorchviz}{PyTorchViz} package.
 These representations are acyclic graphs that encode a complete history of the computation called \textbf{Computational graphs}, which are procedurally generated in the forward pass, by calling the method \textit{nn.Module.forward()}.
 Blue boxes are tensors involved in gradient computation such as neural network's weights, biases and inputs, while gray and green boxes both represent recorded operations in which gradients have been involved, the color green is used to underline the starting point, or root of the tree.
-It is possible to prune parts of the computation graph setting Tensor's attribute \textit{requires\_grad} to False, or alternatively in a more temporarily way, enclosing the interested code portions within a \textit{with torch.no\_grad()} block or more permanently detaching tensors from the current graph with the \textit{detach()} method.
+It is possible to prune parts of the computation graph setting Tensor's attribute \textit{requires\_grad} to False, or detaching tensors from the current graph with the \textit{detach()} method.
+Alternatively, it is possible to enclose code portions within a \textit{with torch.no\_grad()} block to temporarily prevent gradients tracking.
 
 \paragraph{What is the difference from PyTorch to TensorFlow/Keras?}\label{par:what-is-the-difference-from-pytorch-to-tensorflow/keras?}
 While TensorFlow provides both a low level and high level API, Keras is mainly an high level API and PyTorch a low level one.

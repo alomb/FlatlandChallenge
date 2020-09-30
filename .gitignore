@@ -12,5 +12,4 @@ __pycache__/
 
 out/
 
-*.pt
 wandb/*
