@@ -36,11 +36,11 @@ Project structure
 Getting started
 --- 
 
-In order to run locally, install the dependencies listed in environment.yml or create a Anaconda virtual environment executing: 
+In order to run locally, install the dependencies listed in environment.yml or create an Anaconda virtual environment executing: 
 
 conda env create -f environment.yml
 
-Training or evaluating the different approaches can be performed running the files src/d3qn/d3qn_main.py, src/psppo/ps_ppo_main.py and curriculum/curriculum_learning.py.
+Training and evaluating the different approaches can be performed running the files src/d3qn/d3qn_main.py, src/psppo/ps_ppo_main.py and curriculum/curriculum_learning.py.
 In PS-PPO and D3QN evaluation is chosen setting evaluation_mode to True.
 
 Team members
