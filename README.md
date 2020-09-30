@@ -33,6 +33,16 @@ Project structure
         │   └── policy.py (the )
         └──  psppo (contains files related with the parameter sharing PPO approach)
 
+Getting started
+--- 
+
+In order to run locally, install the dependencies listed in environment.yml or create a Anaconda virtual environment executing: 
+
+conda env create -f environment.yml
+
+Training or evaluating the different approaches can be performed running the files src/d3qn/d3qn_main.py, src/psppo/ps_ppo_main.py and curriculum/curriculum_learning.py.
+In PS-PPO and D3QN evaluation is chosen setting evaluation_mode to True.
+
 Team members
 ---
 Alessandro Lombardi - University of Bologna - [98.alessandro.lombardi@gmail.com](mailto:98.alessandro.lombardi@gmail.com) - https://github.com/AlessandroLombardi
