@@ -229,8 +229,8 @@ The entry info\_dict["action\_required"] returned by the function \textit{step} 
 This does not mean that the action will be successfully executed due to the presence of malfunctions or blocking agents, in this case info\_dict["action\_required"] will remain True.
 info\_dict["action\_required"] is True when an agent is in "READY\_TO\_DEPART" or is in "ACTIVE" and is close to complete a movement (position fraction is near zero).
 This means that agents that are arrived to their destination and many agents that are in deadlock (by trying to move they increase their position fraction) can be ignored using this single flag.
-	\item Does an agent which has been reached DONE be removed automatically the following step?
-Although in rendering its representation may remain, the agent is removed.
+	\item Is an agent which has reached DONE removed automatically in the following step?
+Although the agent may still be rendered, the agent is removed from the grid.
 It is possible to change this setting modifying the attribute remove\_agents\_at\_target of the class \textbf{RailEnv}.
 	\item Does an agent automatically pass from READY\_TO\_DEPART to ACTIVE at the beginning?
 No. A MOVE\_* is necessary.
@@ -428,28 +428,21 @@ We implemented a \textbf{StatsWrapper} to compute and print the metrics to evalu
 	\begin{equation}{\frac{\sum {deadlocks\_percentage}}{N}}\label{eq:deads_acc}\end{equation}
 \end{itemize}
 
-The \textbf{StatsWrapper} also provides the probability distribution of the actions taken each episode.
-We used \textbf{TensorBoard} which provides the visualization and tools needed for experimentation in order to be able to analyze the evolution of both train and performance metrics.
-It was created to understand and optimize machine learning programs by:
-
-\begin{enumerate}
-\item [1:]Visualizing the graph.
-\item [2:]Writing Summaries to Visualize Learning.
-\end{enumerate}
+The \textbf{StatsWrapper} also computes the probability distribution of the actions taken during each episode.
+We integrated our solution with \textbf{TensorBoard} in order to be able to analyze the evolution of both training data (losses, expected values, memory sizes, exploration rates \ldots) and performance metrics.
 
 In particular our \textbf{TensorBoard} logger shows:
-
 \begin{itemize}
 	\item Specific training metrics for PS-PPO and D3QN\@.
-	\item Information on the reset and step time of the environment and on the learning of neural networks.
+Training data can be set and handled using the methods from the common class \textbf{Policy}.
+	\item Time metrics, related to step and reset the environment and training and updating the neural networks.
 	\item The evolution of the metrics to evaluate the algorithm's performances described above.
 \end{itemize}
 
 \subsection{Evaluation and platforms}\label{subsec:evaluation-and-platforms}
-
 As we did not have at our disposal a powerful and dedicated machine to run our experiments, we faced a lot of difficulties in carrying on experiments, especially in complex environments where the simulation becomes computationally expensive.
-This is not a new situation as reported in~\citep{Hernandez-Leal-2019} in DRL training involves dozens of CPUs and millions of frames during entire days of continuous learning.
-We trained and tested our code mainly on Google Colaboratory, leveraging the possibility to run many concurrent instances and the high number of available threads in CPU runtime type, as we observed that major bottlenecks are in the Flatland code.
+This is not a new situation in DRL, as reported by~\citep{Hernandez-Leal-2019}, training involves dozens of CPUs and millions of frames usually requiring entire days of continuous computations.
+We trained and tested our code mainly on Google Colaboratory, leveraging the possibility to run many concurrent instances and the high number of available threads in CPU runtime type, as we observed that the major bottlenecks are in the Flatland code.
 Due to this reasons we decided to limit the complexity of the experiments especially in terms of number of agent and map size, in particular we considered the following environments:
 \begin{enumerate}
 \item [1.] Medium size:
@@ -485,11 +478,11 @@ With two different scenarios with 1000 iterations for each test session:
 	\end{itemize}
 \end{enumerate}
 
-In order to evaluate different algorithms combinations of hyperparameters and strategies we need a tool to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
+In order to evaluate different algorithms, combinations of hyperparameters and strategies we looked for a tool able to store, track, share and effectively compare different runs without the worry of continuously make notes on external files of our progresses.
 We found such a tool in \href{https://www.wandb.com/}{Weights \& Biases}.
 Subscribing to a free account provides an effective and very intuitive way of monitoring a Deep Learning project.
-Weights \& Biases is used by OpenAI and other leading companies, it supports many platforms and can be integrated rapidly in the project, for instance we managed to connect it to our previous Tensorboard logging and to immediately start testing.
-Additionally to a rich customizable interface to plot graph it also allows to perform hyperparameter tunings, called Sweeps.
+Weights \& Biases is used by OpenAI and other leading companies, it supports many platforms and can be integrated rapidly in the project, for instance we managed to connect it to our previous TensorBoard logging and to immediately start testing.
+Additionally to a rich customizable interface to plot graphs it also provides hyperparameter tuning, called Sweep.
 
 \section{Observations, actions and rewards}\label{sec:observations,-actions-and-rewards}
 
@@ -498,12 +491,11 @@ This section provides some details on how observations and actions have been mod
 \subsection{Observations}\label{subsec:observations}
 
 Flatland environment provides three basic observations to get started: \textbf{Global}, \textbf{Local Grid}, \textbf{Local Tree}.
-Due to the greater scalability we have done the experiments mostly using \textbf{Local Tree} as it depends on some parameters which are independent of the size of the grid and the number of agents.
-For the latter the observation vector is composed of 4 sequential parts, corresponding to data from the up to 4 possible movements in a \textbf{RailEnv}.
-The possible movements are sorted relative to the current orientation of the agent, rather than NESW as for the transitions.
-The order is \textbf{left}, \textbf{forward}, \textbf{right}, \textbf{back}.
-Each branch data is organized as:
+Due to the greater scalability we have performed the experiments mostly using Local Trees as they depends on some parameters which are independent of the size of the grid and the number of agents.
+As the name suggests the Local Tree observation has a tree-like structure.
+The observation vector is composed of 4 sequential parts, corresponding to the data from the possible movements in a RailEnv, sorted relatively to the current orientation of the agent, rather than the classical NESW as used in the transitions.
 
+In particular, each branch data is organized as:
 \begin{lstlisting}[label={lst:tree-obs}]
 	[root node information] +
 	[recursive branch data from 'left'] +
@@ -513,7 +505,6 @@ Each branch data is organized as:
 \end{lstlisting}
 
 Each node information is composed of 9 features:
-
 \begin{enumerate}
 	\item [1:]If own target lies on the explored branch the current distance from the agent in number of cells is stored.
 	\item [2:]If another agent’s target is detected, the distance in number of cells from the current agent position is stored.
@@ -528,7 +519,6 @@ Each node information is composed of 9 features:
 \end{enumerate}
 
 \textbf{TreeObsForRailEnv} depends on three hyperparameters:
-
 \begin{enumerate}
 	\item [1.] \textbf{observation\_tree\_depth} represents the depth of the observation tree.
 	\item [2.] \textbf{observation\_radius} is used in the normalization phase.
@@ -567,7 +557,7 @@ Agents must basically learn two behaviors:
 	\item Avoid collisions with other agents.
 \end{itemize}
 This is not necessarily the order.
-Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision si not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for performance.
+Let's consider an environment with 3 agents, in this case the main behavior is the first because the probability of a collision is not very relevant, but if we consider the same environment with 10 agents the skill to avoid deadlocks is decisive for the overall performance.
 According to the Flatland's rewards system there is not difference between being deadlocked and navigating the map without reaching destination from an agent's point of view in terms of rewards.
 In order to stimulate the learning of the desired behaviors we have tried to modify the Flatland's rewards system, a method that in literature is called \textbf{Reward Shaping}.
 Crafting rewards is not easy because as a consequence we could get the "Cobra Effect":
@@ -577,9 +567,10 @@ Historically, the government tried to incentivize people to assist them in riddi
 If citizens brought in a venomous snake they had killed, the government would give you some money.
 Naturally, people started breeding venomous snakes.
 \end{quoting}
+
 Therefore, sometimes, this method may cause an undesirable effect: stimulating the learning of one behavior can cause the learning of another wrong.
-Anyway  we have implemented a \textbf{RewardsWrapper} to be able to choose flexibly during the train phase whether to use the rewards shaped or the standard Flatland's reward system.
-In the first case it is possible to choose how to shape the rewards by choosing the following parameters:
+Anyway we have implemented a wrapper class called \textbf{RewardsWrapper} to flexibly choose during the training phase whether to use the rewards shaped or the standard Flatland's reward system.
+In the first case it is possible to choose how to shape the rewards by setting the following parameters:
 
 \begin{itemize}
 	\item\textbf{$uniform\_reward$}: It is used to consider a cumulative reward for agents who move at speeds other than 1.
@@ -592,13 +583,13 @@ In the first case it is possible to choose how to shape the rewards by choosing 
 Let's consider for example the set of parameters in~\ref{lst:rewards-params}, suppose an agent moves with unit speed and in a certain instant he chooses an invalid move due to his position which distances him from his target.
 
 \begin{lstlisting}[label={lst:rewards-params}]
-"reward_shaping": True,
-"uniform_reward": False,
-"stop_penalty": -0.0,
-"invalid_action_penalty": -0.2,
-"deadlock_penalty": -3,
-"shortest_path_penalty_coefficient": 1.5,
-"done_bonus": 1.0,
+	"reward_shaping": True,
+	"uniform_reward": False,
+	"stop_penalty": -0.0,
+	"invalid_action_penalty": -0.2,
+	"deadlock_penalty": -3,
+	"shortest_path_penalty_coefficient": 1.5,
+	"done_bonus": 1.0,
 \end{lstlisting}
 
 According to the description given above, the reward will be calculated as follows:
@@ -616,7 +607,7 @@ At the end the reward obtained is normalized, considering for simplicity,  \text
 In particular:
 
 \begin{itemize}
-	\item If $reward\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainible is -1 considering deadlock as the worst case).
+	\item If $reward\_shaped$ is less than 0 then it is divided by the absolute value $deadlock\_penalty$ (In this way the worse reward obtainable is -1 considering deadlock as the worst case).
 	\item If $reward\_shaped$ is greater than 1 then it is placed at 1 
 \end{itemize}
 
@@ -625,7 +616,7 @@ In this way we are sure that $reward\_shaped \in [-1, 1]$.
 \section{PS-PPO}\label{sec:ps-ppo}
 
 The algorithm is inspired by the work~\citep{ps-ppo-paper} which extends three classes of single-agent Deep Reinforcement Learning (DQN, DDPG and TRPO) to cooperative multi-agent systems.
-In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol based on parameters sharing.
+In their work they explore the task of learning cooperative tasks in partially observable environments using an implicit communication protocol, based on parameters sharing.
 To allow agent's specialization the observations of the agents are extended with their unique ids.
 By inserting the agent's id, the network has the capability to distinguish the agent from the others and influence its behaviour, if we imagine a team of cooperative robots performing a specific task, this can improve the coordination between them as everyone specialize on a different role.
 They illustrate that centralized approaches, based on mapping the joint observation of all the agents to a joint action, suffer from the exponential growth in the observation and actions spaces with the number of agents, while concurrent and independent techniques suffer from the non-stationarity of the multi-agents environments and the lack of communication.
@@ -647,17 +638,17 @@ PPO was conceived to improve the policy-based techniques by introducing an algor
 To attain this PPO relies on clipped probability ratios, which form a pessimistic estimate of the performance of the policy.
 Returning to the multi-agent setting, due to the high flexibility of the Flatland environment, we decided to change also the agent personalization.
 \begin{figure}
-	\[ L(s, a, \theta_{k}, \theta) = \min\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}A^{\pi_{\theta_{k}}}(s, a), clip\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}, 1 - \epsilon, 1 + \epsilon\right)A^{\pi_{\theta_{k}}}(s, a)\right)\]
+	\[ L(s, a, \theta_{k}, \theta) = -\min\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}A^{\pi_{\theta_{k}}}(s, a), clip\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}, 1 - \epsilon, 1 + \epsilon\right)A^{\pi_{\theta_{k}}}(s, a)\right)\]
 	\caption{The objective function of the PPO algorithm. If the advantage $A^{\pi_{\theta_{k}}}(s, a)$ measured on the new policy is positive, the objective will increase proportionally to the intensity of the ratio between the old and new policy, bound to be less or equal than $1 + \epsilon$. Similarly with a negative advantage the value is bound to be at least $1 - \epsilon$.}\label{fig:ppo_objective}
 \end{figure}
-Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate, which are only specific of a certain generated environment, we formulated a function to transform agent's features to id.
-During an execution, agents with the same speed have the same id, so are seen uniformly as we see them, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour based on speed profiles and malfunction stochasticity.
+Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate which are only specific of a certain generated environment, we formulated a function to transform agent's features to ids.
+During an execution, agents with the same speed have the same id, so are seen uniformly as we see them from the rendering engine, hopefully this strategy may leverage the network to recollect what it has learnt and provide a correct specific behaviour based on speed profiles and malfunction stochasticity.
 
 \subsection{Implementation}\label{subsec:implementation}
 
 This part does not describe some implementation details to exclusively show our work but also to underline some important aspects from the practical point of view which have been pointed out by the literature~\citep{ppo-implementation-1}~\citep{ppo-implementation-2} to be crucial for the overall algorithm performance.
 In particular they found significantly beneficial to initialize the policy network so that the action distribution has zero mean, a low standard deviation and is independent from the observation.
-Our studies follow the path of these helpful outcomes taking into account that our action and observation spaces are discrete and not continuous and that our environment is multi-agent.
+Our studies follow the path of these helpful outcomes, taking into account that our action and observation spaces are discrete and not continuous and that our environment is multi-agent.
 The majority of the following details are not even mentioned in the original PPO paper but have been discovered directly implemented in the OpenAI Baselines~\citep{ppo-baselines} as mentioned in the article~\citep{ppo-32-implementations-details}.
 
 \subsubsection{Network architecture}\label{subsubsec:network-architecture}
@@ -679,10 +670,10 @@ The network can be used in two ways:
 \begin{itemize}
 	\item When the old policy is used to collect transitions, every time the hidden state (short-term memory) and the cell state (long-term memory) obtained in the previous step is feed (as a tuple) to the LSTM cell in the current step to obtain new outputs and hidden values.
 Hidden states and cell states are stored in the memory to allow this operation.
-	\item When the trajectory is used to update the policy sequences of transitions are directly passed to the network and except from the first hidden state and cell state, the others produced at each call are managed the PyTorch library.
+	\item When the trajectory is used to update the policy sequences of transitions are directly passed to the network and except from the first hidden state and cell state, the others produced at each call are managed by the PyTorch library.
 \end{itemize}
 Therefore, the input of the LSTM is a 3D tensor containing in its first dimension the sequences (the temporal feature), in the second, the batches and in the last the features.
-As we externally divide the trajectory in batches we do not use the batch dimension but in the first case we pass a single transition while in the second the entire batch.
+As we externally divide the trajectory in batches we do not use the batch dimension but in the first case we pass a single transition, while in the second the entire batch.
 Rather than assigning for each batch the initial hidden values to zero the values stored in the memory are used.
 The output tensor contains for each element of the sequence the value obtained from the output gate and the last hidden values.
 The LSTM is used in a many-to-one style as all the sequence outputs are sequentially combined together to obtain a final output.
@@ -695,10 +686,10 @@ The key recipe appears is to initialize the policy at the beginning of training 
 This can be achieved by initializing the policy MLP with smaller weights in the last layer so that the initial action distribution is almost independent of the observation and by introducing an offset in the standard deviation of actions.
 \end{quoting}
 
-From the quote is possible to observe the importance of network weights initialization especially in the last layer of the policy network.
+From the quote is possible to observe the importance of network weights initialization, especially in the last layer of the policy network.
 It is important to specify that in their case the action distributions (Gaussians) are continuous and are centered on 0 because action spaces are normalized between -1 and 1.
-On the other hand, Flatland's action space is discrete and we modelled it with a Categorical Distribution, a generalization of a Bernoulli distribution for a categorical random variable.
-By rescaling the last policy layer's weights of the policy network with $100\times$ smaller values the action distribution is more balanced between all possible actions for the first iterations, leading to better initial stability and improving exploration.
+On the other hand, Flatland's action space is discrete and we decided to model it with a Categorical Distribution, a generalization of a Bernoulli distribution for a categorical random variable.
+By rescaling the last policy layer's weights of the policy network with $100\times$ smaller values, the action distribution is more balanced between all possible actions for the first iterations, leading to better initial stability and improving exploration.
 
 \begin{lstlisting}[label={lst:psppo-net-init}]
 def weights_init(m):
@@ -716,10 +707,10 @@ with torch.no_grad():
 \end{lstlisting}
 
 Neural networks are trained using an Adam optimizer.
-References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum but we did not cover them.
+References explore more alternatives and approaches involving the optimizer and its hyperparameters as learning rate decay and momentum, but we did not cover all of them.
 As PPO computes the divergence between the new and the old policies, experiences are collected using the old policy while advantages are computed from the new policy, two neural networks are used, in particular two \textit{torch.nn.Module} are declared.
 The old one is not updated with gradient descents, it simply copies the weights of the new policy after each the training session termination.
-This should suggests that the difference between the two policies tends to increase augmenting the training session duration but should be controlled by the trust region.
+This should suggests that the difference between the two policies tends to increase augmenting the training session duration, but should be controlled by the trust region.
 
 \subsubsection{Training setup}\label{subsubsec:training-setup}
 
@@ -734,6 +725,7 @@ Originally, rewards and information about the termination of the problem of each
 During this modifications we accidentally discovered an alternative interpretation of agent's trajectory which does not include the episode ending as a terminal condition but only the reaching of a destination, also across different episodes.
 Apparently this seems an incorrect application, as at the beginning of a new episode the agent resets its position and starts a new path which is not related to the previous one.
 As a consequence, terminal states influence especially the advantage computation and longer trajectories may lead to consider with less importance the estimations of the value of latter parts of the trajectory due to the presence of the discount factor.
+The~\ref{subsec:testing} describes the consequences on the performance caused by these changes.
 \\
 \\
 Trajectories' lengths particularly depend on the chosen horizon, deciding how much experience should an agent collect before updating the policy is crucial.
@@ -748,9 +740,10 @@ The classical approach is to repeat for a certain number of epochs the training 
 But this approach usually leads to another typical problem of policy gradient methods: if chunks of experiences are small and are temporally ordered, learning uses similar samples of data causing instability as may occur large updates with gradients pointing to the same direction.
 To avoid this problem data can be shuffled in different ways.
 Trajectories can be shuffled to change the order in which mini-batches are used in each epoch or transitions can be shuffled precomputing the advantages at the beginning of the iteration (OpenAI Baseline's style) or recomputing them at the beginning of each epoch.
-We decided to follow the OpenAI Baseline's implementation, leading to higher diversity of data in each mini-batch but a less updated advantage, but to leave also the option to avoid any type of shuffling, observing better performance in the first case.
-For each agent the learning phase is repeated in each epoch using batches of length according to the size of batches set as an hyperparameter.
-Increasing batch size should increase the speed of learning while adjusting the horizon has a great impact on the final result.
+We decided to follow the OpenAI Baseline's implementation, observing better performance, as it leads to higher diversity data in each mini-batch even without updating the advantages.
+We left also the opportunity to disable any type of shuffling from the the hyperparameters initialization.
+For each agent, the learning phase is repeated in each epoch, using batches of length according to the size of batches set as an hyperparameter.
+Increasing batch size should increase the speed of learning, while adjusting the horizon has a great impact on the final result.
 
 \subsubsection{Normalization and clipping}
 
@@ -933,7 +926,7 @@ environment_parameters = {
 The basic idea is that deadlocks are more catastrophic in terms of performances, as the number of agents increases given their irreversible nature.
 They not only prevent the agents involved from being unable to move, but also block passages that can be used by other agents to reach the destination.
 We have also observed cases where the deadlocks of one part of the agents completely prevented the others from reaching their destination.
-So with this parameter configuration for Reward Shaping, we wanted to penalize more deadlocks than \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$} which are mainly related to reaching the destination in the least number of steps.
+So with this parameter configuration for Reward Shaping, our desire is to penalize more deadlocks than \textbf{$stop\_penalty$}, \textbf{$shortest\_path\_penalty\_coefficient$} and \textbf{$done\_bonus$}, which are mainly related to reaching the destination in the least number of steps.
 The plots in figure~\ref{fig:psppo_training_rs}, clearly show that \textbf{Reward Shaping} has a positive impact on the performance.
 Apparently the only metrics where disabling the \textbf{Reward Shaping} seems to perform better are those concerning deadlocks.
 However we have noticed that this effect is due to the learning of a polarized policy on the STOP\_MOVING: when an agent is stationary most of the time it is less likely to go into a deadlock and this is also the reason for decreasing trend of the other metrics.
@@ -966,7 +959,8 @@ training_parameters = {
         "hidden_size": 64,
 }
 \end{lstlisting}
-Another variant tested arises from a different interpretation of the trajectory of each agent: considering the tuples $(s, a, r, s')$ as belonging to a single episode, if the agent does not reach its destination, in the computation of \textbf{GAE} as it was mentioned in ~\ref{subsubsec:training-setup2}.
+Another variant tested arises from a different interpretation of the trajectory of each agent, which considers the tuples $(s, a, r, s')$ as part of a single episode until the agent does not reach its destination.
+This highly influences the advantage estimation and was mentioned in~\ref{subsubsec:training-setup2}.
 This approach does not seem really correct but brings an improvement in performance as shown in the graphs where:
 \begin{itemize}
 	\item "end-traj-norecurrent" is the best of the test described above.
@@ -974,7 +968,7 @@ This approach does not seem really correct but brings an improvement in performa
 	\item "noendtraj-recurrent" is the test with \textbf{LSTM} with the different interpretation of the trajectory.
 	\item "noendtraj-recurrent-newloop" is a test we ran later based on the same hyperparameters of "noendtraj-recurrent" as the name suggests with a change in the loop.
 	For each step of the environment, Flatland provided various information on the status of each agent including "action\_required".
-	In the Flatland Baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, then this happens, the memory is also updated with the observation that produced the action).
+	In the Flatland Baselines this information is used to select the steps in which the action of an agent must be calculated by the neural network (and in our implementation, follows that the memory is updated with the observation that produced the action).
 	We realized that using only this information has limitations: for some deadlocks situations "action\_required" is false while for others it is not, therefore from a trajectory construction point of view, this logic implies the presence of more serious deadlocks (whose observations must be added in memory until the end of the episode) and deadlocks less severe (whose observation is added only once in memory).
 	Therefore the change, at the base of this experiment, consists in imposing that the actions are calculated by the neural network (and the relative observations added in memory), if the agent is not deadlocked (with "action\_required" true) or if it has entered deadlock in the last step.
 	This logic has two advantages:
@@ -1005,9 +999,9 @@ It is possible to observe in the figure~\ref{fig:psppo_training_rec_loop} that t
 ~\newline
 \href{https://wandb.ai/fiorenzoparascandolo/flatland-challenge-final}{Project page}.\\
 
-We have performed other experiments in order to investigate and find the best learning rate for the final training and also to show the importance of \textbf{Action Masking} described in ~\ref{subsec:actions}, which we used in the tests described above, but we had not yet provided any evidence on its positive impact for performance. 
+We have performed other experiments in order to investigate the best learning rate for the final training and also to show the importance of \textbf{Action Masking} described in ~\ref{subsec:actions}, which has been activated the tests described above without explicitly providing any evidence of its positive impact in the performance.
 The result shown in the graphs~\ref{fig:psppo_training_lr_am} were obtained using the environment parameters described above, without malfunctions and different speeds for the agents.
-Even the hyperparameters for training are the same as before, varying the learning rate and \textbf{Action Masking} as the names suggest.
+Even the hyperparameters for training are the same as before, varying only the learning rate and the \textbf{Action Masking} flag as the names suggest.
 \begin{figure}
 	\begin{subfigure}{\linewidth}
 		\includegraphics[width=0.33\linewidth]{resources/charts_psppo_3/score}\hfill
@@ -1054,7 +1048,7 @@ Double DQN have been recently proposed in multi-agent context in the algorithm \
 Our D3QN uses also different experience replay strategies as described in~\ref{subsubsec:experience-replay}.
 The mentioned improvements have been proposed in a single-agent scenario, but as already discussed in chapter~\ref{ch:multi-agent-reinforcement-learning} many adaptations to classical RL algorithms have been proposed for multi-agent setting.
 The following part will continue describing a soft adaptation to multi-agent scenario inspired by the~\href{https://gitlab.aicrowd.com/flatland/flatland-examples}{Flatland's baselines} which relies mostly on the classical single-agent implementation while~\ref{subsubsec:fingerprints} describes more specific tricks.
-We consider the former strategy an "analysis of emergent behaviors" study, as the adaptations to multi-agent setting are minimal and there are low theoretical guarantees even if performances show empirical good results.
+We consider the former strategy an "analysis of emergent behaviors" study, as the adaptations to multi-agent setting are minimal and there are low theoretical guarantees, even if performances show empirical good results.
 
 \subsection{Implementation}\label{subsec:implementation2}
 
@@ -1210,13 +1204,13 @@ The "type 1" variant described in~\ref{subsubsec:training-setup2} definitely per
 ~\newline
 \href{https://app.wandb.ai/lomb/flatland-challenge-d3qn-er}{Project page}.\\
 
-After a preliminary grid search we performed a series of training tests to evaluate specific implementation details such as the type of experience replay, the usage of fingerprints and sharing networks.
+After a preliminary grid search, we performed a series of training tests to evaluate specific implementation details such as the type of experience replay, the usage of fingerprints and sharing networks.
 We performed these tests using a set of environments generated with the seeds 14, 50, 80, 130, 200 to obtain a less biased result.
-Apparently adding the fingerprints as described in the papers significantly worsen the performances, while using Prioritized Experience Replay slightly improves the run without fingerprints but remarkably improve the metrics of those with fingerprints.
+Apparently, adding the fingerprints as described in the papers significantly worsen the performances, while using Prioritized Experience Replay slightly improves the run without fingerprints but remarkably improve the metrics of those with fingerprints.
 As other fingerprints strategies containing the step continued to perform badly we concluded that feeding a neural network with an input always different as the global timestep, which can be seen as an identifier, can only damage the performance.
 On the other hand, using values which change slowly as $\epsilon$ and the episode is better.
 After some tests we noticed that the "$\epsilon$ and episode" fingerprint performs better than the others.
-In particular we can observe different positive trends:
+In particular, we observed different positive trends:
 \begin{itemize}
 	\item Without fingerprints, the best outcomes are obtained with shared smaller networks (2 $\times$ 128) and batches (32).
 In this setting UER slightly overcome PER\@.
