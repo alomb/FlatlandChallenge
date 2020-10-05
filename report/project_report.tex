@@ -638,7 +638,7 @@ PPO was conceived to improve the policy-based techniques by introducing an algor
 To attain this PPO relies on clipped probability ratios, which form a pessimistic estimate of the performance of the policy.
 Returning to the multi-agent setting, due to the high flexibility of the Flatland environment, we decided to change also the agent personalization.
 \begin{figure}
-	\[ L(s, a, \theta_{k}, \theta) = -\min\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}A^{\pi_{\theta_{k}}}(s, a), clip\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}, 1 - \epsilon, 1 + \epsilon\right)A^{\pi_{\theta_{k}}}(s, a)\right)\]
+	\[ L(s, a, \theta_{k}, \theta) = \min\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}A^{\pi_{\theta_{k}}}(s, a), clip\left(\frac{\pi_{\theta}(a|s)}{\pi_{\theta_{k}}(a|s)}, 1 - \epsilon, 1 + \epsilon\right)A^{\pi_{\theta_{k}}}(s, a)\right)\]
 	\caption{The objective function of the PPO algorithm. If the advantage $A^{\pi_{\theta_{k}}}(s, a)$ measured on the new policy is positive, the objective will increase proportionally to the intensity of the ratio between the old and new policy, bound to be less or equal than $1 + \epsilon$. Similarly with a negative advantage the value is bound to be at least $1 - \epsilon$.}\label{fig:ppo_objective}
 \end{figure}
 Instead of inserting the agent's id, which might mislead the network to associate an id to a specific set of agent's features such as speed and malfunction rate which are only specific of a certain generated environment, we formulated a function to transform agent's features to ids.
